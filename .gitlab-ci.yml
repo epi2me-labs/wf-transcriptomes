@@ -1,0 +1,58 @@
+
+stages:
+    - build_and_run
+    - release
+
+image: ${IMAGE}
+variables:
+    BASEIMAGE: ${CI_REGISTRY}/${CURRENT_TEMPLATE_IMAGE}
+
+build-image:
+    stage: build_and_run
+    variables:
+    before_script:
+        - apk add wget openjdk11 bash
+        - wget -qO- https://get.nextflow.io | bash
+    script:
+        - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
+        - TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        - docker build --no-cache -t "${TAG}" -f Dockerfile . --build-arg BASEIMAGE=${BASEIMAGE}
+        # run letting nextflow orchestrate the containers
+        - docker tag "${TAG}" "${CI_PROJECT_NAME}:latest"
+        - OUTPUT="template-workflow"
+        - ./nextflow run workflow.nf
+              -w ${OUTPUT}/workspace
+              -profile standard
+              --reads test_data/reads.fq.gz 
+              --out_dir ${OUTPUT}
+        # push
+        - if [[ ${CI_COMMIT_BRANCH} == 'dev' ]]; then
+              SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA};
+              echo "Pushing ${SHATAG}";
+              docker tag ${TAG} ${SHATAG};
+              docker push ${SHATAG};
+          fi;
+    only:
+        - branches
+    artifacts:
+        paths:
+            # Add the output directory for the test
+            - "template-workflow"
+        expire_in: 1 day
+
+
+# Retag the image for git tags (releases)
+release:
+    stage: release
+    script:
+        - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
+        - SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        - RELTAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}
+        - echo "Pulling ${SHATAG}"
+        - docker pull ${SHATAG} 
+        - echo "Pushing ${TAG}"
+        - docker tag ${SHATAG} ${RELTAG}
+        - docker push ${RELTAG}
+    only:
+        - tags
+
