@@ -7,12 +7,36 @@ image: ${IMAGE}
 variables:
     BASEIMAGE: ${CI_REGISTRY}/${CURRENT_TEMPLATE_IMAGE}
 
+.install-nextflow: &install-nextflow |
+    wget -qO- https://get.nextflow.io | bash
+
+.install-conda: &install-conda |
+    wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    bash Miniconda3-latest-Linux-x86_64.sh -b -p ./miniconda
+    source ./miniconda/bin/activate
+    conda init
+    
+
+conda-run:
+    image: ubuntu:20.04
+    stage: build_and_run
+    before_script:
+        - apt update && apt install -y wget default-jre
+        - *install-nextflow
+        - *install-conda
+    script:
+        - ./nextflow run workflow.nf
+              -w ${OUTPUT}/workspace
+              -profile conda
+              --reads test_data/reads.fq.gz 
+              --out_dir ${OUTPUT}
+
+
 build-image:
     stage: build_and_run
-    variables:
     before_script:
         - apk add wget openjdk11 bash
-        - wget -qO- https://get.nextflow.io | bash
+        - *install-nextflow
     script:
         - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
         - TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
