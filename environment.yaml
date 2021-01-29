@@ -1,0 +1,7 @@
+name: epi2melabs-nf-template-workflow
+channels:
+    - bioconda
+    - conda-forge
+    - defaults
+dependencies:
+    - pysam
