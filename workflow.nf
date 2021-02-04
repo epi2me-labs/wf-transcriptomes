@@ -32,7 +32,7 @@ if(params.help) {
 
 process readSeqs {
     // Just write a file with sequence lengths
-    label "default"
+    label "pysam"
     input:
         file reads
     output:
