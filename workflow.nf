@@ -32,7 +32,7 @@ if(params.help) {
 
 process readSeqs {
     // Just write a file with sequence lengths
-    label "containerCPU"
+    label "default"
     input:
         file reads
     output:
