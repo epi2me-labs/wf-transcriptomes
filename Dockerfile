@@ -1,4 +1,4 @@
-ARG BASEIMAGE=epi2melabs/base-workflow-image:latest
+ARG BASEIMAGE=ontresearch/base-workflow-image:v0.1.0
 FROM $BASEIMAGE
 
 # Minimal install for example purposes
