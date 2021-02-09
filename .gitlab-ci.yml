@@ -42,7 +42,7 @@ build-image:
         - TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
         - docker build --no-cache -t "${TAG}" -f Dockerfile . --build-arg BASEIMAGE=${BASEIMAGE}
         # run letting nextflow orchestrate the containers
-        - docker tag "${TAG}" "${CI_PROJECT_NAME}:latest"
+        - docker tag "${TAG}" "${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:latest"
         - OUTPUT="template-workflow"
         - ./nextflow run workflow.nf
               -w ${OUTPUT}/workspace
@@ -65,18 +65,36 @@ build-image:
         expire_in: 1 day
 
 
+###
 # Retag the image for git tags (releases)
-release:
-    stage: release
-    script:
+
+.pull_tag: &pull_tag
+    before_script:
         - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
         - SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
-        - RELTAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}
         - echo "Pulling ${SHATAG}"
-        - docker pull ${SHATAG} 
-        - echo "Pushing ${TAG}"
-        - docker tag ${SHATAG} ${RELTAG}
-        - docker push ${RELTAG}
+        - docker pull ${SHATAG}
     only:
         - tags
 
+# To ONT registry
+release-int:
+    stage: release
+    <<: *pull_tag
+    script:
+        - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
+        - RELTAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}
+        - echo "Pushing ${TAG}"
+        - docker tag ${SHATAG} ${RELTAG}
+        - docker push ${RELTAG}
+
+# To dockerhub
+release-hub:
+    stage: release
+    <<: *pull_tag
+    script:
+        - echo ${DOCKERHUB_TOKEN} | docker login --username epi2melabs --password-stdin
+        - RELTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}"
+        - echo "Pushing ${RELTAG}"
+        - docker tag ${SHATAG} ${RELTAG}
+        - docker push ${RELTAG}
