@@ -102,6 +102,7 @@ release-hub:
 # Send all tags matching vX.Y.Z to github (code and release)
 push-github:
     stage: release
+    image: $GH_PUSH_IMAGE
     before_script:
         - apt-get update -qq && apt-get install -y -qq
           git python3-all-dev git-lfs python3-venv
