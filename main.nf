@@ -12,21 +12,18 @@
 
 nextflow.enable.dsl = 2
 
-params.help = ""
 
-if(params.help) {
-    log.info ''
-    log.info 'Workflow template'
-    log.info ''
-    log.info 'Usage: '
-    log.info '    nextflow run workflow.nf [options]'
-    log.info ''
-    log.info 'Script Options: '
-    log.info '    --fastq        FILE    Path to FASTQ file'
-    log.info '    --out_dir      DIR     Path for output'
-    log.info ''
+def helpMessage(){
+    log.info """
+Workflow template'
 
-    return
+Usage:
+    nextflow run epi2melabs/workflow-template [options]
+
+Script Options:
+    --fastq        FILE    Path to FASTQ file (required)
+    --out_dir      DIR     Path for output (default: $params.out_dir)
+"""
 }
 
 
@@ -39,11 +36,8 @@ process readSeqs {
         file "seqs.txt"
 
     """
-    #!/usr/bin/env python
-    import pysam
-    with open("seqs.txt", 'w') as fh:
-        for rec in pysam.FastxFile("$reads"):
-            fh.write("{}\\t{}\\n".format(rec.name, len(rec.sequence)))
+    read_lengths.py $reads seqs.txt
+    sleep 60
     """
 }
 
@@ -78,7 +72,21 @@ workflow pipeline {
 
 // entrypoint workflow
 workflow {
-    reads = channel.fromPath(params.reads, checkIfExists:true)
+
+    if (params.help) {
+        helpMessage()
+        exit 1
+    }
+
+    if (!params.fastq) {
+        helpMessage()
+        println("")
+        println("`--fastq` is required")
+        exit 1
+    }
+
+
+    reads = channel.fromPath(params.fastq, checkIfExists:true)
     results = pipeline(reads)
     output(results)
 }
