@@ -24,11 +24,14 @@ conda-run:
         - *install-nextflow
         - *install-conda
     script:
-        - ./nextflow run workflow.nf
+        - OUTPUT=${CI_PROJECT_NAME}
+        - ./nextflow run main.nf
               -w ${OUTPUT}/workspace
               -profile conda
-              --reads test_data/reads.fq.gz 
+              --fastq test_data/reads.fq.gz 
               --out_dir ${OUTPUT}
+    only:
+        - branches
 
 
 build-image:
@@ -42,11 +45,12 @@ build-image:
         - docker build --no-cache -t "${TAG}" -f Dockerfile . --build-arg BASEIMAGE=${BASEIMAGE}
         # run letting nextflow orchestrate the containers
         - docker tag "${TAG}" "${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:latest"
-        - OUTPUT="template-workflow"
-        - ./nextflow run workflow.nf
+        - OUTPUT=${CI_PROJECT_NAME}
+        - ./nextflow run main.nf
               -w ${OUTPUT}/workspace
               -profile standard
-              --reads test_data/reads.fq.gz 
+              --wfversion latest
+              --fastq test_data/reads.fq.gz 
               --out_dir ${OUTPUT}
         # push
         - if [[ ${CI_COMMIT_BRANCH} == 'dev' ]]; then
@@ -60,7 +64,7 @@ build-image:
     artifacts:
         paths:
             # Add the output directory for the test
-            - "template-workflow"
+            - ${CI_PROJECT_NAME}
         expire_in: 1 day
 
 
@@ -94,9 +98,12 @@ release-hub:
     script:
         - echo ${DOCKERHUB_TOKEN} | docker login --username epi2melabs --password-stdin
         - RELTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}"
+        - LATEST="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:latest"
         - echo "Pushing ${RELTAG}"
         - docker tag ${SHATAG} ${RELTAG}
         - docker push ${RELTAG}
+        - docker tag ${SHATAG} ${LATEST}
+        - docker push ${LATEST}
 
 
 # Send all tags matching vX.Y.Z to github (code and release)
@@ -107,10 +114,10 @@ push-github:
         - apt-get update -qq && apt-get install -y -qq
           git python3-all-dev git-lfs python3-venv
         - mkdir ~/.ssh/
-        - cp $RESEARCH_BOT_GH_KEY ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+        - cp $LABS_BOT_GH_KEY ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
         - echo -e "Host github.com\n\tStrictHostKeyChecking no\n\tHostname ssh.github.com\n\tPort 443\n\n" > ~/.ssh/config
-        - git config --global user.email "research.git@nanoporetech.com"
-        - git config --global user.name "ontresearch"
+        - git config --global user.email "epi2melabs@nanoporetech.com"
+        - git config --global user.name "epi2melabs-bot"
     script:
         # Push master and tag to github
         - git remote add ont ${CI_REPOSITORY_URL} || true
@@ -127,7 +134,7 @@ push-github:
         - source release_env/bin/activate
         - pip install pip --upgrade
         - pip install git+https://github.com/epi2me-labs/github_release.git
-        - github_release ${CI_PROJECT_NAME} ${CI_COMMIT_TAG} CHANGELOG.md ${RESEARCH_BOT_GH_TOKEN}
+        - github_release ${CI_PROJECT_NAME} ${CI_COMMIT_TAG} CHANGELOG.md ${LABS_BOT_GH_TOKEN}
     only:
         - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/
     except:
