@@ -18,10 +18,10 @@ def helpMessage(){
 Workflow template'
 
 Usage:
-    nextflow run epi2melabs/workflow-template [options]
+    nextflow run epi2melabs/wf-template [options]
 
 Script Options:
-    --fastq        FILE    Path to FASTQ file (required)
+    --fastq        DIR     Path to directory containing FASTQ files (required)
     --out_dir      DIR     Path for output (default: $params.out_dir)
 """
 }
@@ -37,10 +37,20 @@ process readSeqs {
 
     """
     read_lengths.py $reads seqs.txt
-    sleep 60
     """
 }
 
+
+process makeReport {
+    label "pysam"
+    input:
+        file "seqs.txt"
+    output:
+        file "report.html"
+    """
+    report.py report.html seqs.txt
+    """
+}
 
 
 // See https://github.com/nextflow-io/nextflow/issues/1636
@@ -65,9 +75,10 @@ workflow pipeline {
     take:
         reads
     main:
-        seqs = readSeqs(reads)
+        summary = readSeqs(reads)
+        report = makeReport(summary)
     emit:
-        seqs
+        summary.concat(report)
 }
 
 // entrypoint workflow
@@ -86,7 +97,12 @@ workflow {
     }
 
 
-    reads = channel.fromPath(params.fastq, checkIfExists:true)
-    results = pipeline(reads)
-    output(results)
+    reads = file("$params.fastq/*.fastq*", type: 'file', maxdepth: 1)
+    if (reads) {
+        reads = Channel.fromPath(params.fastq, type: 'dir', maxDepth: 1)
+        results = pipeline(reads)
+        output(results)
+    } else {
+        println("No .fastq(.gz) files found under `${params.fastq}`.")
+    }
 }
