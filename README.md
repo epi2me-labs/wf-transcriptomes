@@ -9,12 +9,14 @@ alternative software isolation method to Docker.
 ### Building the container
 
 > This step is not necessary if you intend to run the workflow using
-> conda environments.
+> conda environments, or are not interesting in developing of modifying
+> the workflow. The current release version of the container is located
+> on dockerhub with the tag ontresearch/wf-template.
 
 The Docker container image can be built with the following command:
 
 ```bash
-CONTAINER_TAG=ontresearch/template-workflow
+CONTAINER_TAG=ontresearch/wf-template
 docker build \
     -t ${CONTAINER_TAG} -f Dockerfile \
     --build-arg BASEIMAGE=ontresearch/base-workflow-image:v0.1.0 \
@@ -34,15 +36,15 @@ To run the workflow using Docker containers supply the `-profile standard`
 argument to `nextflow run`:
 
 ```
-OUTPUT=template-workflow
-nextflow run workflow.nf \
+OUTPUT=workflow-output
+nextflow run main.nf \
     -w ${OUTPUT}/workspace \
     -profile standard \
     --reads test_data/reads.fq.gz \
     --out_dir ${OUTPUT}
 ```
 
-The output of the pipeline will be found in `./template-workflow` for the above
+The output of the pipeline will be found in `./workflow-output` for the above
 example. This directory contains the nextflow working directories alongside
 the two primary outputs of the pipeline.
 
@@ -53,8 +55,8 @@ To run the workflow backed by conda environments, simply provide the
 
 ```
 # run the pipeline with the test data
-OUTPUT=template-workflow
-nextflow run workflow.nf \
+OUTPUT=workflow-output
+nextflow run main.nf \
     -w ${OUTPUT}/workspace \
     -profile conda \
     --reads test_data/reads.fq.gz \
