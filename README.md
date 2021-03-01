@@ -40,7 +40,7 @@ OUTPUT=workflow-output
 nextflow run main.nf \
     -w ${OUTPUT}/workspace \
     -profile standard \
-    --reads test_data/reads.fq.gz \
+    --fastq test_data/reads.fq.gz \
     --out_dir ${OUTPUT}
 ```
 
@@ -59,7 +59,7 @@ OUTPUT=workflow-output
 nextflow run main.nf \
     -w ${OUTPUT}/workspace \
     -profile conda \
-    --reads test_data/reads.fq.gz \
+    --fastq test_data/reads.fq.gz \
     --out_dir ${OUTPUT}
 ```
 
