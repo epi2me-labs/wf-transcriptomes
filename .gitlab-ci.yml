@@ -124,7 +124,7 @@ push-github:
         - git remote add github git@github.com:epi2me-labs/${CI_PROJECT_NAME}.git || true
         - git fetch ont dev --tags
         - git fetch ont master
-        - git fetch github master
+        - git fetch github master || echo "No 'master' branch present on github"
         - git checkout --track github/master || git checkout master
         - git merge ${CI_COMMIT_TAG}
         - git push github master
