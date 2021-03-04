@@ -1,4 +1,4 @@
-#!/usr/bin/env extflow
+#!/usr/bin/env nextflow
 
 // Developer notes
 // 
