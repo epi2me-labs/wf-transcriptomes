@@ -23,7 +23,7 @@ variables:
 .check-versions: &check-versions |
     WFVER=$(grep "wfversion = " nextflow.config | awk '{gsub("\"","",$3); print $3}')
     TAGVER=${CI_COMMIT_TAG}
-    if [[ "${PYVER}" != "${WFVER}" ]]; then
+    if [[ "${TAGVER}" != "${WFVER}" ]]; then
         echo "Mismatching TAG and WORKFLOW versions:"
         echo " - TAG:$TAGVER"
         echo " -  WF:$WFVER"
