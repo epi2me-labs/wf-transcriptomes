@@ -17,6 +17,18 @@ variables:
     source ./miniconda/bin/activate
     conda init
 
+
+# insist that the wfversion in nextflow.config matches the git tag
+.check-versions: &check-versions |
+    WFVER=$(grep "wfversion = " nextflow.config | awk '{gsub("\"","",$3); print $3}')
+    TAGVER=${CI_COMMIT_TAG}
+    if [[ "${PYVER}" != "${WFVER}" ]] then;
+        echo "Mismatching TAG and WORKFLOW versions";
+        exit 1;
+    else;
+        echo "TAG and WORKFLOW versions agree: ${WFVER}";
+    fi
+
 # Insist a CHANGELOG entry has been made for tags
 .check-changelog: &check-changelog |
     TAGVER=${CI_COMMIT_TAG}
@@ -30,8 +42,7 @@ variables:
 
 # setup image for pushing to github
 .setup-gh-push: &setup-gh-push |
-    apt-get update -qq && apt-get install -y -qq
-    git python3-all-dev git-lfs python3-venv
+    apt-get update -qq && apt-get install -y -qq git python3-all-dev git-lfs python3-venv
     mkdir ~/.ssh/
     cp $LABS_BOT_GH_KEY ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
     echo -e "Host github.com\n\tStrictHostKeyChecking no\n\tHostname ssh.github.com\n\tPort 443\n\n" > ~/.ssh/config
@@ -109,35 +120,38 @@ release-dev:
         - git remote add ont ${CI_REPOSITORY_URL} || true
         - git remote add github git@github.com:epi2me-labs/${CI_PROJECT_NAME}.git || true
         - git fetch ont dev
-        - git fetch github prerelease || echo "No 'prerelease' branch present on github"
-        - git checkout --track github/prerelease || git checkout prerelease
-        - git merge ont/dev
+        - git checkout ont/dev
+        - git branch -D prerelease || echo "branch 'prerelease' not present"
+        - git checkout -b prerelease
         # Edit nextflow config to set wfversion
-        - grep 'wfversion = ".*"' nextflow.config || echo "Failed to replace wfversion" && exit 1
+        - grep 'wfversion = ".*"' nextflow.config || { echo "Failed to replace wfversion"; exit 1; }
+        - sed -i 's/wfversion = ".*"/wfversion = "'${CI_COMMIT_SHORT_SHA}'"/' nextflow.config
         - git add nextflow.config
         - git commit -m "Setting wfversion to:${CI_COMMIT_SHORT_SHA}"
-        - git push github prerelease
+        - git push -f github prerelease
     only:
         - '/^dev$/'
     except:
         - tags
 
-###
-# Retag the image for git tags (releases)
+# Check things before release
+release-checks:
+    stage: release-checks
+    script:
+        - *check-versions
+        - *check-changelog
+    only:
+        - tags
 
-.pull_tag: &pull_tag
+
+# To dockerhub
+release-hub:
+    stage: release
     before_script:
         - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
         - SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
         - echo "Pulling ${SHATAG}"
         - docker pull ${SHATAG}
-    only:
-        - tags
-
-# To dockerhub
-release-hub:
-    stage: release
-    <<: *pull_tag
     script:
         - echo ${DOCKERHUB_TOKEN} | docker login --username epi2melabs --password-stdin
         - RELTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_TAG}"
@@ -147,7 +161,8 @@ release-hub:
         - docker push ${RELTAG}
         - docker tag ${SHATAG} ${LATEST}
         - docker push ${LATEST}
-
+    only:
+        - tags
 
 # Send all tags matching vX.Y.Z to github (code and release)
 push-github:
