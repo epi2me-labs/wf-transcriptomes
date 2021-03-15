@@ -79,7 +79,7 @@ build-image:
         - if [[ ${CI_COMMIT_BRANCH} == 'dev' ]]; then
               SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA};
               HUBTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}";
-              for tag in SHATAG HUBTAG; do
+              for tag in "${SHATAG}" "${HUBTAG}; do
                   echo "Pushing ${tag}";
                   docker tag ${TAG} ${tag};
                   docker push ${tag};
