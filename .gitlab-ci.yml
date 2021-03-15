@@ -76,13 +76,13 @@ docker-run:
               --out_dir ${OUTPUT}
         # push, to ont for later tagging, to dockerhub for release testing
         - if [[ ${CI_COMMIT_BRANCH} == 'dev' ]]; then
-              echo "Pushing to ONT registry"
-              echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
+              echo "Pushing to ONT registry";
+              echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY};
               SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA};
               echo " - tag is:${SHATAG}";
               docker tag ${TAG} ${SHATAG};
               docker push ${SHATAG};
-              echo "Pushing to Dockerhub"
+              echo "Pushing to Dockerhub";
               echo ${DOCKERHUB_TOKEN} | docker login --username epi2melabs --password-stdin;
               HUBTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}";
               echo " - tag is:${HUBTAG}";
