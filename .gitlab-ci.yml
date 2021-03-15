@@ -57,17 +57,16 @@ conda-run:
         - branches
 
 
-build-image:
+docker-run:
     stage: test
     before_script:
         - apk add wget openjdk11 bash
         - *install-nextflow
     script:
-        - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
-        - TAG="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        # build image
+        - TAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:latest"
         - docker build --no-cache -t "${TAG}" -f Dockerfile . --build-arg BASEIMAGE=${BASEIMAGE}
         # run letting nextflow orchestrate the containers
-        - docker tag "${TAG}" "${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:latest"
         - OUTPUT=${CI_PROJECT_NAME}
         - ./nextflow run main.nf
               -w ${OUTPUT}/workspace
@@ -78,12 +77,14 @@ build-image:
         # push, to ont for later tagging, to dockerhub for release testing
         - if [[ ${CI_COMMIT_BRANCH} == 'dev' ]]; then
               SHATAG=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA};
+              echo "Pushing ${SHATAG}";
+              docker tag ${TAG} ${SHATAG};
+              docker push ${SHATAG};
+              echo ${DOCKERHUB_TOKEN} | docker login --username epi2melabs --password-stdin;
               HUBTAG="${DOCKERHUB_NAMESPACE}/${CI_PROJECT_NAME}:${CI_COMMIT_SHORT_SHA}";
-              for tag in "${SHATAG}" "${HUBTAG}"; do
-                  echo "Pushing ${tag}";
-                  docker tag ${TAG} ${tag};
-                  docker push ${tag};
-              done;
+              echo "Pushing ${HUBTAG}";
+              docker tag ${TAG} ${HUBTAG};
+              docker push ${HUBTAG};
           fi;
     only:
         - branches
