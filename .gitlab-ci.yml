@@ -2,16 +2,17 @@ include:
     - project: "epi2melabs/ci-templates"
       file: "wf-containers.yaml"
 
-variables:
-    RUN: "./nextflow run main.nf -w ${OUTPUT}/workspace --out_dir ${OUTPUT} --fastq test_data/reads.fq.gz"
+.run: &run |
+    ${NEXTFLOWRUN} -w ${OUTPUT}/workspace --out_dir ${OUTPUT} \
+        --fastq test_data
 
 conda-run:
     extends: .conda-run
     script:
-        - "${RUN} -profile conda"
+        - *run
 
 docker-run:
     extends: .docker-run
     script:
-        - "${RUN} -profile standard --wfversion latest"
-        - touch $CI_PROJECT_DIR/success
+        - *run
+        - touch ${CI_PROJECT_DIR}/success
