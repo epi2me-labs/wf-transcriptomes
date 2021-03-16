@@ -8,7 +8,6 @@ variables:
 conda-run:
     extends: .conda-run
     script:
-        - OUTPUT=${CI_PROJECT_NAME}
         - "${RUN} -profile conda"
 
 docker-run:
