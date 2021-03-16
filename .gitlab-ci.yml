@@ -14,3 +14,4 @@ docker-run:
     extends: .docker-run
     script:
         - "${RUN} -profile standard --wfversion latest"
+        - touch $CI_PROJECT_DIR/success
