@@ -1,3 +1,4 @@
+# Include shared CI
 include:
     - project: "epi2melabs/ci-templates"
       file: "wf-containers.yaml"
