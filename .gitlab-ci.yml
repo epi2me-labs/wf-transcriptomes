@@ -1,18 +1,12 @@
+# Include shared CI
 include:
     - project: "epi2melabs/ci-templates"
       file: "wf-containers.yaml"
 
-.run: &run |
-    ${NEXTFLOWRUN} -w ${OUTPUT}/workspace --out_dir ${OUTPUT} \
-        --fastq test_data
+variables:
+    # Workflow inputs given to nextflow.
+    # The workflow should define `--out_dir`, the CI template sets this.
+    # Only common file inputs and option values need to be given here
+    # (not things such as -profile)
+    NF_WORKFLOW_OPTS: "--fastq test_data"
 
-conda-run:
-    extends: .conda-run
-    script:
-        - *run
-
-docker-run:
-    extends: .docker-run
-    script:
-        - *run
-        - touch ${CI_PROJECT_DIR}/success

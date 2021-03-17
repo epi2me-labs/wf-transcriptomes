@@ -1,13 +1,17 @@
 #!/usr/bin/env python
+"""Create a simple summary of a fastq file."""
+
 import argparse
 import glob
 import itertools
 import os
-import pysam
+
 import numpy as np
+import pysam
 
 
 def mean_qual(quals):
+    """Calculate mean quality of a read."""
     qual = np.fromiter(
         (ord(x) - 33 for x in quals),
         dtype=int, count=len(quals))
@@ -16,9 +20,12 @@ def mean_qual(quals):
 
 
 def main():
+    """Run entry point."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("directory", help="Directory containing .fastq(.gz) files")
-    parser.add_argument("output", help="Output file")
+    parser.add_argument(
+        "directory", help="Directory containing .fastq(.gz) files")
+    parser.add_argument(
+        "output", help="Output file")
     args = parser.parse_args()
 
     fastqs = glob.glob(os.path.join(args.directory, "*.fastq*"))
