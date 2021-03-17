@@ -1,16 +1,16 @@
 #!/usr/bin/env python
+"""Create workflow report."""
 
 import argparse
-import glob
+
+from aplanat import annot, hist, report
+from bokeh.layouts import gridplot
 import numpy as np
 import pandas as pd
 
-from bokeh.layouts import gridplot, layout
-import aplanat
-from aplanat import annot, hist, report
-
 
 def read_files(summaries):
+    """Combine a list of files into a single dataframe."""
     dfs = list()
     for fname in sorted(summaries):
         dfs.append(pd.read_csv(fname, sep="\t"))
@@ -18,6 +18,7 @@ def read_files(summaries):
 
 
 def main():
+    """Run the entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("report", help="Report output file")
     parser.add_argument("summaries", nargs='+', help="Read summary file.")
@@ -25,7 +26,8 @@ def main():
 
     report_doc = report.HTMLReport(
         "Workflow Template Sequencing report",
-        "Results generated through the wf-template nextflow workflow by Oxford Nanopore Technologies")
+        ("Results generated through the wf-template nextflow "
+            "workflow by Oxford Nanopore Technologies"))
 
     report_doc.markdown('''
 ### Read Quality control
@@ -33,8 +35,6 @@ This section displays basic QC metrics indicating read data quality.
 ''')
 
     np_blue = '#0084A9'
-    np_dark_grey = '#455560'
-    np_light_blue = '#90C6E7'
 
     # read length summary
     seq_summary = read_files(args.summaries)
@@ -72,17 +72,20 @@ This section displays basic QC metrics indicating read data quality.
     report_doc.markdown('''
 ### About
 
-**Oxford Nanopore Technologies products are not intended for use for health assessment
-or to diagnose, treat, mitigate, cure or prevent any disease or condition.**
+**Oxford Nanopore Technologies products are not intended for use for health
+assessment or to diagnose, treat, mitigate, cure or prevent any disease or
+condition.**
 
-This report was produced using the [epi2me-labs/wf-template](https://github.com/epi2me-labs/wf-template).
-The workflow can be run using `nextflow epi2me-labs/wf-template --help`
+This report was produced using the
+[epi2me-labs/wf-template](https://github.com/epi2me-labs/wf-template).  The
+workflow can be run using `nextflow epi2me-labs/wf-template --help`
 
 ---
 ''')
 
     # write report
     report_doc.write(args.report)
+
 
 if __name__ == "__main__":
     main()
