@@ -2,17 +2,6 @@ include:
     - project: "epi2melabs/ci-templates"
       file: "wf-containers.yaml"
 
-.run: &run |
-    ${NEXTFLOWRUN} -w ${OUTPUT}/workspace --out_dir ${OUTPUT} \
-        --fastq test_data
+variables:
+    NF_WORKFLOW_OPTS: "--fastq test_data"
 
-conda-run:
-    extends: .conda-run
-    script:
-        - *run
-
-docker-run:
-    extends: .docker-run
-    script:
-        - *run
-        - touch ${CI_PROJECT_DIR}/success
