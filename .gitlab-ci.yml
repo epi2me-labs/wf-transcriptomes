@@ -3,5 +3,9 @@ include:
       file: "wf-containers.yaml"
 
 variables:
+    # Workflow inputs given to nextflow.
+    # The workflow should define `--out_dir`, the CI template sets this.
+    # Only common file inputs and option values need to be given here
+    # (not things such as -profile)
     NF_WORKFLOW_OPTS: "--fastq test_data"
 
