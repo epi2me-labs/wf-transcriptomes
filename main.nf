@@ -27,6 +27,40 @@ Script Options:
 }
 
 
+process concatFastq {
+    // concatenate fastq and fastq.gz in a dir
+
+    label "pysam"
+    cpus 1
+    input:
+        file "input"
+    output:
+        file "reads.fastq.gz"
+
+    shell:
+    '''
+#!/usr/bin/env python
+from glob import glob
+import gzip
+import itertools
+import os
+import pysam
+
+# we use pysam just because it will read both fastq and fastq.gz
+# and we don't have to worry about having a combination or not
+with gzip.open("reads.fastq.gz", "wt") as fh:
+    files = itertools.chain(
+        glob("input/*.fastq"), glob("input/*.fastq.gz"))
+    records = itertools.chain.from_iterable(
+        pysam.FastxFile(fn) for fn in files) 
+    for rec in records:
+        annot = " {}".format(rec.comment) if rec.comment else ""
+        qual = rec.quality if rec.quality else "+"*len(rec.sequence)
+        fh.write("@{}{}\\n{}\\n+\\n{}\\n".format(rec.name, annot, rec.sequence, qual))
+    '''
+}
+
+
 process readSeqs {
     // Just write a file with sequence lengths
     label "pysam"
@@ -75,6 +109,7 @@ workflow pipeline {
     take:
         reads
     main:
+        reads = concatFastq(reads)
         summary = readSeqs(reads)
         report = makeReport(summary)
     emit:
@@ -99,7 +134,7 @@ workflow {
 
     reads = file("$params.fastq/*.fastq*", type: 'file', maxdepth: 1)
     if (reads) {
-        reads = Channel.fromPath(params.fastq, type: 'dir', maxDepth: 1)
+        reads = Channel.fromPath(params.fastq, type: 'dir', checkIfExists: true)
         results = pipeline(reads)
         output(results)
     } else {

@@ -99,7 +99,7 @@ OUTPUT=output
 nextflow run epi2me-labs/wf-template \
     -w ${OUTPUT}/workspace \
     -profile standard \
-    --fastq test_data/reads.fq.gz \
+    --fastq test_data \
     --out_dir ${OUTPUT}
 ```
 

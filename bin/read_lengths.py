@@ -23,12 +23,17 @@ def main():
     """Run entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "directory", help="Directory containing .fastq(.gz) files")
+        "fastq", help="Directory containing .fastq(.gz) files, or single fastq")
     parser.add_argument(
         "output", help="Output file")
     args = parser.parse_args()
 
-    fastqs = glob.glob(os.path.join(args.directory, "*.fastq*"))
+    if os.path.isfile(args.fastq):
+        fastqs = [args.fastq]
+    elif os.path.isdir(args.fastq):
+        fastqs = glob.glob(os.path.join(args.directory, "*.fastq*"))
+    else:
+        raise IOError("fastq argument should be directory of file.")
     reads = itertools.chain.from_iterable(
         pysam.FastxFile(fname) for fname in fastqs)
 
