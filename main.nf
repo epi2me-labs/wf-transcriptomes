@@ -60,7 +60,7 @@ process makeReport {
 // decoupling the publish from the process steps.
 process output {
     // publish inputs to output directory
-
+    label "pysam"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
         file fname
@@ -97,7 +97,6 @@ workflow {
         println("`--fastq` is required")
         exit 1
     }
-
 
     reads = file("$params.fastq/*.fastq*", type: 'file', maxdepth: 1)
     if (reads) {
