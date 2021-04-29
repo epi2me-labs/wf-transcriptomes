@@ -10,3 +10,27 @@ variables:
     # (not things such as -profile)
     NF_WORKFLOW_OPTS: "--fastq test_data"
 
+
+macos-run:
+    stage: test
+    script:
+        - docker run hello-world
+        - wget -qO- https://get.nextflow.io | bash
+        # pull back the image
+        - echo ${CI_BUILD_TOKEN} | docker login --username gitlab-ci-token --password-stdin ${CI_REGISTRY}
+        - docker pull ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        # run the workflow
+        # custom scripting
+        - echo "Running workflow specific script"
+        - echo "Running:'${NF_BEFORE_SCRIPT}'"
+        - eval ${NF_BEFORE_SCRIPT}
+        # left for invididual project to control ${NF_WORKFLOW_OPTS}
+        - CMD="./nextflow ${NF_RUN_OPTS_TAG_TEST} -profile standard ${NF_OUTPUT_OPTS} ${NF_WORKFLOW_OPTS}"
+        - echo "Running:'${CMD}'"
+        - ${CMD}
+    needs:
+        - ["docker-run"]
+    only:
+        - "/^dev$/"
+    except:
+        - tags
