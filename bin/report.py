@@ -4,7 +4,8 @@
 import argparse
 
 from aplanat.components import fastcat
-from aplanat.report import HTMLReport
+from aplanat.report import WFReport
+import conda_versions
 
 
 def main():
@@ -12,29 +13,31 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("report", help="Report output file")
     parser.add_argument("summaries", nargs='+', help="Read summary file.")
+    parser.add_argument(
+        "--revision", default='unknown',
+        help="git branch/tag of the executed workflow")
+    parser.add_argument(
+        "--commit", default='unknown',
+        help="git commit of the executed workflow")
     args = parser.parse_args()
 
-    report = HTMLReport(
-        "Workflow Template Sequencing report",
-        ("Results generated through the wf-template nextflow "
-            "workflow by Oxford Nanopore Technologies"))
+    report = WFReport(
+        "Workflow Template Sequencing report", "wf-template",
+        revision=args.revision, commit=args.commit)
 
     report.add_section(
         section=fastcat.full_report(args.summaries))
 
-    report.markdown('''
-### About
-
-**Oxford Nanopore Technologies products are not intended for use for health
-assessment or to diagnose, treat, mitigate, cure or prevent any disease or
-condition.**
-
-This report was produced using the
-[epi2me-labs/wf-template](https://github.com/epi2me-labs/wf-template).  The
-workflow can be run using `nextflow epi2me-labs/wf-template --help`
-
----
+    section = report.add_section()
+    section.markdown('''
+### Software versions
+The table below highlights versions of key software used within the analysis.
 ''')
+    req = [
+        'python', 'aplanat', 'pysam', 'fastcat']
+    versions = conda_versions.scrape_data(
+        as_dataframe=True, include=req)
+    section.table(versions[['Name', 'Version', 'Build']], index=False)
 
     # write report
     report.write(args.report)
