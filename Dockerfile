@@ -9,7 +9,11 @@ RUN \
     && micromamba install -n base --file $HOME/environment.yaml \
     && micromamba clean --all --yes \
     && fix-permissions $CONDA_DIR \
-    && fix-permissions $HOME
+    && fix-permissions $HOME \
+    && rm -rf $CONDA_DIR/conda-meta \
+    && rm -rf $CONDA_DIR/include \
+    && rm -rf $CONDA_DIR/lib/python3.*/site-packages/pip \
+    && find $CONDA_DIR -name '__pycache__' -type d -exec rm -rf '{}' '+'
 
 USER $WF_UID
 WORKDIR $HOME
