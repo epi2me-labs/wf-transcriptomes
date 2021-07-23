@@ -66,7 +66,7 @@ process makeReport {
     output:
         path "wf-template-report.html"
     """
-    report.py wf-template-report.html --versions versions.txt seqs.txt
+    report.py wf-template-report.html --versions versions seqs.txt
     """
 }
 
