@@ -53,7 +53,7 @@ process getVersions {
         path "versions.txt"
     script:
     """
-    python -c "import pysam; print(f'pysam,{pysam.__version})" >> versions.txt
+    python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
     """
 }

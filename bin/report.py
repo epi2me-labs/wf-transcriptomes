@@ -6,7 +6,6 @@ import argparse
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
-import conda_versions
 
 
 def main():
