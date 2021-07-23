@@ -46,14 +46,27 @@ process summariseReads {
 }
 
 
+process getVersions {
+    label "pysam"
+    cpus 1
+    output:
+        path "versions.txt"
+    script:
+    """
+    python -c "import pysam; print(f'pysam,{pysam.__version})" >> versions.txt
+    fastcat --version | sed 's/^/fastcat,/' >> versions.txt
+    """
+}
+
 process makeReport {
     label "pysam"
     input:
         path "seqs.txt"
+        path "versions/*"
     output:
         path "wf-template-report.html"
     """
-    report.py wf-template-report.html seqs.txt
+    report.py wf-template-report.html --versions versions.txt seqs.txt
     """
 }
 
@@ -81,7 +94,8 @@ workflow pipeline {
         reads
     main:
         summary = summariseReads(reads)
-        report = makeReport(summary)
+        software_versions = getVersions()
+        report = makeReport(summary, software_versions.collect())
     emit:
         summary.concat(report)
 }
