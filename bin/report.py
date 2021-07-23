@@ -4,8 +4,8 @@
 import argparse
 
 from aplanat.components import fastcat
+from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
-import conda_versions
 
 
 def main():
@@ -13,6 +13,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("report", help="Report output file")
     parser.add_argument("summaries", nargs='+', help="Read summary file.")
+    parser.add_argument(
+        "--versions", required=True,
+        help="directory containing CSVs containing name,version.")
     parser.add_argument(
         "--revision", default='unknown',
         help="git branch/tag of the executed workflow")
@@ -27,17 +30,8 @@ def main():
 
     report.add_section(
         section=fastcat.full_report(args.summaries))
-
-    section = report.add_section()
-    section.markdown('''
-### Software versions
-The table below highlights versions of key software used within the analysis.
-''')
-    req = [
-        'python', 'aplanat', 'pysam', 'fastcat']
-    versions = conda_versions.scrape_data(
-        as_dataframe=True, include=req)
-    section.table(versions[['Name', 'Version', 'Build']], index=False)
+    report.add_section(
+        section=scomponents.version_table(args.versions))
 
     # write report
     report.write(args.report)

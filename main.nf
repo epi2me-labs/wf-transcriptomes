@@ -12,6 +12,7 @@
 
 nextflow.enable.dsl = 2
 
+include { fastq_ingress } from './lib/fastqingress' 
 
 def helpMessage(){
     log.info """
@@ -21,7 +22,9 @@ Usage:
     nextflow run epi2melabs/wf-template [options]
 
 Script Options:
-    --fastq        DIR     Path to directory containing FASTQ files (required)
+    --fastq        DIR     Path to FASTQ directory (required)
+    --samples      FILE    CSV file with columns named `barcode` and `sample_name`
+                           (or simply a sample name for non-multiplexed data).
     --out_dir      DIR     Path for output (default: $params.out_dir)
 """
 }
@@ -33,24 +36,37 @@ process summariseReads {
     label "pysam"
     cpus 1
     input:
-        file "input"
+        tuple path(directory), val(sample_name)
     output:
-        file "seqs.txt"
+        path "${sample_name}.stats"
     shell:
     """
-    fastcat -r seqs.txt input/*.fastq* > /dev/null
+    fastcat -s ${sample_name} -r ${sample_name}.stats -x ${directory} > /dev/null
     """
 }
 
 
+process getVersions {
+    label "pysam"
+    cpus 1
+    output:
+        path "versions.txt"
+    script:
+    """
+    python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
+    fastcat --version | sed 's/^/fastcat,/' >> versions.txt
+    """
+}
+
 process makeReport {
     label "pysam"
     input:
-        file "seqs.txt"
+        path "seqs.txt"
+        path "versions/*"
     output:
-        file "wf-template-report.html"
+        path "wf-template-report.html"
     """
-    report.py wf-template-report.html seqs.txt
+    report.py wf-template-report.html --versions versions seqs.txt
     """
 }
 
@@ -63,9 +79,9 @@ process output {
     label "pysam"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
-        file fname
+        path fname
     output:
-        file fname
+        path fname
     """
     echo "Writing output files"
     """
@@ -78,7 +94,8 @@ workflow pipeline {
         reads
     main:
         summary = summariseReads(reads)
-        report = makeReport(summary)
+        software_versions = getVersions()
+        report = makeReport(summary, software_versions.collect())
     emit:
         summary.concat(report)
 }
@@ -98,12 +115,9 @@ workflow {
         exit 1
     }
 
-    reads = file("$params.fastq/*.fastq*", type: 'file', maxdepth: 1)
-    if (reads) {
-        reads = Channel.fromPath(params.fastq, type: 'dir', checkIfExists: true)
-        results = pipeline(reads)
-        output(results)
-    } else {
-        println("No .fastq(.gz) files found under `${params.fastq}`.")
-    }
+    samples = fastq_ingress(
+        params.fastq, params.out_dir, params.samples, params.sanitize_fastq)
+
+    results = pipeline(samples)
+    output(results)
 }
