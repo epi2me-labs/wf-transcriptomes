@@ -1,4 +1,4 @@
-ARG BASEIMAGE=ontresearch/base-workflow-image:v0.1.0
+ARG BASEIMAGE=ontresearch/base-workflow-image:v0.1.1
 FROM $BASEIMAGE
 ARG ENVFILE=environment.yaml
 
