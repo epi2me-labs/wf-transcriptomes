@@ -17,6 +17,9 @@ def main():
         "--versions", required=True,
         help="directory containing CSVs containing name,version.")
     parser.add_argument(
+        "--params", default=None, required=True,
+        help="A JSON file containing the workflow parameter key/values")
+    parser.add_argument(
         "--revision", default='unknown',
         help="git branch/tag of the executed workflow")
     parser.add_argument(
@@ -32,6 +35,8 @@ def main():
         section=fastcat.full_report(args.summaries))
     report.add_section(
         section=scomponents.version_table(args.versions))
+    report.add_section(
+        section=scomponents.params_table(args.params))
 
     # write report
     report.write(args.report)

@@ -10,6 +10,7 @@
 //   iii) a second concreate, but anonymous, workflow scope to be used
 //        as an entry point when using this workflow in isolation.
 
+import groovy.json.JsonBuilder
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress' 
@@ -58,15 +59,29 @@ process getVersions {
     """
 }
 
+process getParams {
+    label "pysam"
+    cpus 1
+    output:
+        path "params.json"
+    script:
+        def paramsJSON = new JsonBuilder(params).toPrettyString()
+    """
+    # Output nextflow params object to JSON
+    echo '$paramsJSON' > params.json
+    """
+}
+
 process makeReport {
     label "pysam"
     input:
         path "seqs.txt"
         path "versions/*"
+        path "params.json"
     output:
         path "wf-template-report.html"
     """
-    report.py wf-template-report.html --versions versions seqs.txt
+    report.py wf-template-report.html --versions versions seqs.txt --params params.json
     """
 }
 
@@ -95,7 +110,8 @@ workflow pipeline {
     main:
         summary = summariseReads(reads)
         software_versions = getVersions()
-        report = makeReport(summary, software_versions.collect())
+        workflow_params = getParams()
+        report = makeReport(summary, software_versions.collect(), workflow_params)
     emit:
         summary.concat(report)
 }
