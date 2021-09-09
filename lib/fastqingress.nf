@@ -1,4 +1,3 @@
-
 process checkSampleSheet {
     label "artic"
     cpus 1
@@ -166,5 +165,11 @@ def fastq_ingress(input_folder, output_folder, samples, sanitize)
     }
     // resolve whether we have demultiplexed data or single sample
     data = resolve_barcode_structure(input_folder, sample_sheet)
+    // return error if data empty after processing
+    if (data == null) {
+        println("")
+        println("Error: `--fastq` Unable to find FASTQ files or BARCODE folders in the provided --fastq path")
+        exit 1
+    }
     return data
 }
