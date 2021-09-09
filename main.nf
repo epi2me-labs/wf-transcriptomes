@@ -27,6 +27,7 @@ Script Options:
     --samples      FILE    CSV file with columns named `barcode` and `sample_name`
                            (or simply a sample name for non-multiplexed data).
     --out_dir      DIR     Path for output (default: $params.out_dir)
+    --report_name     STR     Optional report suffix (default: $params.report_name)
 """
 }
 
@@ -79,9 +80,12 @@ process makeReport {
         path "versions/*"
         path "params.json"
     output:
-        path "wf-template-report.html"
+        path "wf-template-*.html"
+    script:
+        // report naming
+        report_name = "wf-template-" + params.report_name + '.html'
     """
-    report.py wf-template-report.html --versions versions seqs.txt --params params.json
+    report.py $report_name --versions versions seqs.txt --params params.json
     """
 }
 
