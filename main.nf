@@ -27,7 +27,7 @@ Script Options:
     --samples      FILE    CSV file with columns named `barcode` and `sample_name`
                            (or simply a sample name for non-multiplexed data).
     --out_dir      DIR     Path for output (default: $params.out_dir)
-    --report_name     STR     Optional report suffix (default: $params.report_name)
+    --report_name  STR     Optional report suffix (default: $params.report_name)
 """
 }
 
