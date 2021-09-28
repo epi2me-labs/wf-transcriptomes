@@ -1,0 +1,102 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
+    "title": ". pipeline parameters",
+    "description": "",
+    "type": "object",
+    "definitions": {
+        "basic_input_output_options": {
+            "title": "Basic Input/Output Options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Define where the pipeline should find input data and save output data.",
+            "properties": {
+                "out_dir": {
+                    "type": "string",
+                    "default": "output",
+                    "description": "Directory for output of all user-facing files."
+                },
+                "fastq": {
+                    "type": "string",
+                    "description": "Directory containing fastq input files. May contain fastq files directly or directories name barcodeXX relating to independent samples."
+                },
+                "samples": {
+                    "type": "string",
+                    "description": "CSV file with columns named `barcode` and `sample_name`. (or simply a sample name for non-multiplexed data)"
+                },
+                "sanitize_fastq": {
+                    "type": "boolean",
+                    "description": "Use additional heuristics to identify barcodes from file paths.",
+                    "help_text": "Enabling this option will group together files into samples by the presence of strings of the form `barcodeXXX` present in filenames, rather than simply files grouped into directories (as output by MinKNOW and the Guppy basecaller)."
+                }
+            },
+            "required": [
+                "fastq"
+            ]
+        },
+        "meta_data": {
+            "title": "Meta Data",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "report_name": {
+                    "type": "string",
+                    "default": "report",
+                    "description": "Output report filename suffix."
+                }
+            }
+        },
+        "generic_options": {
+            "title": "Generic options",
+            "type": "object",
+            "fa_icon": "far fa-question-circle",
+            "description": "Less common options for the pipeline, typically set in a config file.",
+            "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
+            "properties": {
+                "help": {
+                    "type": "boolean",
+                    "description": "Display help text.",
+                    "fa_icon": "fas fa-question-circle",
+                    "hidden": true
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "#/definitions/basic_input_output_options"
+        },
+        {
+            "$ref": "#/definitions/meta_data"
+        },
+        {
+            "$ref": "#/definitions/generic_options"
+        }
+    ],
+    "properties": {
+        "aws_image_prefix": {
+            "type": "string",
+            "hidden": true
+        },
+        "aws_queue": {
+            "type": "string",
+            "hidden": true
+        },
+        "wfversion": {
+            "type": "string",
+            "default": "v0.3.3",
+            "hidden": true
+        },
+        "monochrome_logs": {
+            "type": "boolean"
+        },
+        "validate_params": {
+            "type": "boolean",
+            "default": true
+        },
+        "show_hidden_params": {
+            "type": "boolean"
+        }
+    }
+}
