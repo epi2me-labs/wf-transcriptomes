@@ -1,3 +1,4 @@
+
 process checkSampleSheet {
     label "artic"
     cpus 1
@@ -33,7 +34,7 @@ def check_sample_sheet(samples)
  * Find fastq data using various globs. Wrapper around Nextflow `file`
  * method.
  *
- * @param patten glob pattern for top level input folder.
+ * @param pattern file object corresponding to top level input folder.
  * @param maxdepth maximum depth to traverse
  * @return list of files.
  */ 
@@ -42,7 +43,7 @@ def find_fastq(pattern, maxdepth)
     files = []
     extensions = ["fastq", "fastq.gz", "fq", "fq.gz"]
     for (ext in extensions) {
-        files += file("${pattern}/*.${ext}", type: 'file', maxdepth: maxdepth)
+        files += file(pattern.resolve("*.${ext}"), type: 'file', maxdepth: maxdepth)
     }
     return files
 }
@@ -54,17 +55,17 @@ def find_fastq(pattern, maxdepth)
  * subdirectories ready for processing.
  *
  * @param input_folder Top-level input directory.
- * @param output_folder Top-level output_directory.
+ * @param staging Top-level output_directory.
  * @return A File object representating the staging directory created
  *     under output_folder
  */ 
-def sanitize_fastq(input_folder, output_folder)
+def sanitize_fastq(input_folder, staging)
 {
+    // TODO: this fails if input_folder is an S3 path
     println("Running sanitization.")
-    println(" - Moving files: ${input_folder} -> ${output_folder}")
-    staging = new File(output_folder)
+    println(" - Moving files: ${input_folder} -> ${staging}")
     staging.mkdirs()
-    files = find_fastq("${input_folder}/**/", 1)
+    files = find_fastq(input_folder.resolve("**"), 1)
     for (fastq in files) {
         fname = fastq.getFileName()
         // find barcode
@@ -72,11 +73,11 @@ def sanitize_fastq(input_folder, output_folder)
         matcher = fname =~ pattern
         if (!matcher.find()) {
             // not barcoded - leave alone
-            fastq.renameTo("${staging}/${fname}")
+            fastq.renameTo(staging.resolve(fname))
         } else {
-            bc_dir = new File("${staging}/${matcher[0]}")
+            bc_dir = file(staging.resolve(matcher[0]))
             bc_dir.mkdirs()
-            fastq.renameTo("${staging}/${matcher[0]}/${fname}")
+            fastq.renameTo(staging.resolve("${matcher[0]}/${fname}"))
         }
     }
     println(" - Finished sanitization.")
@@ -98,7 +99,7 @@ def resolve_barcode_structure(input_folder, sample_sheet)
 {
     println("Checking input directory structure.")
     barcode_dirs = file("$input_folder/barcode*", type: 'dir', maxdepth: 1)
-    not_barcoded = find_fastq("$input_folder/", 1)
+    not_barcoded = find_fastq(file(input_folder), 1)
     samples = null
     if (barcode_dirs) {
         println(" - Found barcode directories")
@@ -155,8 +156,8 @@ def fastq_ingress(input_folder, output_folder, samples, sanitize)
 {
     // EPI2ME harness 
     if (sanitize) {
-        staging = "${output_folder}/staging"
-        input_folder = sanitize_fastq(input_folder, staging)
+        staging = file(output_folder).resolve("staging")
+        input_folder = sanitize_fastq(file(input_folder), staging)
     }
     // check sample sheet
     sample_sheet = null
