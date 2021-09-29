@@ -15,22 +15,6 @@ nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress' 
 
-def helpMessage(){
-    log.info """
-Workflow template'
-
-Usage:
-    nextflow run epi2melabs/wf-template [options]
-
-Script Options:
-    --fastq        DIR     Path to FASTQ directory (required)
-    --samples      FILE    CSV file with columns named `barcode` and `sample_name`
-                           (or simply a sample name for non-multiplexed data).
-    --out_dir      DIR     Path for output (default: $params.out_dir)
-    --report_name  STR     Optional report suffix (default: $params.report_name)
-"""
-}
-
 
 process summariseReads {
     // concatenate fastq and fastq.gz in a dir
@@ -121,19 +105,8 @@ workflow pipeline {
 }
 
 // entrypoint workflow
+WorkflowMain.initialise(workflow, params, log)
 workflow {
-
-    if (params.help) {
-        helpMessage()
-        exit 1
-    }
-
-    if (!params.fastq) {
-        helpMessage()
-        println("")
-        println("`--fastq` is required")
-        exit 1
-    }
 
     samples = fastq_ingress(
         params.fastq, params.out_dir, params.samples, params.sanitize_fastq)
