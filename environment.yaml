@@ -1,4 +1,4 @@
-name: epi2melabs-nf-template-workflow
+name: epi2melabs-wf-isoforms
 channels:
     - epi2melabs
     - bioconda
@@ -7,5 +7,21 @@ channels:
 dependencies:
     - python==3.8.*
     - aplanat >=0.5.0
+    - epi2melabs
+    - minimap2
+    - samtools
+    - bedtools
+    - pychopper
+    - pandas
+    - seaborn
+    - requests
+    - gffread
+    - seqkit
+    - csvtk
+    - stringtie==2.1.1
+    - gffcompare
+    - curl
     - pysam
+    - spoa==3.4.0
     - fastcat
+    - isonclust2

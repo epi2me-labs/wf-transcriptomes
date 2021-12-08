@@ -1,0 +1,3 @@
+barcode,sample_id,alias,type
+barcode01,SRR12480552,SRR12480552,test_sample1
+barcode02,SRR12447502,SRR12447502,test_sample2

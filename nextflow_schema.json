@@ -20,18 +20,95 @@
                     "type": "string",
                     "description": "Directory containing fastq input files. May contain fastq files directly or directories name barcodeXX relating to independent samples."
                 },
-                "samples": {
+                "sample": {
                     "type": "string",
-                    "description": "CSV file with columns named `barcode` and `sample_name`. (or simply a sample name for non-multiplexed data)"
+                    "description": "A sample name for non-multiplexed data. Permissible if passing a file or directory of .fastq(.gz)."
+                },
+                "sample_sheet": {
+                    "type": "string",
+                    "description": "CSV file with columns named `barcode`, `sample_name` and `type`. Permissible if passing a directory containing barcodeXX sub-directories."
                 },
                 "sanitize_fastq": {
                     "type": "boolean",
                     "description": "Use additional heuristics to identify barcodes from file paths.",
                     "help_text": "Enabling this option will group together files into samples by the presence of strings of the form `barcodeXXX` present in filenames, rather than simply files grouped into directories (as output by MinKNOW and the Guppy basecaller)."
+                },
+                "plot_gffcmp_stats": {
+                    "type": "boolean",
+                    "description": "Create a pdf of plots from showing gffcompare results"
+                },
+                "gffcompare_opts": {
+                    "type": "string",
+                    "description": "Extra options for gffcompare -r",
+                    "default": " -R "
+                },
+                "ref_genome": {
+                    "type": "string",
+                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]"
+                },
+                "ref_annotation": {
+                    "type": "string",
+                    "description": "A reference annotation of gff format"
+                },
+                "use_pychopper": {
+                    "type": "boolean",
+                    "description": "Use pychopper to preprcess reads",
+                    "default": true
+                },
+                "pychopper_opts": {
+                    "type": "string",
+                    "description": "Extra pychopper opts"
+                },
+                "threads": {
+                    "type": "integer",
+                    "default": 8
+                },
+                "minimap_index_opts": {
+                    "type": "string",
+                    "description": "minimap2 extra indexing options.",
+                    "default": "-k14"
+                },
+                "minimap2_opts": {
+                    "type": "string",
+                    "description": "minimap2 extra mapping options.",
+                    "default": "-uf"
+                },
+                "minimum_mapping_quality": {
+                    "type": "integer",
+                    "description": "filter aligned reads by MAPQ quality.",
+                    "default": 40
+                },
+                "poly_context": {
+                    "type": "integer",
+                    "description": "Region size at end of reads to apply poly(A) filter.",
+                    "default": 24
+                },
+                "max_poly_run": {
+                    "type": "integer",
+                    "description": "Max poly(A) region allowed with poly_context-sized end regions.",
+                    "default": 8
+                },
+                "bundle_min_reads": {
+                    "type": "integer",
+                    "description": "Minimum size of bam bundle for parallel processing."
+                },
+                "use_guide_annotation": {
+                    "type": "boolean",
+                    "description": "Use reference annotation in stringtie transcript assembly.",
+                    "default": "true"
+                },
+                "stringtie_opts": {
+                    "type": "string",
+                    "description": "Extra options for stringtie transcript assembly.",
+                    "default": " --conservative "
+                },
+                "disable_ping": {
+                "type": "boolean"
                 }
             },
             "required": [
-                "fastq"
+                "fastq",
+                "ref_genome"
             ]
         },
         "meta_data": {
