@@ -8,4 +8,5 @@ variables:
     # The workflow should define `--out_dir`, the CI template sets this.
     # Only common file inputs and option values need to be given here
     # (not things such as -profile)
-    NF_WORKFLOW_OPTS: "--fastq test_data"
+    NF_WORKFLOW_OPTS: "--fastq test_data/fastq \
+      --ref_genome test_data/SIRV_150601a.fasta --ref_annotation test_data/SIRV_isofroms.gtf"
