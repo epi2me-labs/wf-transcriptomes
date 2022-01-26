@@ -2,7 +2,10 @@
 """Create workflow report."""
 
 import argparse
-from collections import OrderedDict
+from collections import Counter, defaultdict, OrderedDict
+from functools import reduce
+import math
+from pathlib import Path
 
 from aplanat import bars, lines
 from aplanat.components import fastcat
@@ -10,12 +13,65 @@ from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
 from aplanat.util import Colors
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource
+from bokeh.models import ColumnDataSource, Panel, Tabs
+from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.palettes import Category10_10
 from bokeh.plotting import figure
 from bokeh.transform import dodge
+import gffutils
+from jinja2 import Template
 import numpy as np
 import pandas as pd
+import sigfig
+
+
+def _vbar(x, top, title, **kwargs):
+    """Vertical bar chart."""
+    fig = figure(title=title)
+
+    fig.vbar(x, top=top, **kwargs)
+    return fig
+
+
+def _hbar(y, right, title='', fig_height=300, fig_width=300,
+          bar_height=0.1, **kwargs):
+    """Horizontal bar chart."""
+    fig = figure(title=title, height=fig_height, width=fig_width)
+    yn = list(range(len(y)))
+    fig.hbar(yn,
+             right=right,
+             height=bar_height,
+             **kwargs)
+    # Overide the numerical labels with cate
+    fig.yaxis.ticker = yn
+    mapper = {k: v for (k, v) in zip(yn, y)}
+    fig.yaxis.major_label_overrides = mapper
+
+    return fig
+
+
+class Table:
+    """A table report component.
+
+    Adapted from aplanat
+    """
+
+    def __init__(self, template, data_frame, index, table_id, **kwargs):
+        """Initialize table component.
+
+        :param dataframe: dataframe to turn in to simple table.
+        """
+        template = Template(template)
+
+        for key, val in kwargs.items():
+            if isinstance(val, bool):
+                kwargs[key] = str(val).lower()
+
+        self.div = template.render(dataframe=data_frame.to_html(
+            table_id=table_id,
+            index=index),
+            table_id=table_id,
+            kwargs=kwargs)
 
 
 def simple_hbar(df, y, right, title="", color=Colors.cerulean,
@@ -25,14 +81,11 @@ def simple_hbar(df, y, right, title="", color=Colors.cerulean,
     :param groups: the grouping variable (the x-axis values).
     :param values: the data for bars are drawn (the y-axis values).
     :param kwargs: kwargs for bokeh figure.
-
-    Move to planat when it's working?
     """
     defaults = {
         'output_backend': 'webgl',
-        'plot_height': 300, 'plot_width': 600}
+        'height': 300, 'width': 600}
     defaults.update(fig_kwargs)
-
     p = figure(y_range=df[y], height=250, title=title,
                toolbar_location=None, tools="")
 
@@ -224,15 +277,15 @@ def parse_gffcmp_stats(txt):
 
     df_miss = pd.DataFrame(
         OrderedDict(
-                [('Total', missed_total),
-                 ('Missed', missed),
-                 ('Percent missed', missed_percent)]), index=missed_level)
+            [('Total', missed_total),
+             ('Missed', missed),
+             ('Percent missed', missed_percent)]), index=missed_level)
 
     df_novel = pd.DataFrame(
         OrderedDict(
-                [('Total', novel_total),
-                 ('Novel', novel),
-                 ('Percent novel', novel_percent)]), index=novel_level)
+            [('Total', novel_total),
+             ('Novel', novel),
+             ('Percent novel', novel_percent)]), index=novel_level)
 
     df_total = pd.DataFrame(OrderedDict(
         [('Loci', total_loci), ('Transcripts', total_transcripts),
@@ -241,7 +294,7 @@ def parse_gffcmp_stats(txt):
     return df_stats, df_match, df_miss, df_novel, df_total
 
 
-def grouped_bar(df, title=""):
+def grouped_bar(df, title="", tilted_xlabs=False):
     """Create grouped bar plot from pandas dataframe.
 
     :param pandas.DataFrame
@@ -268,14 +321,17 @@ def grouped_bar(df, title=""):
     # https://docs.bokeh.org/en/latest/docs/user_guide/categorical.html
     dodge_range = (-0.25, 0.25)
     current_dodge = dodge_range[0]
-    dodge_increment = abs(dodge_range[0] - dodge_range[1]) \
-        / (len(df.columns) - 1)
+    dodge_increment = abs(dodge_range[0] - dodge_range[1]) / \
+        (len(df.columns) - 1)
+
+    if tilted_xlabs:
+        p.xaxis.major_label_orientation = math.pi / 4
 
     for col in df.columns:
 
         num_colors = df.shape[1] - 1
         colors = list(zip(*[[Category10_10[x]] * (len(df.columns) - 1)
-                      for x in range(num_colors)]))
+                            for x in range(num_colors)]))
         colors = [item for sublist in colors for item in sublist]
 
         if col == 'x_groups':
@@ -285,7 +341,8 @@ def grouped_bar(df, title=""):
 
         width = df.size / 60
         p.vbar(x=dodge('x_groups', current_dodge, range=p.x_range), top=col,
-               width=width, source=source, color=color, legend_label=col)
+               width=width, source=source, color=color,
+               legend_label=col)
         current_dodge += dodge_increment
 
     p.x_range.range_padding = 0.1
@@ -295,53 +352,22 @@ def grouped_bar(df, title=""):
     return p
 
 
-def workflow_plots(report, df_aln_stats_file,
-                   gff_cmp_stats_file, gff_cmp_tracking_file):
+def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     """Create various sections and plots in a WfReport.
 
     :param report: aplanat WFReport
-    :param df_aln_stats_file: alignment stats. Output of `seqkit bam -s`
-    :param gff_cmp_stats_file: gffcompare stats file
-    :param gff_cmp_tracking_file: gffcompare tracking file
+    :param gffcompare_outdirs: List of output directories from run_gffcompare
     :return: None
+
+    TODO: split this into separate functions
     """
-    df_aln_stats = pd.read_csv(df_aln_stats_file, sep='\t')
-    df_aln_stats = df_aln_stats.select_dtypes([np.number]).dropna(axis=1)
-
-    section = report.add_section()
-    section.markdown('''
-    ### Read mapping summary
-
-    Output of [seqkit](https://bioinf.shenwei.me/seqkit/) bam -s''')
-
-    section.table(df_aln_stats)
-
-    # Percentage primary and secondary mapping
-    df_perc = df_aln_stats[['PrimAlnPerc', 'MultimapPerc']]
-    bar_perc = bars.simple_bar(
-        df_perc.columns.values, df_perc.iloc[0].values,
-        title='% primary and multimapping reads', colors=Colors.cerulean)
-
-    # Counts of read mapping class
-    df_counts = df_aln_stats.drop(columns=['PrimAlnPerc', 'MultimapPerc'])
-    bar_counts = bars.simple_bar(
-        df_counts.columns.values, df_counts.iloc[0].values,
-        title='Number of alignment records', colors=Colors.cerulean
-    )
-
-    grid = gridplot([bar_perc, bar_counts], ncols=2,
-                    plot_width=400, plot_height=400)
-    section.plot(grid)
-
-    # If gffcompare has not been run, finish report here
-    if not gff_cmp_stats_file or not gff_cmp_tracking_file:
+    # If any of the gffcompare dirs are empty, skip this section
+    if not all([any(Path(x).iterdir()) for x in gffcompare_outdirs]):
         return
-
-    stats, _, miss, novel, total = \
-        parse_gffcmp_stats(gff_cmp_stats_file)
 
     # Plot overview panel:
     section = report.add_section()
+    # TODO: update this based on current version
     section.markdown('''
     ### Annotation summary
 
@@ -365,42 +391,47 @@ def workflow_plots(report, df_aln_stats_file,
     Features present in the query transcripts, but absent in the reference
     ''')
 
-    bar_totals = grouped_bar(total, title="Totals")
-    bar_performance = grouped_bar(stats, title="Performance")
-    bar_missed = grouped_bar(miss, title="Missed")
-    bar_novel = grouped_bar(novel, title="Novel")
+    for id_, dir_ in zip(sample_ids, gffcompare_outdirs):
+        stats, _, miss, novel, total = \
+            parse_gffcmp_stats(dir_ / 'str_merged.stats')
 
-    grid = gridplot([bar_totals, bar_performance, bar_missed, bar_novel],
-                    ncols=2, plot_width=400, plot_height=400)
-    section.plot(grid)
+        bar_totals = grouped_bar(total, title="Totals")
+        bar_performance = grouped_bar(stats, title="Performance",
+                                      tilted_xlabs=True)
+        bar_missed = grouped_bar(miss, title="Missed")
+        bar_novel = grouped_bar(novel, title="Novel")
 
-    def fix_names(s):
-        """Map trancript classification codes."""
-        names = {
-            '=': 'ExactMatch:=',
-            'c': 'Contained:c',
-            'k': 'ReverseContained:k',
-            'm': 'RetainedIntron:m',
-            'n': 'PartRetainedIntron:n',
-            'j': 'PartialMatch:j',
-            'e': 'TransFragMatch:e',
-            's': 'OppositeMatch:s',
-            'o': 'OtherSameStrand:o',
-            'x': 'ExonicOpposite:o',
-            'y': 'RefInIntrons:y',
-            'p': 'PolymeraseRunon:p',
-            'r': 'Repeat:r',
-            'u': 'Intergenic:u',
-            'i': 'FullyIntronic:i',
-            }
-        return names[s]
+        grid = gridplot([bar_totals, bar_performance, bar_missed, bar_novel],
+                        ncols=4, width=270, height=280)
+        section.markdown("""
+        #### Sample_id: {}
+        """.format(id_))
+        section.plot(grid)
+
+    names = {
+        '=': 'ExactMatch:=',
+        'c': 'Contained:c',
+        'k': 'ReverseContained:k',
+        'm': 'RetainedIntron:m',
+        'n': 'PartRetainedIntron:n',
+        'j': 'PartialMatch:j',
+        'e': 'TransFragMatch:e',
+        's': 'OppositeMatch:s',
+        'o': 'OtherSameStrand:o',
+        'x': 'ExonicOpposite:o',
+        'y': 'RefInIntrons:y',
+        'p': 'PolymeraseRunon:p',
+        'r': 'Repeat:r',
+        'u': 'Intergenic:u',
+        'i': 'FullyIntronic:i',
+    }
 
     # Plot overlaps panel:
     section = report.add_section()
     section.markdown('''
-    ## Query transfrag class assignments
+    ### Query transfrag class assignments
 
-    The classes that are assinged by
+    The classes that are assigned by
     [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml),
     which describe the relationship between query transfrag and the most
     similar reference transcript.
@@ -409,112 +440,406 @@ def workflow_plots(report, df_aln_stats_file,
     gffcompare_codes.png) illustrates the different classes.
         ''')
 
-    tracking = pd.read_csv(gff_cmp_tracking_file, sep="\t", header=None,
-                           usecols=[0, 3], names=['Count', 'Overlaps'])
+    tracking_dfs = []
 
-    tracking = tracking.groupby("Overlaps").count().reset_index()
-    tracking = tracking.sort_values("Overlaps")
-    tracking.Overlaps = tracking.Overlaps.apply(fix_names)
-    tracking["Percent"] = tracking.Count * 100 / tracking.Count.sum()
+    print(gffcompare_outdirs)
+    track_files = [x / 'str_merged.tracking' for x in gffcompare_outdirs]
 
-    tracking_bar = simple_hbar(
-        tracking, 'Overlaps', 'Count', title="totals")
-    tracking_bar_perc = simple_hbar(
-        tracking, 'Overlaps', 'Percent', title='percent'
-    )
+    df_tracking = load_sample_data(track_files, sample_ids,
+                                   read_func=lambda x:
+                                   pd.read_csv(x, sep="\t", header=None,
+                                               usecols=[0, 3],
+                                               names=['Count', 'Overlaps']))
 
-    grid = gridplot([tracking_bar, tracking_bar_perc], ncols=2,
-                    plot_width=400, plot_height=400)
-    section.plot(grid)
+    tabs = []
+    for id_, df_track in df_tracking.groupby('sample_id'):
+        tracking = df_track.groupby("Overlaps").count().reset_index()
+        tracking.Overlaps = tracking.Overlaps.map(names)
+        tracking['Percent'] = tracking.Count * 100 / tracking.Count.sum()
+        tracking = tracking.sort_values("Overlaps")
+        track_bar = _hbar(
+            tracking['Overlaps'].values.tolist(),
+            tracking['Percent'].values.tolist(), title="{}".format(id_))
+
+        # Edit for creating unified table
+        tracking.rename(columns={'sample_id': id_ + ' count'}, inplace=True)
+        tracking.drop(columns=['Count'], inplace=True)
+        tracking_dfs.append(tracking)
+
+        # section.plot(grid)
+
+        # Tracking table
+        df_class_table = reduce(
+            lambda left, right: pd.merge(left, right), tracking_dfs)
+
+        desc = pd.Series(df_class_table.Overlaps.apply(
+            lambda x: x.split(':')[0]))
+        df_class_table.insert(0, 'description', desc)
+
+        code = pd.Series(df_class_table.Overlaps.apply(
+            lambda x: x.split(':')[1]))
+        df_class_table.insert(0, 'code', code)
+
+        cols = [TableColumn(field=Ci, title=Ci, width=100)
+                for Ci in df_class_table.columns]
+        track_table = DataTable(columns=cols,
+                                source=ColumnDataSource(df_class_table),
+                                index_position=None,
+                                width=500)
+
+        df_class_table.drop(columns=['Overlaps'], inplace=True)
+        tabs.append(Panel(
+            child=gridplot([track_bar, track_table], ncols=2), title=id_)
+        )
+
+    cover_panel = Tabs(tabs=tabs)
+    section.plot(cover_panel)
+
+    def plot_isoforms_per_tpm_bin(df_code, class_code, sample_id,
+                                  geomspace=False):
+        """Make plots of number of isoforms per TPM coverage bin."""
+        max_ = int(sigfig.round(df_code.TPM.max(), 2))
+        if geomspace:
+            bins = [math.ceil(x) for x in
+                    np.geomspace(10, max_, num=15)]
+        else:
+            bins = np.linspace(10, max_, 15)
+        bins = np.unique(bins)  # Low max_ can end up with duplicated bins
+
+        groups = pd.cut(df_code.TPM, bins).value_counts()
+        df_code.to_csv('dfcode.csv')
+        df_temp = pd.DataFrame.from_dict(dict(
+            x=[x.mid for x in groups.index], y=groups.values
+        ))
+        df_temp.sort_values(by='x', inplace=True)
+
+        x = [str(math.ceil(x)) for x in df_temp.x]
+        y = df_temp.y
+
+        reads_per_iso_geom = \
+            bars.simple_bar(x, y,
+                            title="{} - Num isoforms/TPM bin - "
+                                  "gffcompare class code - '{}'".format(
+                                      sample_id, class_code),
+                            colors=Colors.cerulean,
+                            x_axis_label='TPM',
+                            y_axis_label='Number of isoforms')
+
+        reads_per_iso_geom.xaxis.major_label_orientation = math.pi / 2.8
+        return reads_per_iso_geom
+
+    log_plots = defaultdict(list)
+
+    try:
+        tmap_files = [next(x.glob('*.tmap')) for x in gffcompare_outdirs]
+    except StopIteration:
+        print("Cannot find .tmap files in {}".format(gffcompare_outdirs))
+        return
+
+    df_tmap = load_sample_data(tmap_files, sample_ids)
+
+    for id_, df in df_tmap.groupby('sample_id'):
+
+        log_plots[id_].append(plot_isoforms_per_tpm_bin(
+            df, 'all', id_, geomspace=True))
+
+        for class_code, df_code in df.groupby('class_code'):
+            log_plots[id_].append(plot_isoforms_per_tpm_bin(
+                df_code, class_code, id_, geomspace=True))
+
+    tabs = []
+    for id_, sample_plots in log_plots.items():
+        tabs.append(Panel(
+            child=gridplot(sample_plots, ncols=2), title=id_))
+
+    section.markdown('''
+    ### Read coverage by gffcompare transfrag class''')
+    cover_panel = Tabs(tabs=tabs)
+    section.plot(cover_panel)
+
+    return df_tmap
 
 
 def pychopper_plots(report, df):
     """Make plots from pychopper.cdna_classifier.py.
 
     :param report: aplanat WFReport
-    :param df: result DataFrame
+    :param df: DataFrame of Pychopper stats
     """
     section = report.add_section()
     section.markdown('''
-    ### pychopper summary statisitcs
+    ### Pychopper summary statisitcs
 
     The following plots summarize the output of [cdna_classifier.py]
     (https://github.com/nanoporetech/pychopper)
 
-    * **Classification of output reads**:
-        * Primers_found: Reads with primers found in correct orientation at
-        both ends.
-        * Rescue: Reads 'rescued' from fused reads
-        * Unusable: Read with missing or incorrect primer orientation
-    * **Strand of oriented reads**:
-        * Strand of read relative to the mRNA
-    * **Strand of rescued read**:
-        * Strand of read that were rescued from fused reads
-    * **Number of primer alignment hits in unclassified reads**:
-        * Note: Need to look into what this means
-    * **Number of primer alignment hits in rescued reads**:
-        * Note: Need to look into what this means
-    * **Number of usable segments per rescued read**:
-        * Number of usable segments (primer-flanked, correctly oriented
-        regions) per fused read.
-    * **Usable bases as a function of cutoff**:
-        * The cutoff value supplied to the primer alignment tool.
-        Note: What are usabel bases in this conext
-    * ** Log10 length distribution of trimmed away sequences**:
-        * todo
+    * **Pr.found**: Reads with primers found in correct orientation at
+     both ends.
+    * **Resc**: Reads 'rescued' from fused reads
+    * **Unusable**: Read with missing or incorrect primer orientation
+    * **+/-**: Orientation of reads relative to the mRNA
     ''')
 
-    def g(df, index, title):
-        df_ = df[df.index == index]
-        groups = df_.Name.values
-        bar_ = bars.simple_bar(
-            groups, df_['Value'].values,
-            title=title, colors=Colors.cerulean)
-        return bar_
+    plots = []
+    for id_, df in df.groupby('sample_id'):
+        df1 = df.set_index('Name', drop=True)
+        df1 = df1.T[['Primers_found', 'Rescue', 'Unusable']]
+        df1.rename(columns={'Primers_found': 'Pr.found',
+                            'Rescue': 'Resc',
+                            'Unsable': 'Un'}, inplace=True)
+        df2 = df[df.index == 'Strand']
+        bar_chop = bars.simple_bar(
+            df1.columns.values.tolist() + df2.Name.values.tolist(),
+            df1.iloc[0].values.tolist() + df2.Value.values.tolist(),
+            title='{} - Pychopper stats'.format(id_),
+            colors=Colors.cerulean)
 
-    df1 = df.set_index('Name', drop=True)
-    df1 = df1.T[['Primers_found', 'Rescue', 'Unusable']]
-    bar_class = bars.simple_bar(
-            df1.columns.values, df1.iloc[0].values,
-            title='Classification of output reads', colors=Colors.cerulean)
-
-    plots = [
-        bar_class,
-        g(df, 'Strand', 'Strand of oriented read'),
-        g(df, 'RescueStrand', 'Strand of rescued reads'),
-        g(df, 'UnclassHitNr', 'Number of hits in unclassified reads'),
-        g(df, 'RescueHitNr', 'Number of hits in rescued reads'),
-        g(df, 'RescueSegmentNr', 'Number of usable segments per rescued read')
-        ]
-
-    q = round(df.loc['Parameter', 'Value'], 4)
-    df_at = df[df.index == 'AutotuneSample'].astype('float')
-
-    # Add vertical line at x=q
-    ymin, ymax = df_at['Value'].min(), df_at['Value'].max()
-    plots.append(lines.line([df_at['Name'].values.tolist(), [q, q]],
-                            [df_at['Value'].values.tolist(), [ymin, ymax]],
-                            title=("Usable bases as function of cutoff(q).Best"
-                                   " q={}").format(q), colors=['blue', 'red']
-                            ))
-    df_unusable = df[df.index == 'Unusable'].astype('float')
-
-    plots.append(lines.line([np.log10(1 + df_unusable['Name'])],
-                            [df_unusable['Value']],
-                            title=("Log10 length distribution of trimmed away"
-                                   " sequences.")
-                            ))
-
-    grid = gridplot(plots, ncols=2,
-                    plot_width=400, plot_height=400)
+        plots.extend([bar_chop])
+    grid = gridplot(plots, ncols=4,
+                    width=300, height=300)
     section.plot(grid)
+
+
+def cluster_quality(cluster_qc_dir, report, sample_ids):
+    """Make cluster quality section."""
+    section = report.add_section()
+    section.markdown('''
+    ### De novo clustering quality
+
+    This section shows plots relating to the clustering quality performed
+    by isONclust2. The full length reads are mapped to a reference genome
+    to create a ground truth of reads mapped to clusters. This is then compared
+    to the de novo-generated clusters, and the following statistics are
+    generated.
+
+    * [Homogeneity](https://scikit-learn.org/stable/modules/generated/
+    sklearn.metrics.homogeneity_score.html): Penalises over-clustering.
+
+    * [Completeness](https://scikit-learn.org/stable/modules/generated/
+    sklearn.metrics.completeness_score.html): Penalises under-clustering.
+
+    * [V-measure](https://clusteringjl.readthedocs.io/en/latest/vmeasure.html):
+    The harmonic mean of the homogeneity and completeness
+
+    * [Adjusted Rand Index](https://scikit-learn.org/stable/modules/generated/
+    sklearn.metrics.adjusted_rand_score.html): Intuitively,  measures the
+    percentage of read pairs correctly clustered, normalized so that a perfect
+    clustering = 1 and a random cluster assignment achieves = 0
+
+    * NonSingleton: Clusters with multiple reads
+    * Singleton: Clusters consisting of a single read (These do not contribute
+    to the final transcript calling - I need to check this!)
+
+    ''')
+
+    tabs = []
+    for id_, cluster_dir in zip(sample_ids, cluster_qc_dir):
+        plots = []
+        for fn in [
+                'v_ari_com_hom.csv', 'sing_nonsing.csv']:
+            # Skip the next two plots for now
+            # 'class_sizes1.csv', 'class_sizes2.csv']:
+            df = pd.read_csv(Path(cluster_dir) / fn)
+            bar = bars.simple_bar(
+                df.Statistic.values.tolist(), df.Value.values.tolist(),
+                colors=Colors.cerulean
+            )
+            bar.xaxis.major_label_orientation = math.pi / 2.8
+            plots.append(bar)
+        tabs.append(Panel(
+            child=gridplot(plots, ncols=4,
+                    width=300, height=300), title=id_))
+
+    cover_panel = Tabs(tabs=tabs)
+    section.plot(cover_panel)
+
+
+def transcript_table(report, df_tmaps, covr_threshold, table_template):
+    """Create searchable table of transcripts."""
+    section = report.add_section()
+
+    # Should we put data from each sample into it's own table or have it
+    # all in single table and sample_id column? Currently it's the latter
+
+    # drop some columns for the big table and do some filtering
+    df = df_tmaps.drop(columns=['FPKM', 'qry_gene_id', 'major_iso_id',
+                                'ref_match_len', 'TPM'])
+    df.sort_values('cov', ascending=True, inplace=True)
+    counts = list(range(len(df)))
+
+    # Keep Isoforms with coverage > threshold
+    vline_x = np.argmax(df['cov'] > covr_threshold)
+    vline_y = [0, df['cov'].max()]
+
+    cov_plt = lines.line(
+        [counts, [vline_x, vline_x]],  # x-values
+        [df['cov'].values.tolist(), vline_y],  # y-values
+        title=(
+            "Read Coverage. Threshold = {}x coverage".format(
+                covr_threshold)
+        ), x_axis_label='Num Isoforms',
+        y_axis_label='Coverage',
+        colors=['blue', 'red'])
+
+    section.markdown('''
+    ### Query transcript table
+
+    Low coverage transcripts are removed to speed up the table viewing. <br>
+    This can be set with the parameter `args.min_isoform_cov` in the config.
+      ''')
+    section.plot(cov_plt)
+    # Filter on converge threshold
+    df = df[df['cov'] >= covr_threshold]
+
+    # Make a column of number of isoforms in parent gene
+    gb = df.groupby(['ref_gene_id', 'sample_id']).count()
+    # gb = gb.set_index(['ref_gene_id', 'sample_id'])
+    gb.rename(columns={'ref_id': 'num_isoforms'}, inplace=True)
+
+    df['parent gene iso num'] = df.apply(
+        lambda x: gb.loc[(x.ref_gene_id, x.sample_id), 'num_isoforms'], axis=1)
+
+    df.sort_values('parent gene iso num', inplace=True, ascending=True)
+
+    with open(table_template, 'r') as fh:
+        tabletempl = fh.read()
+
+    bigtable = Table(tabletempl, df, index=False, table_id='bigtable')
+    section._add_item(bigtable.div)
+
+
+def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
+    """
+    Plot transcriptome summaries.
+
+    Some of this data is available via gffcompare output, but the de novo
+    pipeline skips that, so we do it al here.
+
+    We do not report exon number for the denovo assembly yet. This is because
+    in this case, the gff annotation is generated by aligning to the CDS not
+    the genome.
+
+    :param report: aplanat WFReport
+    :param gffs: list of paths to gff transcriptome annotations
+    :param sample_ids: list of sample ids
+    :param denovo: whether annotation was generated by de novo pipeline or not
+    """
+    # test.db gets written to the git repo.
+    section = report.add_section()
+    section.markdown('''
+    ### Transcriptome summary
+    ''')
+
+    tabs = []
+    for id_, gff in zip(sample_ids, gffs):
+
+        plots = []
+
+        db = gffutils.create_db(
+            gff, dbfn=':memory:', force=True, keep_order=True,
+            merge_strategy='merge', sort_attribute_values=True
+        )
+
+        num_transcripts = db.count_features_of_type('transcript')
+        num_genes = db.count_features_of_type('gene')
+
+        transcript_lens = []
+        exons_per_transcript = Counter()
+        isoforms_per_gene = []
+
+        for g in db.features_of_type('gene'):
+
+            n_isos = len(list(db.children(g, featuretype='transcript')))
+            isoforms_per_gene.append(n_isos)
+
+            for t in db.children(
+                    g, featuretype='transcript', order_by='start'):
+                tr_len = 0
+                exons = list(enumerate(db.children(t, featuretype='exon')))
+                if len(exons) == 0:
+                    continue
+                for nx, ex in exons:
+                    tr_len += abs(ex.end - ex.start)
+
+                exons_per_transcript[nx] += 1
+
+                transcript_lens.append(tr_len)
+
+        num_bins = max(isoforms_per_gene)
+        if num_bins > 12:
+            num_bins = 12
+
+        hist_, bins = np.histogram(isoforms_per_gene, bins=num_bins)
+
+        bar_isos = bars.simple_bar([str(round(x_, 1)) for x_ in bins], hist_,
+                                   title="Isoforms per gene",
+                                   colors=Colors.cerulean,
+                                   x_axis_label='Num. isoforms',
+                                   y_axis_label='Num. genes')
+
+        bar_isos.xaxis.major_label_orientation = math.pi / 2.8
+        plots.append(bar_isos)
+
+        box = bars.boxplot_series(
+            [id_] * len(transcript_lens), transcript_lens,
+            width=70, ylim=(min(transcript_lens), max(transcript_lens)),
+            title='transcript lengths')
+        plots.append(box)
+
+        if not denovo:
+            x, y = zip(*sorted(exons_per_transcript.items()))
+
+            ept_bar = _vbar(x, list(y),
+                            title="Exons per transcript",
+                            color=Colors.cerulean)
+
+            ept_bar.xaxis.major_label_orientation = math.pi / 2.8
+            plots.append(ept_bar)
+
+        df_sum = pd.DataFrame.from_dict(
+            {'Total genes': [num_genes],
+             'Total transcripts': [num_transcripts],
+             'Max trans. len': max(transcript_lens),
+             'Min trans. len': min(transcript_lens)}).T
+        df_sum.reset_index(drop=False, inplace=True)
+
+        df_sum.columns = [' ', 'count']
+        cols = [TableColumn(field=Ci, title=Ci, width=80)
+                for Ci in df_sum.columns]
+        data_table = DataTable(columns=cols,
+                               source=ColumnDataSource(df_sum),
+                               index_position=None,
+                               width=180)
+        plots.append(data_table)
+
+        tabs.append(Panel(
+            child=gridplot(plots, ncols=4,
+                           width=300, height=300), title=id_))
+
+    cover_panel = Tabs(tabs=tabs)
+    section.plot(cover_panel)
+
+
+def load_sample_data(files, sample_ids, read_func=None):
+    """Load CSVs into dataframe, and assign sample_id column."""
+    df_ = pd.DataFrame()
+    if not files:
+        return None
+    for id_, x in zip(sample_ids, files):
+        if read_func:
+            d = read_func(x)
+        else:
+            d = pd.read_csv(x, sep='\t+')
+        d['sample_id'] = id_
+        df_ = pd.concat([df_, d])
+    return df_
 
 
 def main():
     """Run the entry point."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("report", help="Report output file")
-    parser.add_argument("summaries", nargs='+', help="Read summary file.")
+    parser.add_argument("--report", help="Report output file")
+    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
     parser.add_argument(
         "--versions", required=True,
         help="directory containing CSVs containing name,version.")
@@ -529,36 +854,95 @@ def main():
         help="git commit of the executed workflow")
 
     parser.add_argument(
-        "--alignment_stats", required=True,
-        help="TSV summary file of alignment statistics")
-
-    parser.add_argument(
-        "--gffcompare_tracking", required=False, default=None,
+        "--alignment_stats", required=False, default=None, nargs='*',
         help="TSV summary file of alignment statistics")
     parser.add_argument(
-        "--gffcompare_stats", required=False, default=None,
-        help="TSV summary file of alignment statistics")
-
+        "--gff_annotation", required=True, nargs='+',
+        help="transcriptome annotation gff file")
     parser.add_argument(
-        "--pychop_report", required=True,
+        "--gffcompare_dir", required=False, default=None, nargs='*',
+        help="gffcompare outout dir")
+    parser.add_argument(
+        "--pychop_report", required=True, nargs='+',
         help="TSV summary file of pychopper statistics")
+    parser.add_argument(
+        "--sample_ids", required=True, nargs='+',
+        help="List of sample ids")
+    parser.add_argument(
+        "--report_template", required=True,
+        help="Jinja template")
+    parser.add_argument(
+        "--table_template", required=True,
+        help="Template for big transcript table")
+    parser.add_argument(
+        "--transcript_table_cov_thresh", required=False, type=int, default=50,
+        help="Isoforms without this support will be excluded from the table")
+    parser.add_argument(
+        "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
+        help="Directory with various cluster quality csvs")
+    parser.add_argument('--denovo', dest='denovo', action='store_true')
+
     args = parser.parse_args()
+    print('denovo', args.denovo)
+
+    sample_ids = args.sample_ids
 
     report = WFReport(
-        "Workflow for assembling transcript isoforms", "wf-isoforms",
+        "Transcript isoform report", "wf-isoforms",
         revision=args.revision, commit=args.commit)
 
     # Add reads summary section
-    report.add_section(
-        section=fastcat.full_report(args.summaries))
+    for id_, summ in zip(sample_ids, args.summaries):
+        report.add_section(
+            section=fastcat.full_report(
+                [summ],
+                header='#### Read stats: {}'.format(id_)
+            ))
+
+    if args.alignment_stats is not None:
+        df_aln_stats = load_sample_data(args.alignment_stats, sample_ids)
+        section = report.add_section()
+        section.markdown('''
+          ### Read mapping summary
+
+          Output of [seqkit](https://bioinf.shenwei.me/seqkit/) bam -s''')
+
+        section.table(df_aln_stats)
 
     # workflow-specific plotting
-    workflow_plots(report, args.alignment_stats,  args.gffcompare_stats,
-                   args.gffcompare_tracking)
+    tanscriptome_summary(report, args.gff_annotation, sample_ids,
+                         denovo=args.denovo)
 
-    if args.pychop_report:
-        df_chop_stats = pd.read_csv(args.pychop_report, sep='\t', index_col=0)
-        pychopper_plots(report, df_chop_stats)
+    df_tmaps = gff_compare_plots(
+        report,
+        [Path(x) for x in args.gffcompare_dir],
+        sample_ids)
+
+    report.write(args.report)
+
+    pc_df = pd.DataFrame()
+    for id_, pyc in zip(sample_ids, args.pychop_report):
+        try:
+            p = pd.read_csv(pyc, sep='\t', index_col=0)
+        except pd.errors.EmptyDataError:
+            continue
+        p['sample_id'] = id_
+        pc_df = pd.concat([pc_df, p])
+
+    if len(pc_df) > 0:
+        pychopper_plots(report, pc_df)
+
+    with open(args.report_template, "r") as fh:
+        reptempl = fh.read()
+
+    report.template = Template(reptempl)
+
+    if df_tmaps is not None:
+        transcript_table(report, df_tmaps, args.transcript_table_cov_thresh,
+                         args.table_template)
+
+    if args.cluster_qc_dirs is not None:
+        cluster_quality(args.cluster_qc_dirs, report, sample_ids)
 
     # Arguments and software versions
     report.add_section(
@@ -566,7 +950,6 @@ def main():
     report.add_section(
         section=scomponents.params_table(args.params))
 
-    # write report
     report.write(args.report)
 
 

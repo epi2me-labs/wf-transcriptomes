@@ -1,38 +1,36 @@
 #!/usr/bin/env nextflow
 
-// Developer notes
-// 
-// This template workflow provides a basic structure to copy in order
-// to create a new workflow. Current recommended pratices are:
-//     i) create a simple command-line interface.
-//    ii) include an abstract workflow scope named "pipeline" to be used
-//        in a module fashion.
-//   iii) a second concreate, but anonymous, workflow scope to be used
-//        as an entry point when using this workflow in isolation.
+/* This workflow is a adapted from two previous pipeline written in Snakemake:
+- https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
+- https://github.com/nanoporetech/pipeline-nanopore-denovo-isoforms
+*/
 
-import groovy.json.JsonBuilder
+import groovy.json.JsonBuilder;
+import nextflow.util.BlankSeparatedList;
 import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress' 
 include { start_ping; end_ping } from './lib/ping'
+include { reference_assembly } from './reference_assembly'
+include { denovo_assembly } from './denovo_assembly'
 
 
-process summariseReads {
-    // concatenate fastq and fastq.gz in a dir
+process summariseConcatReads {
+    // concatenate fastq and fastq.gz in a dir write stats
 
     label "isoforms"
     cpus 1
     input:
-        tuple path(directory), val(sample_name), val(type)
+        tuple path(directory), val(sample_id), val(type)
     output:
-        tuple val(sample_name), path('*'), emit: summary
+        tuple val(sample_id), path("${sample_id}.fastq"), emit: input_reads
+        tuple val(sample_id), path('*.stats'), emit: summary
     script:
     """
-    fastcat -s ${sample_name} -r ${sample_name}.stats -x ${directory} > /dev/null
+    fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} >  ${sample_id}.fastq
     """
 }
-
 
 process getVersions {
     label "isoforms"
@@ -44,7 +42,7 @@ process getVersions {
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
     python -c "import aplanat; print(f'aplanat,{aplanat.__version__}')" >> versions.txt
     python -c "import pandas; print(f'pandas,{pandas.__version__}')" >> versions.txt
-    python -c "import seaborn; print(f'seaborn,{seaborn.__version__}')" >> versions.txt
+    python -c "import sklearn; print(f'scikit-learn,{sklearn.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
     minimap2 --version | sed 's/^/minimap2,/' >> versions.txt
     samtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
@@ -52,10 +50,10 @@ process getVersions {
     python -c "import pychopper; print(f'pychopper,{pychopper.__version__}')" >> versions.txt
     gffread --version | sed 's/^/gffread,/' >> versions.txt
     seqkit version | head -n 1 | sed 's/ /,/' >> versions.txt
-    csvtk version | head -n 1 | sed 's/ /,/' >> versions.txt
     stringtie --version | sed 's/^/stringtie,/' >> versions.txt
     gffcompare --version | head -n 1 | sed 's/ /,/' >> versions.txt
     spoa --version | sed 's/^/spoa,/' >> versions.txt
+    isONclust2 version | sed 's/ version: /,/' >> versions.txt
     """
 }
 
@@ -80,42 +78,25 @@ process preprocess_reads {
     */
  
     label "isoforms"
-    cpus params.threads
+    cpus 4
 
     input:
-        tuple path(directory), val(sample_id), val(type) 
+        tuple val(sample_id), path(input_reads)
     output:
-         tuple val(sample_id), path("full_length_reads.fq"), emit: full_len_reads
-         tuple val(sample_id), path('cdna_classifier_report.tsv'),  emit: report
-//          val "${sample_id}", emit: sample_id
-//          path 'cdna_classifier_report.tsv', optional: true, emit: cdna_class_report
-         // Not sure if this is an antipattern, but it's function is to publish all the files to the publishDir dir
+         tuple val(sample_id), path("${sample_id}_full_length_reads.fq"), emit: full_len_reads
+         tuple val(sample_id), path('*.tsv'),  emit: report
     script:
         """
-        fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} > input_reads.fq
-    
         if [[ ${params.use_pychopper} == true ]];
         then
-            cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} input_reads.fq full_length_reads.fq
-            generate_pychopper_stats.py --data cdna_classifier_report.tsv --output .
+            cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
+            mv cdna_classifier_report.tsv ${sample_id}_cdna_classifier_report.tsv
+            generate_pychopper_stats.py --data ${sample_id}_cdna_classifier_report.tsv --output .
         else
-            ln -s `realpath input_reads.fq` full_length_reads.fq
+            ln -s `realpath $input_reads` "${sample_id}_full_length_reads.fq"
+            touch $sample_id}_cdna_classifier_report.tsv
         fi
         """
-}
-
-process generate_fq_stats {
-    label "isoforms"
-
-    input:
-        tuple(sample_id), path(fastq), val(unused)
-
-    output:
-        path "*"
-    script:
-    """
-        run_fastq_qc.py --fastq ${fastq} --output .
-    """
 }
 
 process build_minimap_index{
@@ -126,72 +107,12 @@ process build_minimap_index{
     cpus params.threads
 
     input:
-        file reference
+        path reference
     output:
         path "genome_index.mmi", emit: index
     script:
     """
         minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
-    """
-}
-
-
-process map_reads{
-    /*
-    Map reads to reference using minimap2.
-    Filter reads by mapping quality.
-    Filter reads where length of poly(A) > max_poly_run at either ends of the read (defined by poly_context)
-    */
-    label "isoforms"
-    cpus params.threads
-
-    input:
-       file index
-       file reference
-       tuple val(sample_id), file(fastq_reads)
-
-    output:
-       tuple val(sample_id), path("reads_aln_sorted.bam"), emit: bam
-       tuple val(sample_id), path("read_aln_stats.tsv"), emit: stats
-    script:
-        def ab = "reads_aln_sorted.bam"
-        def af = "internal_priming_fail.tsv"
-        def fs = "context_internal_priming_fail_start.fasta"
-        def fe = "context_internal_priming_fail_end.fasta"
-        def fasta_reads = "reads.fa"
-        def ContextFilter = """AlnContext: { Ref: "${reference}", LeftShift: -${params.poly_context}, RightShift: ${params.poly_context},
-           RegexEnd: "[Aa]{${params.max_poly_run},}",
-           Stranded: True,Invert: True, Tsv: "internal_priming_fail.tsv"} """
-       """
-       seqkit fq2fa ${fastq_reads} -o ${fasta_reads};
-       minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} ${index} ${fasta_reads}\
-       | samtools view -q ${params.minimum_mapping_quality} -F 2304 -Sb -\
-       | seqkit bam -j ${params.threads} -x -T '${ContextFilter}' -\
-       | samtools sort -@ ${params.threads} -o ${ab} -;
-
-       ((seqkit bam -s -j ${params.threads} ${ab} 2>&1)  | tee read_aln_stats.tsv ) || true
-
-       if [[ -s ${af} ]];
-       then
-           tail -n +2 ${af} | awk '{{print ">" \$1 "\\n" \$4 }}' - > ${fs}
-           tail -n +2 ${af} | awk '{{print ">" \$1 "\\n" \$6 }}' - > ${fe}
-       fi
-       """
-}
-
-process plot_aln_stats{
-    /*
-    Create a pdf of alignemnt statistis. 
-    */
-    label 'isoforms'
-
-    input:
-        tuple val(sample_id), path (aln_stats)
-    output:
-        path "*"
-    script:
-    """
-    plot_aln_stats.py ${aln_stats} -r read_aln_stats.pdf
     """
 }
 
@@ -215,19 +136,21 @@ process split_bam{
         """
         seqkit bam -j ${params.threads} -N ${params.bundle_min_reads} ${bam} -o  bam_bundles/
         mv bam_bundles/* .
+        for f in *:*; do mv -v "\$f" \$(echo "\$f" | tr ':' '-'); done
         """
     else
         """
         mkdir -p ./${sample_id}_bam_bundles
-        ln -s ${bam} ${sample_id}_bam_bundles/000000000_ALL:0:1_bundle.bam
+        ln -s ${bam} ${sample_id}_bam_bundles-000000000-ALL-0-1_bundle.bam
         """
 }
 
 
-process stringtie{
+process assemble_transcripts{
     /*
-    Takes in aligned reads in bam format that may be a chunk of a larger alignment file.
-    $G_FLAG specifies whether or not to use reference annotation as a guide in transcript assembly. 
+    Assemble transcripts using stringtie.
+    Take aligned reads in bam format that may be a chunk of a larger alignment file.
+    Optionally use reference annotation to guide assembly.
 
     Output gff annotation files in a tuple with `sample_id` for combining into samples late rin the pipeline.
     */
@@ -236,15 +159,14 @@ process stringtie{
 
     input:
         tuple val(sample_id), path(bam)
-        file ref_annotation
+        path ref_annotation
     output:
         tuple val(sample_id), path('*.gff'), emit: gff_bundles
     script:
-        def out_filename = bam.name.replaceFirst(~/\.[^\.]+$/, '') + '.gff'
-        def label = "STR.${bam.name.split('_')[0].toInteger()}."
+        def out_filename = bam.name.replaceFirst(~/\.[^\.]+$/, '') + "_${sample_id}.gff"
         def G_FLAG = ref_annotation.name.startsWith('OPTIONAL_FILE') ? '' : "-G ${ref_annotation}"
     """
-    stringtie --rf ${G_FLAG} -L -v -p ${params.threads} ${params.stringtie_opts} -o  ${out_filename} \
+    stringtie --rf ${G_FLAG} -L -v -A gene_abund.tab -p ${params.threads} ${params.stringtie_opts} -o  ${out_filename} \
     ${bam} 2>/dev/null
     """
 }
@@ -261,9 +183,9 @@ process merge_gff_bundles{
     output:
         tuple val(sample_id), path('*.gff'), emit: gff
     script:
-    def merged_gff = "str_merged_${sample_id}.gff"
+    def merged_gff = "transcripts_${sample_id}.gff"
     """
-    echo '#gff-version 2' >> $merged_gff;
+    echo '##gff-version 2' >> $merged_gff;
     echo '#pipeline-nanopore-isoforms: stringtie' >> $merged_gff;
 
     for fn in ${gff_bundle};
@@ -274,9 +196,11 @@ process merge_gff_bundles{
     """
 }
 
-process run_gff_compare{
+process run_gffcompare{
     /*
     Compare query and reference annotations.
+    If ref_annotation is an optional file, just make an empty directory to satisfy
+    the requirements of the downstream processes.
     */
 
     label 'isoforms'
@@ -285,45 +209,55 @@ process run_gff_compare{
        tuple val(sample_id), path(query_annotation)
        path ref_annotation
     output:
-        tuple val(sample_id), path('str_merged.annotated.gtf'), emit: merged_annotated
-        tuple val(sample_id), path('str_merged.stats'), emit: stats
-        tuple val(sample_id), path('str_merged.tracking'), emit: tracking
+        tuple val(sample_id), path("${sample_id}_gffcompare"), emit: gffcmp_dir
     script:
-        """
-        echo "Doing comparison of reference annotation: ${ref_annotation} and the current annotation"
-        gffcompare -o str_merged -r ${ref_annotation} ${params.gffcompare_opts} ${query_annotation}
-        generate_tracking_summary.py --tracking str_merged.tracking --output_dir . --annotation ${ref_annotation}
+    def out_dir = "${sample_id}_gffcompare"
 
-        if [[ ${params.plot_gffcmp_stats} == true ]];
-        then
-            plot_gffcmp_stats.py -r str_gffcmp_report.pdf -t str_merged.tracking str_merged.stats;
-        fi
+    if ( ref_annotation.name.startsWith('OPTIONAL_FILE') ){
         """
+        mkdir $out_dir
+        """
+    } else {
+        """
+        mkdir $out_dir
+        echo "Doing comparison of reference annotation: ${ref_annotation} and the query annotation"
+
+       gffcompare -o ${out_dir}/str_merged -r ${ref_annotation} \
+        ${params.gffcompare_opts} ${query_annotation}
+
+        generate_tracking_summary.py --tracking $out_dir/str_merged.tracking \
+        --output_dir ${out_dir} --annotation ${ref_annotation}
+
+       mv *.tmap $out_dir
+       mv *.refmap $out_dir
+        """
+    }
 }
 
 
-process run_gffread{
+process get_transcriptome{
         /*
-        Write out a transctiptome file based on the gff annotations.
+        Write out a transcriptome file based on the query gff annotations.
+        TODO: Do we need to touch merged_transcriptome or can we just pass it?
         */
         label 'isoforms'
 
         input:
-            tuple val(sample_id), path(gff_merged), path(merged_ann_gff)
-            path reference_seq
+            tuple val(sample_id), path(transcripts_gff), path(gffcmp_dir), path(reference_seq)
         output:
-            tuple val(sample_id), path('*.fas'), emit: transcriptome
+            tuple val(sample_id), path("*.fas"), emit: transcriptome
+
         script:
-        def str_transcriptome = "${sample_id}_str_transcriptome.fas"
+        def transcriptome = "${sample_id}_transcriptome.fas"
         def merged_transcriptome = "${sample_id}_merged_transcriptome.fas"
         """
 
-        gffread -g ${reference_seq} -w ${str_transcriptome} ${gff_merged}
-        if [ -f ${merged_ann_gff} ]
+        gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
+        if  [ "\$(ls -A $gffcmp_dir)" ];
         then
-            gffread -F -g ${reference_seq} -w ${merged_transcriptome} ${merged_ann_gff}
-        else
-            touch ${merged_transcriptome}
+            echo "Yes"
+            gffread -F -g ${reference_seq} -w ${merged_transcriptome} \
+            $gffcmp_dir/str_merged.annotated.gtf
         fi
         """
 }
@@ -333,25 +267,44 @@ process makeReport {
     label "isoforms"
 
     input:
+        path report_template
+        path table_template
         path versions
-        path params
-        tuple val(sample_id), path(seqs), path(aln_stats), path(gffcompare_tracking), path(gffcompare_stats),
-                path(cdna_class_report)
+        path "params.json"
+        val denovo
+        tuple val(sample_ids),
+                path(seq_summaries),
+                path(aln_stats),
+                path(gffcmp_dir),
+                path(cdna_class_report),
+                path(gff_annotation)
     output:
-        tuple val(sample_id), path("wf-isoforms-*.html"), emit: report
+        path("wf-isoforms-*.html"), emit: report
     script:
-        def report_name = "wf-isoforms-${sample_id}_report.html"
-        def opt_gff_track = gffcompare_tracking.name.startsWith('OPTIONAL_FILE') ? '' : "--gffcompare_tracking ${gffcompare_tracking}"
-        def opt_gff_stats = gffcompare_stats.name.startsWith('OPTIONAL_FILE') ? '' : "--gffcompare_stats ${gffcompare_stats}"
+        // Convert the sample_id arrayList.
+        sids = new BlankSeparatedList(sample_ids)
+
+        def report_name = "wf-isoforms-report.html"
+        def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
+        def OPT_DENOVO = denovo ? "--denovo" : ''
     """
-    report.py ${report_name} --versions ${versions} ${seqs} --params params.json \
-    --alignment_stats ${aln_stats} \
-    ${opt_gff_track} \
-    ${opt_gff_stats} \
-    --pychop_report ${cdna_class_report}
+    report.py --report $report_name \
+    --report_template $report_template \
+    --table_template $table_template \
+    --versions $versions \
+    --params params.json \
+    $OPT_ALN \
+    --pychop_report $cdna_class_report \
+    --sample_ids $sids \
+    --summaries $seq_summaries \
+    --gffcompare_dir $gffcmp_dir \
+    --gff_annotation $gff_annotation \
+    --transcript_table_cov_thresh $params.transcript_table_cov_thresh \
+    $OPT_DENOVO
+
+
     """
 }
-
 
 // See https://github.com/nextflow-io/nextflow/issues/1636
 // This is the only way to publish files from a workflow whilst
@@ -362,11 +315,24 @@ process output {
     publishDir "${params.results_dir}/${sample_id}", mode: 'copy', pattern: "*"
 
     input:
-        tuple val(sample_id), file(fname)
+        tuple val(sample_id), path(fname)
     output:
-        file fname
+        path fname
     """
     echo "Writing output files"
+    echo $fname
+    """
+}
+
+process output_report {
+    publishDir "${params.results_dir}", mode: 'copy', pattern: "*report.html"
+
+    input:
+        path fname
+    output:
+        path fname
+    """
+    echo "Copying report"
     """
 }
 
@@ -377,6 +343,8 @@ workflow pipeline {
         reads
         ref_genome
         ref_annotation
+        report_template
+        table_template
     main:
 
         map_sample_ids_cls = {it -> 
@@ -401,60 +369,92 @@ workflow pipeline {
             return l
         }
 
-        summariseReads(reads)
-        sample_ids = summariseReads.out.summary.collect({it -> it[0]})
+        summariseConcatReads(reads)
+        sample_ids = summariseConcatReads.out.summary.flatMap({it -> it[0]})
+
         software_versions = getVersions()
         workflow_params = getParams()
-        preprocess_reads(reads)
-//         generate_fq_stats(preprocess_reads.out.sample)  skip for now
+        preprocess_reads(summariseConcatReads.out.input_reads)
 
-        build_minimap_index(ref_genome)
-        map_reads(build_minimap_index.out.index, ref_genome, preprocess_reads.out.full_len_reads)
-//         plot_aln_stats(map_reads.out.bam)
-        split_bam(map_reads.out.bam)
-        stringtie(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
-        merge_gff_bundles(stringtie.out.gff_bundles.groupTuple())
+        if (params.denovo){
+            println("Doing de novo assembly")
+             m = denovo_assembly(preprocess_reads.out.full_len_reads, ref_genome)
+
+        } else {
+            build_minimap_index(ref_genome)
+            println("Doing reference based transcript analysis")
+            m = reference_assembly(build_minimap_index.out.index, ref_genome, preprocess_reads.out.full_len_reads)
+        }
+
+        split_bam(m.bam)
+
+        assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
+
+        merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
 
         use_ref_ann = !ref_annotation.name.startsWith('OPTIONAL_FILE')
 
-        if (use_ref_ann){
-            run_gff_compare(merge_gff_bundles.out.gff, ref_annotation)
-            run_gffread(merge_gff_bundles.out.gff.join(run_gff_compare.out.merged_annotated),
-                        ref_genome)
-            gff_tracking = run_gff_compare.out.tracking
-            gff_stats = run_gff_compare.out.stats
-        }else{
-            // Create dummy file paths to satisfy required path inputs of processes
-            // Add to tuple with sample_id to guide to correct sample
-            gff_tracking = sample_ids.combine(Channel.fromPath("$projectDir/data/OPTIONAL_FILE")).view()
-            gff_stats = sample_ids.combine(Channel.fromPath("$projectDir/data/OPTIONAL_FILE_1"))
+        run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
+
+        if (params.denovo){
+            // Use the perd-sample, de novo-assembled CDS
+            seq_for_transcriptome_build = m.cds
+        }else {
+            // If doing reference based assembly, there is only one reference
+            // So map this reference to all sample_ids
+            seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
         }
 
-        makeReport(
+        makeReport(report_template,
+                    table_template,
                     software_versions,
                     workflow_params,
-                    summariseReads.out.summary
-                    .join(map_reads.out.stats)
-                    .join(gff_tracking)
-                    .join(gff_stats)
+                    params.denovo,
+                    summariseConcatReads.out.summary
+                    .join(m.stats)
+                    .join(run_gffcompare.out.gffcmp_dir)
                     .join(preprocess_reads.out.report)
+                    .join(merge_gff_bundles.out.gff)
+                    .toList().transpose().toList()
                     )
+
+        report = makeReport.out.report
+
+       get_transcriptome(merge_gff_bundles.out.gff
+            .join(run_gffcompare.out.gffcmp_dir)
+            .join(seq_for_transcriptome_build))
+
         if (use_ref_ann){
             results = preprocess_reads.out.report
-                        .concat(merge_gff_bundles.out.gff,
-                        run_gff_compare.out.stats,
-                        run_gff_compare.out.merged_annotated,
-                        run_gffread.out.transcriptome,
-                        makeReport.out.report
+                        .concat(run_gffcompare.output.gffcmp_dir,
+                        m.stats,
+                        get_transcriptome.out.flatMap(map_sample_ids_cls),
                         )
-        }else{  // Write a minimal report if no reference annotation is given
+        }
+        if (!use_ref_ann && !params.denovo){
             results = preprocess_reads.out.report
-                        .concat(merge_gff_bundles.out.gff,
-                                makeReport.out.report
-                                )
-            }
+                        .concat(m.stats,
+                        get_transcriptome.out.flatMap(map_sample_ids_cls),
+                        )
+        }
+        if (params.denovo){
+            results = m.cds
+                      .concat(m.stats,
+                      seq_for_transcriptome_build,
+                      get_transcriptome.out.flatMap(map_sample_ids_cls),
+                      merge_gff_bundles.out.gff,
+                      m.opt_qual_ch.flatMap {it -> 
+                      l = []
+                       for (x in it[1..-1]){
+                            l.add(tuple(it[0], x))
+                            }
+                        return l
+                      })
+        }
+
     emit:
         results
+        report
         telemetry = workflow_params
 }
 
@@ -465,6 +465,9 @@ workflow {
     start_ping()
     params.results_dir = "${params.out_dir}/output"
 
+    report_template = file("$projectDir/bin/report_template.html")
+    table_template = file("$projectDir/bin/table_template.html")
+
     fastq = file(params.fastq, type: "file")
 
      if (!fastq.exists()) {
@@ -472,15 +475,27 @@ workflow {
         exit 1
     }
 
+    if (!params.denovo && !params.ref_genome){
+        println("--ref_genome must be supplied unless doing de novo assembly (--denovo)")
+        exit 1
+    }
+
+
     if (params.ref_genome){
         ref_genome = file(params.ref_genome, type: "file")
         if (!ref_genome.exists()) {
-            println("--reference: File doesn't exist, check path.")
+            println("--ref_genome: File doesn't exist, check path.")
             exit 1
         }
+    }else {
+        ref_genome = file("$projectDir/data/OPTIONAL_FILE")
     }
 
-    ref_annotation = null
+    if (params.denovo && params.ref_annotation) {
+        println("Reference annotation with de denovo assembly is not supported")
+        exit 1
+    }
+
     if (params.ref_annotation){
         ref_annotation = file(params.ref_annotation, type: "file")
         if (!ref_annotation.exists()) {
@@ -495,11 +510,10 @@ workflow {
         params.fastq, params.out_dir, params.sample, params.sample_sheet, params.sanitize_fastq
     )
 
-    pipeline(reads, ref_genome, ref_annotation)
+    pipeline(reads, ref_genome, ref_annotation, report_template, table_template)
 
-    output(
-        pipeline.out.results
-        )
+    output(pipeline.out.results)
+    output_report(pipeline.out.report)
 
     end_ping(pipeline.out.telemetry)
 }
