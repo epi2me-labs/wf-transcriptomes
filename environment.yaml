@@ -1,4 +1,4 @@
-name: epi2melabs-wf-isoforms
+name: epi2melabs-wf-isoforms-test
 channels:
     - epi2melabs
     - bioconda
@@ -8,20 +8,21 @@ dependencies:
     - python==3.8.*
     - aplanat >=0.5.0
     - epi2melabs
-    - minimap2
-    - samtools
-    - bedtools
-    - pychopper
-    - pandas
-    - seaborn
-    - requests
-    - gffread
-    - seqkit
-    - csvtk
+    - minimap2 ==2.24
+    - samtools ==1.14
+    - bedtools ==2.30.0
+    - pychopper==2.5.0
+    - pandas==1.3.5
+    - gffread==0.12.7
+    - gffcompare==0.11.2
+    - gffutils=0.10.1
+    - seqkit==2.1.0
     - stringtie==2.1.1
-    - gffcompare
     - curl
-    - pysam
+    - pysam==0.17.0
+    - racon==1.4.20
     - spoa==3.4.0
-    - fastcat
-    - isonclust2
+    - fastcat==0.4.10
+    - isonclust2==2.3
+    - parallel
+    - scikit-learn==1.0.2

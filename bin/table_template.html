@@ -1,0 +1,106 @@
+<script type="text/javascript">
+$(document).ready(function(){
+    $("#load_msg").hide();
+    $("#{{ table_id }}").show();
+});
+</script>
+
+<style>
+table{
+table-layout: fixed;
+word-wrap: break-word;
+}
+#{{ table_id }}{
+<!-- To make the column widths smaller -->
+
+font-family: Arial, Helvetica, sans-serif;
+border-collapse: collapse;
+width: 100%;
+display: none;
+}
+#{{ table_id }} td, #{{ table_id }} th {
+border: 1px solid #ddd;
+padding: 4px;
+}
+#{{ table_id }} tr:nth-child(even){background-color: #f2f2f2;}
+#{{ table_id }} tr:hover {background-color: #90C5E7;}
+#{{ table_id }} th {
+padding-top: 4px;
+padding-bottom: 4px;
+text-align: left;
+background-color: #0084A9;
+}
+</style>
+
+<body>
+<div id='load_msg'>Table loading</div>
+{{ dataframe }}
+</body>
+<script type="text/javascript">
+    $(document).ready(function () {
+    // Setup - add a text input to each footer cell
+    $('#{{ table_id }} thead tr')
+        .clone(true)
+        .addClass('filters')
+        .appendTo('#{{ table_id }} thead');
+
+    var table = $('#{{ table_id }}').DataTable({
+        "columnDefs": [
+                { "width": "5%", "targets": [2, 4] }],
+        sDom: 'lrtip', // removes search box while still allowing search
+        searching: true,
+        pageLength: 30,
+        orderCellsTop: true,
+        fixedHeader: true,
+        initComplete: function () {
+            var api = this.api();
+
+            // For each column
+            api
+                .columns()
+                .eq(0)
+                .each(function (colIdx) {
+                    // Set the header cell to contain the input element
+                    var cell = $('.filters th').eq(
+                        $(api.column(colIdx).header()).index()
+                    );
+                    var title = $(cell).text();
+                    $(cell).html('<input type="text" placeholder="&#xF002; Search" style="font-family:Arial, FontAwesome; width:100%" />');
+
+                    // On every keypress in this input
+                    $(
+                        'input',
+                        $('.filters th').eq($(api.column(colIdx).header()).index())
+                    )
+                        .off('keyup change')
+                        .on('keyup change', function (e) {
+                            e.stopPropagation();
+
+                            // Get the search value
+                            $(this).attr('title', $(this).val());
+                            var regexr = '({search})'; //$(this).parents('th').find('select').val();
+
+                            var cursorPosition = this.selectionStart;
+                            // Search the column for that value
+                            api
+                                .column(colIdx)
+                                .search(
+                                    this.value != ''
+                                        ? regexr.replace('{search}', '(((' + this.value + ')))')
+                                        : '',
+                                    this.value != '',
+                                    this.value == ''
+                                )
+                                .draw();
+
+                            $(this)
+                                .focus()[0]
+                                .setSelectionRange(cursorPosition, cursorPosition);
+                        });
+                });
+        },
+    });
+});
+
+</script>
+

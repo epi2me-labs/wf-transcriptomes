@@ -63,7 +63,8 @@
                 },
                 "pychopper_opts": {
                     "type": "string",
-                    "description": "Extra pychopper opts"
+                    "description": "Extra pychopper opts",
+                    "default": "-m edlib"
                 },
                 "threads": {
                     "type": "integer",
@@ -110,11 +111,95 @@
                 },
                 "disable_ping": {
                     "type": "boolean"
+                },
+                "transcript_table_cov_thresh": {
+                    "type": "integer",
+                    "description": "Minimum coverage for a transcript to appear in the report table",
+                    "default": 50
+                },
+                "denovo": {
+                    "type": "boolean",
+                    "description": "Use denovo transcript assembly rather than reference guided",
+                    "default": false
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "description": "Maximum sequences per input batch (-1 means no limit)",
+                    "default": -1
+                },
+                "batch_max_seq": {
+                    "type": "integer",
+                    "description": "Maximum sequences per input batch (-1 means no limit)",
+                    "default": -1
+                },
+                "cls_mode": {
+                    "type": "string",
+                    "description": "Clustering mode",
+                    "default": "sahlin"
+                },
+                "kmer_size": {
+                    "type": "integer",
+                    "description": "Kmer size",
+                    "default": 11
+                },
+                "window_size": {
+                    "type": "integer",
+                    "description": "Window size",
+                    "default": 15
+                },
+                "min_left_cls": {
+                    "type": "integer",
+                    "description": "Minimum cluser size in the left batch",
+                    "default": 2
+                },
+                "consensus_period": {
+                    "type": "integer",
+                    "description": "Consensus period (-1 means no consensus)",
+                    "default": 500
+                },
+                "consensus_minimum": {
+                    "type": "integer",
+                    "description": "Minimum consensus sample size:",
+                    "default": 50
+                },
+                "consensus_maximum": {
+                    "type": "integer",
+                    "description": "Maximum consensus sample size",
+                    "default": -150
+                },
+                "min_shared": {
+                    "type": "integer",
+                    "description": "Minimum number of minimizers shared between read and cluster",
+                    "default": 5
+                },
+                "min_qual": {
+                    "description": "Minimum average quality value",
+                    "type": "number",
+                    "default": 7.0
+                },
+                "mapped_threshold": {
+                    "description": "Minimum mapped fraction of read to be included in cluster",
+                    "type": "number",
+                    "default": 0.65
+                },
+                "aligned_threshold": {
+                    "tpye": "number",
+                    "description": "Minimum aligned fraction of read to be included in cluster",
+                    "default": 0.2
+                },
+                "min_fraction": {
+                    "type": "number",
+                    "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
+                    "default": 0.8
+                },
+                "min_prob_no_hits" : {
+                    "type": "number",
+                    "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
+                    "default": 0.2
                 }
             },
             "required": [
-                "fastq",
-                "ref_genome"
+                "fastq"
             ]
         },
         "meta_data": {
