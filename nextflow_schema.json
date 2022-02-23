@@ -37,24 +37,29 @@
                     "description": "Use additional heuristics to identify barcodes from file paths.",
                     "help_text": "Enabling this option will group together files into samples by the presence of strings of the form `barcodeXXX` present in filenames, rather than simply files grouped into directories (as output by MinKNOW and the Guppy basecaller)."
                 },
-                "plot_gffcmp_stats": {
-                    "type": "boolean",
-                    "description": "Create a pdf of plots from showing gffcompare results"
-                },
-                "gffcompare_opts": {
-                    "type": "string",
-                    "description": "Extra options for gffcompare -r",
-                    "default": " -R "
-                },
                 "ref_genome": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]"
+                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow"
                 },
                 "ref_annotation": {
                     "type": "string",
                     "format": "file-path",
                     "description": "A reference annotation of gff format"
+                }
+            },
+            "required": [
+                "fastq"
+            ]
+        },
+        "global_options": {
+            "title":  "Global options",
+            "type":  "object",
+            "description":  "Options for both sub-workflows",
+            "properties": {
+                "threads": {
+                    "type": "integer",
+                    "default": 4
                 },
                 "use_pychopper": {
                     "type": "boolean",
@@ -66,51 +71,14 @@
                     "description": "Extra pychopper opts",
                     "default": "-m edlib"
                 },
-                "threads": {
-                    "type": "integer",
-                    "default": 8
-                },
-                "minimap_index_opts": {
-                    "type": "string",
-                    "description": "minimap2 extra indexing options.",
-                    "default": "-k14"
-                },
-                "minimap2_opts": {
-                    "type": "string",
-                    "description": "minimap2 extra mapping options.",
-                    "default": "-uf"
-                },
-                "minimum_mapping_quality": {
-                    "type": "integer",
-                    "description": "filter aligned reads by MAPQ quality.",
-                    "default": 40
-                },
-                "poly_context": {
-                    "type": "integer",
-                    "description": "Region size at end of reads to apply poly(A) filter.",
-                    "default": 24
-                },
-                "max_poly_run": {
-                    "type": "integer",
-                    "description": "Max poly(A) region allowed with poly_context-sized end regions.",
-                    "default": 8
-                },
                 "bundle_min_reads": {
                     "type": "integer",
                     "description": "Minimum size of bam bundle for parallel processing."
-                },
-                "use_guide_annotation": {
-                    "type": "boolean",
-                    "description": "Use reference annotation in stringtie transcript assembly.",
-                    "default": "true"
                 },
                 "stringtie_opts": {
                     "type": "string",
                     "description": "Extra options for stringtie transcript assembly.",
                     "default": " --conservative "
-                },
-                "disable_ping": {
-                    "type": "boolean"
                 },
                 "transcript_table_cov_thresh": {
                     "type": "integer",
@@ -121,86 +89,132 @@
                     "type": "boolean",
                     "description": "Use denovo transcript assembly rather than reference guided",
                     "default": false
-                },
-                "batch_size": {
-                    "type": "integer",
-                    "description": "Maximum sequences per input batch (-1 means no limit)",
-                    "default": -1
-                },
-                "batch_max_seq": {
-                    "type": "integer",
-                    "description": "Maximum sequences per input batch (-1 means no limit)",
-                    "default": -1
-                },
-                "cls_mode": {
-                    "type": "string",
-                    "description": "Clustering mode",
-                    "default": "sahlin"
-                },
-                "kmer_size": {
-                    "type": "integer",
-                    "description": "Kmer size",
-                    "default": 11
-                },
-                "window_size": {
-                    "type": "integer",
-                    "description": "Window size",
-                    "default": 15
-                },
-                "min_left_cls": {
-                    "type": "integer",
-                    "description": "Minimum cluser size in the left batch",
-                    "default": 2
-                },
-                "consensus_period": {
-                    "type": "integer",
-                    "description": "Consensus period (-1 means no consensus)",
-                    "default": 500
-                },
-                "consensus_minimum": {
-                    "type": "integer",
-                    "description": "Minimum consensus sample size:",
-                    "default": 50
-                },
-                "consensus_maximum": {
-                    "type": "integer",
-                    "description": "Maximum consensus sample size",
-                    "default": -150
-                },
-                "min_shared": {
-                    "type": "integer",
-                    "description": "Minimum number of minimizers shared between read and cluster",
-                    "default": 5
-                },
-                "min_qual": {
-                    "description": "Minimum average quality value",
-                    "type": "number",
-                    "default": 7.0
-                },
-                "mapped_threshold": {
-                    "description": "Minimum mapped fraction of read to be included in cluster",
-                    "type": "number",
-                    "default": 0.65
-                },
-                "aligned_threshold": {
-                    "tpye": "number",
-                    "description": "Minimum aligned fraction of read to be included in cluster",
-                    "default": 0.2
-                },
-                "min_fraction": {
-                    "type": "number",
-                    "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
-                    "default": 0.8
-                },
-                "min_prob_no_hits" : {
-                    "type": "number",
-                    "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
-                    "default": 0.2
+                }
+            }
+        },
+            "reference_wf_options": {
+                "title": "Options for reference-based workflow",
+                "type": "object",
+                "description": "Parameters that are used solely for the referenc-guided workflow",
+                "properties": {
+                    "plot_gffcmp_stats": {
+                        "type": "boolean",
+                        "description": "Create a pdf of plots from showing gffcompare results"
+                    },
+                    "gffcompare_opts": {
+                        "type": "string",
+                        "description": "Extra options for gffcompare -r",
+                        "default": " -R "
+                    },
+                    "minimap_index_opts": {
+                        "type": "string",
+                        "description": "minimap2 extra indexing options.",
+                        "default": "-k14"
+                    },
+                    "minimap2_opts": {
+                        "type": "string",
+                        "description": "minimap2 extra mapping options.",
+                        "default": "-uf"
+                    },
+                    "minimum_mapping_quality": {
+                        "type": "integer",
+                        "description": "filter aligned reads by MAPQ quality.",
+                        "default": 40
+                    },
+                    "poly_context": {
+                        "type": "integer",
+                        "description": "Region size at end of reads to apply poly(A) filter.",
+                        "default": 24
+                    },
+                    "max_poly_run": {
+                        "type": "integer",
+                        "description": "Max poly(A) region allowed with poly_context-sized end regions.",
+                        "default": 8
+                    }
+                    
                 }
             },
-            "required": [
-                "fastq"
-            ]
+            "denovo_wf_options": {
+                "title": "Options for de novo-based workflow",
+                "type": "object",
+                "description": "Parameters that are used solely for the de novo workflow",
+                "properties": {
+                    "batch_size": {
+                        "type": "integer",
+                        "description": "Maximum sequences per input batch (-1 means no limit)",
+                        "default": -1
+                    },
+                    "batch_max_seq": {
+                        "type": "integer",
+                        "description": "Maximum sequences per input batch (-1 means no limit)",
+                        "default": -1
+                    },
+                    "cls_mode": {
+                        "type": "string",
+                        "description": "Clustering mode",
+                        "default": "sahlin"
+                    },
+                    "kmer_size": {
+                        "type": "integer",
+                        "description": "Kmer size",
+                        "default": 11
+                    },
+                    "window_size": {
+                        "type": "integer",
+                        "description": "Window size",
+                        "default": 15
+                    },
+                    "min_left_cls": {
+                        "type": "integer",
+                        "description": "Minimum cluser size in the left batch",
+                        "default": 2
+                    },
+                    "consensus_period": {
+                        "type": "integer",
+                        "description": "Consensus period (-1 means no consensus)",
+                        "default": 500
+                    },
+                    "consensus_minimum": {
+                        "type": "integer",
+                        "description": "Minimum consensus sample size:",
+                        "default": 50
+                    },
+                    "consensus_maximum": {
+                        "type": "integer",
+                        "description": "Maximum consensus sample size",
+                        "default": -150
+                    },
+                    "min_shared": {
+                        "type": "integer",
+                        "description": "Minimum number of minimizers shared between read and cluster",
+                        "default": 5
+                    },
+                    "min_qual": {
+                        "description": "Minimum average quality value",
+                        "type": "number",
+                        "default": 7.0
+                    },
+                    "mapped_threshold": {
+                        "description": "Minimum mapped fraction of read to be included in cluster",
+                        "type": "number",
+                        "default": 0.65
+                    },
+                    "aligned_threshold": {
+                        "tpye": "number",
+                        "description": "Minimum aligned fraction of read to be included in cluster",
+                        "default": 0.2
+                    },
+                    "min_fraction": {
+                        "type": "number",
+                        "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
+                        "default": 0.8
+                    },
+                    "min_prob_no_hits" : {
+                        "type": "number",
+                        "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
+                        "default": 0.2
+                    }
+            }
         },
         "meta_data": {
             "title": "Meta Data",
@@ -212,6 +226,12 @@
                     "type": "string",
                     "default": "report",
                     "description": "Output report filename suffix."
+                },
+                "disable_ping": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable to prevent sending a workflow ping."
+
                 }
             }
         },
@@ -231,9 +251,19 @@
             }
         }
     },
+   
     "allOf": [
         {
             "$ref": "#/definitions/basic_input_output_options"
+        },
+        {
+            "$ref": "#/definitions/global_options"
+        },
+        {
+            "$ref": "#/definitions/reference_wf_options"
+        },
+        {
+            "$ref": "#/definitions/denovo_wf_options"
         },
         {
             "$ref": "#/definitions/meta_data"
@@ -253,7 +283,7 @@
         },
         "wfversion": {
             "type": "string",
-            "default": "v0.1.0",
+            "default": "v0.1.1",
             "hidden": true
         },
         "monochrome_logs": {
