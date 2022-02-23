@@ -6,7 +6,7 @@ channels:
     - defaults
 dependencies:
     - python==3.8.*
-    - aplanat >=0.5.0
+    - aplanat >=0.6.2
     - epi2melabs
     - minimap2 ==2.24
     - samtools ==1.14
