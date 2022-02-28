@@ -26,7 +26,6 @@ multisampledir="test_data/demultiplexed_fastq"
 #"--minimap2_opts '-uf --splice-flank=no'"
 results=()
 
-
 OUTPUT=$1/denovo_multi_sample_no_ref_genome;
 nextflow run . --fastq $multisampledir $config --denovo --ref_genome test_data/SIRV_150601a.fasta  -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
 --sample_sheet test_data/sample_sheet -resume;

@@ -42,7 +42,6 @@ process getVersions {
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
     python -c "import aplanat; print(f'aplanat,{aplanat.__version__}')" >> versions.txt
     python -c "import pandas; print(f'pandas,{pandas.__version__}')" >> versions.txt
-    python -c "import sklearn; print(f'scikit-learn,{sklearn.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
     minimap2 --version | sed 's/^/minimap2,/' >> versions.txt
     samtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
@@ -87,15 +86,9 @@ process preprocess_reads {
          tuple val(sample_id), path('*.tsv'),  emit: report
     script:
         """
-        if [[ ${params.use_pychopper} == true ]];
-        then
-            cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
-            mv cdna_classifier_report.tsv ${sample_id}_cdna_classifier_report.tsv
-            generate_pychopper_stats.py --data ${sample_id}_cdna_classifier_report.tsv --output .
-        else
-            ln -s `realpath $input_reads` "${sample_id}_full_length_reads.fq"
-            touch $sample_id}_cdna_classifier_report.tsv
-        fi
+        cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
+        mv cdna_classifier_report.tsv ${sample_id}_cdna_classifier_report.tsv
+        generate_pychopper_stats.py --data ${sample_id}_cdna_classifier_report.tsv --output .
         """
 }
 
@@ -267,8 +260,6 @@ process makeReport {
     label "isoforms"
 
     input:
-        path report_template
-        path table_template
         path versions
         path "params.json"
         val denovo
@@ -289,8 +280,6 @@ process makeReport {
         def OPT_DENOVO = denovo ? "--denovo" : ''
     """
     report.py --report $report_name \
-    --report_template $report_template \
-    --table_template $table_template \
     --versions $versions \
     --params params.json \
     $OPT_ALN \
@@ -301,8 +290,6 @@ process makeReport {
     --gff_annotation $gff_annotation \
     --transcript_table_cov_thresh $params.transcript_table_cov_thresh \
     $OPT_DENOVO
-
-
     """
 }
 
@@ -311,31 +298,15 @@ process makeReport {
 // decoupling the publish from the process steps.
 process output {
     // publish inputs to output directory
-    label "isoforms"
-    publishDir "${params.results_dir}/${sample_id}", mode: 'copy', pattern: "*"
-
+    publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     input:
-        tuple val(sample_id), path(fname)
+        path fname
     output:
         path fname
     """
     echo "Writing output files"
-    echo $fname
     """
 }
-
-process output_report {
-    publishDir "${params.results_dir}", mode: 'copy', pattern: "*report.html"
-
-    input:
-        path fname
-    output:
-        path fname
-    """
-    echo "Copying report"
-    """
-}
-
 
 // workflow module
 workflow pipeline {
@@ -343,11 +314,8 @@ workflow pipeline {
         reads
         ref_genome
         ref_annotation
-        report_template
-        table_template
     main:
-
-        map_sample_ids_cls = {it -> 
+        map_sample_ids_cls = {it ->
         /* Harmonize tuples
         output:
             tuple val(sample_id), path('*.gff')
@@ -405,9 +373,7 @@ workflow pipeline {
             seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
         }
 
-        makeReport(report_template,
-                    table_template,
-                    software_versions,
+        makeReport(software_versions,
                     workflow_params,
                     params.denovo,
                     summariseConcatReads.out.summary
@@ -424,18 +390,22 @@ workflow pipeline {
             .join(run_gffcompare.out.gffcmp_dir)
             .join(seq_for_transcriptome_build))
 
-        if (use_ref_ann){
+       if (use_ref_ann){
             results = preprocess_reads.out.report
                         .concat(run_gffcompare.output.gffcmp_dir,
                         m.stats,
-                        get_transcriptome.out.flatMap(map_sample_ids_cls),
-                        )
-        }
+                        get_transcriptome.out.flatMap(map_sample_ids_cls))
+                        .map {it -> it[1]}
+                        .concat(makeReport.out.report)
+
+       }
         if (!use_ref_ann && !params.denovo){
             results = preprocess_reads.out.report
                         .concat(m.stats,
-                        get_transcriptome.out.flatMap(map_sample_ids_cls),
-                        )
+                        get_transcriptome.out.flatMap(map_sample_ids_cls))
+                        .map {it -> it[1]}
+                        .concat(makeReport.out.report)
+
         }
         if (params.denovo){
             results = m.cds
@@ -443,18 +413,19 @@ workflow pipeline {
                       seq_for_transcriptome_build,
                       get_transcriptome.out.flatMap(map_sample_ids_cls),
                       merge_gff_bundles.out.gff,
-                      m.opt_qual_ch.flatMap {it -> 
+                      m.opt_qual_ch.flatMap {it ->
                       l = []
                        for (x in it[1..-1]){
                             l.add(tuple(it[0], x))
                             }
                         return l
                       })
+                      .map {it -> it[1]}
+                      .concat(makeReport.out.report)
         }
 
     emit:
         results
-        report
         telemetry = workflow_params
 }
 
@@ -463,10 +434,6 @@ WorkflowMain.initialise(workflow, params, log)
 workflow {
 
     start_ping()
-    params.results_dir = "${params.out_dir}/output"
-
-    report_template = file("$projectDir/bin/report_template.html")
-    table_template = file("$projectDir/bin/table_template.html")
 
     fastq = file(params.fastq, type: "file")
 
@@ -510,10 +477,9 @@ workflow {
         params.fastq, params.out_dir, params.sample, params.sample_sheet, params.sanitize_fastq
     )
 
-    pipeline(reads, ref_genome, ref_annotation, report_template, table_template)
+    pipeline(reads, ref_genome, ref_annotation)
 
     output(pipeline.out.results)
-    output_report(pipeline.out.report)
 
     end_ping(pipeline.out.telemetry)
 }

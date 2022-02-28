@@ -61,11 +61,6 @@
                     "type": "integer",
                     "default": 4
                 },
-                "use_pychopper": {
-                    "type": "boolean",
-                    "description": "Use pychopper to preprcess reads",
-                    "default": true
-                },
                 "pychopper_opts": {
                     "type": "string",
                     "description": "Extra pychopper opts",

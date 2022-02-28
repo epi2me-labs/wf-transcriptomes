@@ -24,8 +24,8 @@ process map_reads{
        minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} ${index} "reads.fa"\
        | samtools view -q ${params.minimum_mapping_quality} -F 2304 -Sb -\
        | seqkit bam -j ${params.threads} -x -T '${ContextFilter}' -\
-       | samtools sort -@ ${params.threads} -o "${sample_id}_reads_aln_sorted.bam" - \
-       | ((seqkit bam -s -j ${params.threads} - 2>&1)  | tee ${sample_id}_read_aln_stats.tsv ) || true
+       | samtools sort -@ ${params.threads} -o "${sample_id}_reads_aln_sorted.bam" - ;
+       ((cat "${sample_id}_reads_aln_sorted.bam" | seqkit bam -s -j ${params.threads} - 2>&1)  | tee ${sample_id}_read_aln_stats.tsv ) || true
 
        if [[ -s "internal_priming_fail.tsv" ]];
        then

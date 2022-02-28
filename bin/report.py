@@ -3,7 +3,6 @@
 
 import argparse
 from collections import Counter, defaultdict, OrderedDict
-from functools import reduce
 import math
 from pathlib import Path
 
@@ -19,7 +18,6 @@ from bokeh.palettes import Category10_10
 from bokeh.plotting import figure
 from bokeh.transform import dodge
 import gffutils
-from jinja2 import Template
 import numpy as np
 import pandas as pd
 import sigfig
@@ -48,30 +46,6 @@ def _hbar(y, right, title='', fig_height=300, fig_width=300,
     fig.yaxis.major_label_overrides = mapper
 
     return fig
-
-
-class Table:
-    """A table report component.
-
-    Adapted from aplanat
-    """
-
-    def __init__(self, template, data_frame, index, table_id, **kwargs):
-        """Initialize table component.
-
-        :param dataframe: dataframe to turn in to simple table.
-        """
-        template = Template(template)
-
-        for key, val in kwargs.items():
-            if isinstance(val, bool):
-                kwargs[key] = str(val).lower()
-
-        self.div = template.render(dataframe=data_frame.to_html(
-            table_id=table_id,
-            index=index),
-            table_id=table_id,
-            kwargs=kwargs)
 
 
 def simple_hbar(df, y, right, title="", color=Colors.cerulean,
@@ -461,33 +435,22 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
             tracking['Overlaps'].values.tolist(),
             tracking['Percent'].values.tolist(), title="{}".format(id_))
 
-        # Edit for creating unified table
-        tracking.rename(columns={'sample_id': id_ + ' count'}, inplace=True)
-        tracking.drop(columns=['Count'], inplace=True)
+        tracking.drop(columns=['sample_id'], inplace=True)
         tracking_dfs.append(tracking)
 
-        # section.plot(grid)
-
-        # Tracking table
-        df_class_table = reduce(
-            lambda left, right: pd.merge(left, right), tracking_dfs)
-
-        desc = pd.Series(df_class_table.Overlaps.apply(
+        tracking['description'] = pd.Series(tracking.Overlaps.apply(
             lambda x: x.split(':')[0]))
-        df_class_table.insert(0, 'description', desc)
 
-        code = pd.Series(df_class_table.Overlaps.apply(
+        tracking['code'] = pd.Series(tracking.Overlaps.apply(
             lambda x: x.split(':')[1]))
-        df_class_table.insert(0, 'code', code)
 
         cols = [TableColumn(field=Ci, title=Ci, width=100)
-                for Ci in df_class_table.columns]
+                for Ci in tracking.columns]
+
         track_table = DataTable(columns=cols,
-                                source=ColumnDataSource(df_class_table),
+                                source=ColumnDataSource(tracking),
                                 index_position=None,
                                 width=500)
-
-        df_class_table.drop(columns=['Overlaps'], inplace=True)
         tabs.append(Panel(
             child=gridplot([track_bar, track_table], ncols=2), title=id_)
         )
@@ -654,7 +617,7 @@ def cluster_quality(cluster_qc_dir, report, sample_ids):
     section.plot(cover_panel)
 
 
-def transcript_table(report, df_tmaps, covr_threshold, table_template):
+def transcript_table(report, df_tmaps, covr_threshold):
     """Create searchable table of transcripts."""
     section = report.add_section()
 
@@ -701,11 +664,7 @@ def transcript_table(report, df_tmaps, covr_threshold, table_template):
 
     df.sort_values('parent gene iso num', inplace=True, ascending=True)
 
-    with open(table_template, 'r') as fh:
-        tabletempl = fh.read()
-
-    bigtable = Table(tabletempl, df, index=False, table_id='bigtable')
-    section._add_item(bigtable.div)
+    section.table(df, index=False)
 
 
 def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
@@ -869,12 +828,6 @@ def main():
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
     parser.add_argument(
-        "--report_template", required=True,
-        help="Jinja template")
-    parser.add_argument(
-        "--table_template", required=True,
-        help="Template for big transcript table")
-    parser.add_argument(
         "--transcript_table_cov_thresh", required=False, type=int, default=50,
         help="Isoforms without this support will be excluded from the table")
     parser.add_argument(
@@ -932,14 +885,8 @@ def main():
     if len(pc_df) > 0:
         pychopper_plots(report, pc_df)
 
-    with open(args.report_template, "r") as fh:
-        reptempl = fh.read()
-
-    report.template = Template(reptempl)
-
     if df_tmaps is not None:
-        transcript_table(report, df_tmaps, args.transcript_table_cov_thresh,
-                         args.table_template)
+        transcript_table(report, df_tmaps, args.transcript_table_cov_thresh)
 
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)
