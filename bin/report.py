@@ -365,6 +365,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     Features present in the query transcripts, but absent in the reference
     ''')
 
+    tabs = []
     for id_, dir_ in zip(sample_ids, gffcompare_outdirs):
         stats, _, miss, novel, total = \
             parse_gffcmp_stats(dir_ / 'str_merged.stats')
@@ -375,12 +376,13 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         bar_missed = grouped_bar(miss, title="Missed")
         bar_novel = grouped_bar(novel, title="Novel")
 
-        grid = gridplot([bar_totals, bar_performance, bar_missed, bar_novel],
-                        ncols=4, width=270, height=280)
-        section.markdown("""
-        #### Sample_id: {}
-        """.format(id_))
-        section.plot(grid)
+        tabs.append(Panel(
+            child=gridplot(
+                [bar_totals, bar_performance, bar_missed, bar_novel],
+                ncols=2, width=350, height=260), title=id_))
+
+    cover_panel = Tabs(tabs=tabs)
+    section.plot(cover_panel)
 
     names = {
         '=': 'ExactMatch:=',
@@ -403,7 +405,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     # Plot overlaps panel:
     section = report.add_section()
     section.markdown('''
-    ### Query transfrag class assignments
+    ### Query transfrag classes
 
     The classes that are assigned by
     [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml),
@@ -435,14 +437,16 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
             tracking['Overlaps'].values.tolist(),
             tracking['Percent'].values.tolist(), title="{}".format(id_))
 
-        tracking.drop(columns=['sample_id'], inplace=True)
         tracking_dfs.append(tracking)
 
-        tracking['description'] = pd.Series(tracking.Overlaps.apply(
+        tracking['Description'] = pd.Series(tracking.Overlaps.apply(
             lambda x: x.split(':')[0]))
 
-        tracking['code'] = pd.Series(tracking.Overlaps.apply(
+        tracking['Code'] = pd.Series(tracking.Overlaps.apply(
             lambda x: x.split(':')[1]))
+
+        tracking.drop(columns=['sample_id', 'Overlaps'], inplace=True)
+        tracking = tracking[['Code', 'Description', 'Count', 'Percent']]
 
         cols = [TableColumn(field=Ci, title=Ci, width=100)
                 for Ci in tracking.columns]
