@@ -6,7 +6,7 @@ from collections import Counter, defaultdict, OrderedDict
 import math
 from pathlib import Path
 
-from aplanat import bars, lines
+from aplanat import bars, hist, lines
 from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
 from aplanat.report import WFReport
@@ -648,7 +648,8 @@ def transcript_table(report, df_tmaps, covr_threshold):
     ### Query transcript table
 
     Low coverage transcripts are removed to speed up the table viewing. <br>
-    This can be set with the parameter `args.min_isoform_cov` in the config.
+    This can be set with the parameter `transcript_table_cov_thresh` in the
+    config.
       ''')
     section.plot(cov_plt)
     # Filter on converge threshold
@@ -724,17 +725,9 @@ def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
 
                 transcript_lens.append(tr_len)
 
-        num_bins = max(isoforms_per_gene)
-        if num_bins > 12:
-            num_bins = 12
-
-        hist_, bins = np.histogram(isoforms_per_gene, bins=num_bins)
-
-        bar_isos = bars.simple_bar([str(round(x_, 1)) for x_ in bins], hist_,
-                                   title="Isoforms per gene",
-                                   colors=Colors.cerulean,
-                                   x_axis_label='Num. isoforms',
-                                   y_axis_label='Num. genes')
+        bar_isos = hist.histogram(
+            [isoforms_per_gene], colors=[Colors.cerulean],
+            title="isoforms per gene")
 
         bar_isos.xaxis.major_label_orientation = math.pi / 2.8
         plots.append(bar_isos)

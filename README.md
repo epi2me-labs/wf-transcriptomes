@@ -115,13 +115,12 @@ For example:
 * wf-isoforms-report.html
   - Summary and plots of reads, alignments and the transcript assembly and annotation
   - One file per run with results from each sample merged
-
-####Transcript isoform table
-Note: Currently only available for the reference-guilded assembly
-The report includes a searchable filterable table of transcript isoforms<br>
+  
+Note transcript isoform table is currently only available for the reference-guilded assembly.
 Note: If using a large dataset with 10s of thousands of predicted isoforms, to speed up searching, the table can be limited
 by read coverage, which can be set with `transcript_table_cov_thresh = 50` (default 50x)
 
+#### Output files
 Each sample will also have it's own directory containing the following (dependent on assembly approach and input options)
 * {sampleid}_gffcompare
   * Directory containing all output from gffcompare
@@ -133,10 +132,7 @@ Each sample will also have it's own directory containing the following (dependen
   - A transcriptome derived from the query reads + reference annotation 
 * merged_transcriptome.fas
   -A transcriptome made from the combined query reads and reference annotation
-* final_polished_cds.fas (de novo only)
-  * CDS sequences derived from reads
   
-
 
 ## Useful links
 

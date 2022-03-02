@@ -42,6 +42,7 @@ process getVersions {
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
     python -c "import aplanat; print(f'aplanat,{aplanat.__version__}')" >> versions.txt
     python -c "import pandas; print(f'pandas,{pandas.__version__}')" >> versions.txt
+    python -c "import sklearn; print(f'scikit-learn,{sklearn.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
     minimap2 --version | sed 's/^/minimap2,/' >> versions.txt
     samtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
@@ -105,7 +106,7 @@ process build_minimap_index{
         path "genome_index.mmi", emit: index
     script:
     """
-        minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
+    minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
     """
 }
 
@@ -128,7 +129,7 @@ process split_bam{
     if (params["bundle_min_reads"] != false)
         """
         seqkit bam -j ${params.threads} -N ${params.bundle_min_reads} ${bam} -o  bam_bundles/
-        mv bam_bundles/* .
+            mv bam_bundles/* .
         for f in *:*; do mv -v "\$f" \$(echo "\$f" | tr ':' '-'); done
         """
     else
@@ -145,7 +146,7 @@ process assemble_transcripts{
     Take aligned reads in bam format that may be a chunk of a larger alignment file.
     Optionally use reference annotation to guide assembly.
 
-    Output gff annotation files in a tuple with `sample_id` for combining into samples late rin the pipeline.
+    Output gff annotation files in a tuple with `sample_id` for combining into samples later in the pipeline.
     */
     label 'isoforms'
     cpus params.threads
@@ -158,16 +159,17 @@ process assemble_transcripts{
     script:
         def out_filename = bam.name.replaceFirst(~/\.[^\.]+$/, '') + "_${sample_id}.gff"
         def G_FLAG = ref_annotation.name.startsWith('OPTIONAL_FILE') ? '' : "-G ${ref_annotation}"
+        def prefix = bam.name.split('-')[0][5..-1]
     """
     stringtie --rf ${G_FLAG} -L -v -A gene_abund.tab -p ${params.threads} ${params.stringtie_opts} -o  ${out_filename} \
-    ${bam} 2>/dev/null
-    """
+        -l $prefix ${bam} 2>/dev/null
+     """
 }
 
 
 process merge_gff_bundles{
     /*
-    Merge gff bundles into a single gff file.
+    Merge gff bundles into a single gff file per sample.
     */
     label 'isoforms'
 
@@ -215,14 +217,14 @@ process run_gffcompare{
         mkdir $out_dir
         echo "Doing comparison of reference annotation: ${ref_annotation} and the query annotation"
 
-       gffcompare -o ${out_dir}/str_merged -r ${ref_annotation} \
-        ${params.gffcompare_opts} ${query_annotation}
+        gffcompare -o ${out_dir}/str_merged -r ${ref_annotation} \
+            ${params.gffcompare_opts} ${query_annotation}
 
         generate_tracking_summary.py --tracking $out_dir/str_merged.tracking \
-        --output_dir ${out_dir} --annotation ${ref_annotation}
+            --output_dir ${out_dir} --annotation ${ref_annotation}
 
-       mv *.tmap $out_dir
-       mv *.refmap $out_dir
+        mv *.tmap $out_dir
+        mv *.refmap $out_dir
         """
     }
 }
@@ -231,7 +233,6 @@ process run_gffcompare{
 process get_transcriptome{
         /*
         Write out a transcriptome file based on the query gff annotations.
-        TODO: Do we need to touch merged_transcriptome or can we just pass it?
         */
         label 'isoforms'
 
@@ -244,13 +245,10 @@ process get_transcriptome{
         def transcriptome = "${sample_id}_transcriptome.fas"
         def merged_transcriptome = "${sample_id}_merged_transcriptome.fas"
         """
-
         gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
         if  [ "\$(ls -A $gffcmp_dir)" ];
-        then
-            echo "Yes"
-            gffread -F -g ${reference_seq} -w ${merged_transcriptome} \
-            $gffcmp_dir/str_merged.annotated.gtf
+            then
+                gffread -F -g ${reference_seq} -w ${merged_transcriptome} $gffcmp_dir/str_merged.annotated.gtf
         fi
         """
 }
@@ -274,7 +272,6 @@ process makeReport {
     script:
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
-
         def report_name = "wf-isoforms-report.html"
         def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
         def OPT_DENOVO = denovo ? "--denovo" : ''
@@ -365,61 +362,63 @@ workflow pipeline {
         run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
 
         if (params.denovo){
-            // Use the perd-sample, de novo-assembled CDS
+            // Use the per-sample, de novo-assembled CDS
             seq_for_transcriptome_build = m.cds
         }else {
-            // If doing reference based assembly, there is only one reference
+            // For reference based assembly, there is only one reference
             // So map this reference to all sample_ids
             seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
         }
 
-        makeReport(software_versions,
-                    workflow_params,
-                    params.denovo,
-                    summariseConcatReads.out.summary
-                    .join(m.stats)
-                    .join(run_gffcompare.out.gffcmp_dir)
-                    .join(preprocess_reads.out.report)
-                    .join(merge_gff_bundles.out.gff)
-                    .toList().transpose().toList()
-                    )
+        makeReport(
+            software_versions,
+            workflow_params,
+            params.denovo,
+            summariseConcatReads.out.summary
+            .join(m.stats)
+            .join(run_gffcompare.out.gffcmp_dir)
+            .join(preprocess_reads.out.report)
+            .join(merge_gff_bundles.out.gff)
+            .toList().transpose().toList())
 
         report = makeReport.out.report
 
-       get_transcriptome(merge_gff_bundles.out.gff
+        get_transcriptome(
+            merge_gff_bundles.out.gff
             .join(run_gffcompare.out.gffcmp_dir)
             .join(seq_for_transcriptome_build))
 
        if (use_ref_ann){
             results = preprocess_reads.out.report
-                        .concat(run_gffcompare.output.gffcmp_dir,
-                        m.stats,
-                        get_transcriptome.out.flatMap(map_sample_ids_cls))
-                        .map {it -> it[1]}
-                        .concat(makeReport.out.report)
+                      .concat(
+                          run_gffcompare.output.gffcmp_dir,
+                          m.stats,
+                          get_transcriptome.out.flatMap(map_sample_ids_cls))
+                      .map {it -> it[1]}
+                      .concat(makeReport.out.report)
 
        }
         if (!use_ref_ann && !params.denovo){
             results = preprocess_reads.out.report
-                        .concat(m.stats,
-                        get_transcriptome.out.flatMap(map_sample_ids_cls))
-                        .map {it -> it[1]}
-                        .concat(makeReport.out.report)
+                      .concat(m.stats,
+                          get_transcriptome.out.flatMap(map_sample_ids_cls))
+                      .map {it -> it[1]}
+                      .concat(makeReport.out.report)
 
         }
         if (params.denovo){
             results = m.cds
                       .concat(m.stats,
-                      seq_for_transcriptome_build,
-                      get_transcriptome.out.flatMap(map_sample_ids_cls),
-                      merge_gff_bundles.out.gff,
-                      m.opt_qual_ch.flatMap {it ->
-                      l = []
-                       for (x in it[1..-1]){
-                            l.add(tuple(it[0], x))
-                            }
-                        return l
-                      })
+                          seq_for_transcriptome_build,
+                          get_transcriptome.out.flatMap(map_sample_ids_cls),
+                          merge_gff_bundles.out.gff,
+                          m.opt_qual_ch.flatMap {it ->
+                              l = []
+                              for (x in it[1..-1]){
+                                  l.add(tuple(it[0], x))
+                              }
+                            return l
+                          })
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
         }

@@ -39,16 +39,13 @@ process dump_clusters {
 
 process build_backbones {
     /*
-    This step can fail in what seems to at the racon stage giving an 'empty overlap error set' message
-    As a temporary fix, do racon_cmd || true to prevent it crashing the pipeline, and then move on to next cluster
-
-    This process needs some work
+    Build coding
     */
     label "isoforms"
 	input:
 		tuple val(sample_id), path(cluster_fq)
 	output:
-		tuple val(sample_id), path("*final_polished_cds.fa"), emit: polished_cds
+		tuple val(sample_id), path("*final_polished_cds.fa"), emit: polished_cds, optional: true
 	script:
 	def cluster_fq_bl = new BlankSeparatedList(cluster_fq)
 	"""
@@ -56,63 +53,69 @@ process build_backbones {
     UNID=\$(echo ${cluster_fq_bl[1]} | grep -o -E '[0-9]+')
 
 	for cluster in $cluster_fq_bl
-      do
-        clfq=`basename \$cluster`
-        cln=\${clfq%.*}
+        do
+            clfq=`basename \$cluster`
+            cln=\${clfq%.*}
 
-        echo Building backbone for cluster: \$cln
-        echo "\tSampling input reads for backbone construction."
-        sample=\${cln}_sample.fq
-        seqkit head --quiet -n 100 \$cluster    > \$sample
-        seqkit sample --quiet -n 500 -2 -s 100 \$cluster    >> \$sample
-        echo "\tConstructing spoa consensus."
-        spoa_cons=\${cln}_spoa.fa
-        spoa -m 5 -n -4 -g -8 -e -6 -q -10 -c -15 -l 1 -r 0 \$sample > \$spoa_cons
+            echo Building backbone for cluster: \$cln
+            echo "\tSampling input reads for backbone construction."
+            sample=\${cln}_sample.fq
+            seqkit head --quiet -n 100 \$cluster > \$sample
+            seqkit sample --quiet -n 500 -2 -s 100 \$cluster >> \$sample
+            echo "\tConstructing spoa consensus."
+            spoa_cons=\${cln}_spoa.fa
+            spoa -m 5 -n -4 -g -8 -e -6 -q -10 -c -15 -l 1 -r 0 \$sample > \$spoa_cons
 
-        echo "\tPolishing the consensus using racon."
+            echo "\tPolishing the consensus using racon."
 
-        # polish 1
-        samgz=\${cln}_aln.sam.gz
-        racon_cons=\${cln}_racon.fa
-        racon_cons1=\${cln}_racon1.fa
+            # polish 1
+            samgz=\${cln}_aln.sam.gz
+            racon_cons=\${cln}_racon.fa
+            tmpcons=\${cln}_tmcons.fa
 
-        minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$spoa_cons \$sample | gzip - > \$samgz
-        racon -t ${params.threads} --no-trimming -u -w 2000 \$sample \$samgz \$spoa_cons > \$racon_cons || true
-        if [ -f \$racon_cons ];
-        then
-            cat \$racon_cons | seqkit replace -p ".*" -r cluster_\${cln} > \$racon_cons1
-        else
-            continue
-        fi
+            minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$spoa_cons \$sample | gzip - > \$samgz
+            exitcode=0
+            racon -t ${params.threads} --no-trimming -u -w 2000 \$sample \$samgz \$spoa_cons > \$racon_cons || exitcode=1
+            if [[ \$exitcode -eq 0 ]];
+                then
+                    # Rename consensus sequence name with cluster id
+                    cat \$racon_cons | seqkit replace -p ".*" -r cluster_\${cln} > \$tmpcons
+                    mv \$tmpcons \$racon_cons
+            else
+                echo "Polishing failed for \${cln}"
+                continue
+            fi
 
-        # polish 2
-        samgz1=\${cln}_aln_1.sam.gz
-        racon_cons2=\${cln}_racon2.fa
-        minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$racon_cons1 \$sample  | gzip - > \$samgz1
-        racon -t ${params.threads}  -u --no-trimming \$sample \$samgz1 \$racon_cons1 > \$racon_cons2 || true
-        if [ -f \$racon_cons2 ];
-          then
-           echo "success polish 2"
-        else
-            continue
-        fi
+            # polish 2
+            minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$racon_cons \$sample  | gzip - > \$samgz
+            exitcode=0
+            racon -t ${params.threads}  -u --no-trimming \$sample \$samgz \$racon_cons > \$tmpcons || exitcode=1
+            if [[ \$exitcode -eq 0 ]];
+                then
+                    echo "success polish 2"
+                    mv \$tmpcons \$racon_cons
+            else
+                echo "Polishing failed for \${cln}"
+                continue
+            fi
 
-         # polish 3
-        samgz2=\${cln}_aln_2.sam.gz
-        minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$racon_cons2 \$sample | gzip - > \$samgz2
-        EXITCODE=0
-        racon -t ${params.threads}  -u \$sample \$samgz2 \$racon_cons2 >> ${sample_id}_\${UNID}_final_polished_cds.fa || EXITCODE=\$?
-        if [ \$EXITCODE -eq 0 ];
-          then
-            echo "finished"
-        fi
+             # polish 3
+            minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} \$racon_cons \$sample | gzip - > \$samgz
+            exitcode=0
+            racon -t ${params.threads}  -u \$sample \$samgz \$racon_cons > \$tmpcons || exitcode=1
+            if [[ \$exitcode -eq 0 ]];
+                then
+                    cat \$tmpcons >> ${sample_id}_\${UNID}_final_polished_cds.fa
+                    echo "polishing 3 success"
+            else
+                echo "Polishing failed for \${cln}"
+            fi
 
-      done
+        done
     echo "Finished backbones"
 	"""
-
-
 }
+
 
 process merge_cds {
     label "isoforms"
@@ -121,7 +124,6 @@ process merge_cds {
     output:
         tuple val(sample_id), path("${sample_id}_cds.fa"), emit: final_polished_cds
     script:
-    def merge_list
     """
     for FILE in *final_polished_cds.fa
     do
@@ -138,14 +140,13 @@ process cds_align {
         tuple val(sample_id), path("${sample_id}_reads_aln_sorted.bam"), emit: bam
         tuple val(sample_id), path("${sample_id}_read_aln_stats.tsv"), emit: stats
     script:
-    def ab = "${sample_id}_reads_aln_sorted.bam"
     """
-		minimap2 -t ${params.threads} \
-		-ax splice ${params.minimap2_opts} $polished_cds $sorted_reads_dir/sorted_reads.fastq |\
-		 samtools view -b - |\
-		samtools sort -o $ab;
-		samtools index $ab;
-		((seqkit bam -s -j ${params.threads} ${ab} 2>&1)  | tee ${sample_id}_read_aln_stats.tsv ) || true
+    minimap2 -t ${params.threads} \
+        -ax splice ${params.minimap2_opts} $polished_cds $sorted_reads_dir/sorted_reads.fastq |\
+        samtools view -b - |\
+    samtools sort -o "${sample_id}_reads_aln_sorted.bam";
+    samtools index "${sample_id}_reads_aln_sorted.bam";
+    ((seqkit bam -s -j ${params.threads}  "${sample_id}_reads_aln_sorted.bam" 2>&1)  | tee ${sample_id}_read_aln_stats.tsv ) || true
 	"""
 }
 
@@ -168,16 +169,14 @@ process make_batches {
 
     minimum_batch_size = 2000
     """
-    nr_bases=\$(seqkit stats -T $fastq|cut -f 5| sed '2q;d')
-
     b=0
     if [ ${params.batch_size} -lt \$b ];
     then
         nr_bases=\$(seqkit stats -T $fastq|cut -f 5| sed '2q;d')
         let batch_size=\$nr_bases/1000/$maxcpus
         if [ \$batch_size -lt $minimum_batch_size ];
-        then
-            batch_size=$minimum_batch_size
+            then
+                batch_size=$minimum_batch_size
         fi
     else
         batch_size=${params.batch_size}
@@ -186,11 +185,12 @@ process make_batches {
     echo "Batch size:\$batch_size";
     echo "Num bases: \$nr_bases";
 
-    init_cls_options="--batch-size \$batch_size --kmer-size ${params.kmer_size} \
-    --window-size ${params.window_size} --min-shared ${params.min_shared} --min-qual ${params.min_qual} \
-                         --mapped-threshold ${params.mapped_threshold} --aligned-threshold ${params.aligned_threshold} \
-                          --min-fraction ${params.min_fraction} --min-prob-no-hits ${params.min_prob_no_hits} \
-                          -M ${params.batch_max_seq} -P ${params.consensus_period} -g ${params.consensus_minimum} -c ${params.consensus_maximum} -F ${params.min_left_cls} "
+    init_cls_options="--batch-size \$batch_size --kmer-size ${params.kmer_size} --window-size ${params.window_size} \
+        --min-shared ${params.min_shared} --min-qual ${params.min_qual} \
+        --mapped-threshold ${params.mapped_threshold} --aligned-threshold ${params.aligned_threshold} \
+        --min-fraction ${params.min_fraction} --min-prob-no-hits ${params.min_prob_no_hits} \
+        -M ${params.batch_max_seq} -P ${params.consensus_period} -g ${params.consensus_minimum} \
+        -c ${params.consensus_maximum} -F ${params.min_left_cls} "
     mkdir -p sorted; isONclust2 sort \$init_cls_options -v -o sorted $fastq;
     """
 
@@ -206,7 +206,6 @@ process clustering() {
     script:
     """
     run_isonclust2.py $sorted_batches
-
     """
 }
 
@@ -216,8 +215,8 @@ process cluster_quality() {
     label "isoforms"
 
     input:
-        tuple val(sample_id), path(reads_fl), path(final_clusters_dir)
         path reference
+        tuple val(sample_id), path(reads_fl), path(final_clusters_dir)
     output:
         tuple val(sample_id),
             path("${sample_id}_cluster_qc"), emit: cluster_qc_dir
@@ -229,16 +228,15 @@ process cluster_quality() {
     def bam = "${qc_dir}/ref_aln.bam"
 
     """
-    echo $qc_dir_raw
     mkdir $qc_dir
     mkdir $qc_dir_raw
     minimap2 -ax splice -t 2 $reference $reads_fl |\
-     samtools view -q 2 -F 2304 -b - |\
-     samtools sort - -o $bam;
+        samtools view -q 2 -F 2304 -b - |\
+         samtools sort - -o $bam;
     samtools index $bam;
     compute_cluster_quality.py --sizes $final_clusters_dir/clusters_info.tsv \
-     --outfile ${qc_dir}/cluster_quality.csv --ont --clusters $final_clusters_dir/clusters.tsv \
-     --classes $bam --report ${qc_dir}/cluster_quality.pdf --raw_data_out $qc_dir_raw
+        --outfile ${qc_dir}/cluster_quality.csv --ont --clusters $final_clusters_dir/clusters.tsv \
+        --classes $bam --report ${qc_dir}/cluster_quality.pdf --raw_data_out $qc_dir_raw
     """
 
 }
@@ -248,37 +246,35 @@ workflow denovo_assembly {
        fastq_reads_fl
        reference
     main:
-
         make_batches(fastq_reads_fl)
 
-        clustering(make_batches.output.sorted_batches)
+        clustering(make_batches.out.sorted_batches)
 
-        dump_clusters(clustering.output.root_cluster
-                      .join(make_batches.output.sorted_reads_dir))
+        dump_clusters(
+            clustering.out.root_cluster
+            .join(make_batches.out.sorted_reads_dir))
 
-        build_backbones(dump_clusters.output.final_clusters
-                                        .flatMap(map_sample_ids_cls)
-                                        .groupTuple(size: 10, remainder: true)
-                        )
+        build_backbones(
+            dump_clusters.out.final_clusters
+            .flatMap(map_sample_ids_cls)
+            .groupTuple(size: 10, remainder: true))
 
-        merge_cds(build_backbones.output.polished_cds
-                                            .flatMap(map_sample_ids_cls)
-                                            .groupTuple()
-                  )
+        merge_cds(
+            build_backbones.out.polished_cds
+            .flatMap(map_sample_ids_cls)
+            .groupTuple())
 
-        cds_align(merge_cds.out.final_polished_cds.view()
-                  .join(make_batches.output.sorted_reads_dir))
+        cds_align(
+            merge_cds.out.final_polished_cds
+            .join(make_batches.out.sorted_reads_dir))
 
         if (!reference.name.startsWith('OPTIONAL_FILE')){
+            cluster_quality(reference, fastq_reads_fl
+            .join(dump_clusters.out.final_clusters_dir))
 
-            cluster_quality(fastq_reads_fl
-                .join(dump_clusters.output.final_clusters_dir), reference)
+            cluster_quality.out.cluster_qc_dir.set { opt_qual_ch }
 
-            cluster_quality.out.cluster_qc_dir
-                .set { opt_qual_ch }
-
-            cluster_quality.output.cluster_qc_raw
-                .set { opt_qual_raw_ch }
+            cluster_quality.out.cluster_qc_raw.set { opt_qual_raw_ch }
 
         } else{
             Channel.empty().set { opt_qual_ch }
@@ -286,9 +282,9 @@ workflow denovo_assembly {
         }
 
     emit:
-       bam = cds_align.output.bam
+       bam = cds_align.out.bam
        cds = merge_cds.out.final_polished_cds
-       stats = cds_align.output.stats
+       stats = cds_align.out.stats
        opt_qual_ch
        opt_qual_raw_ch
 }

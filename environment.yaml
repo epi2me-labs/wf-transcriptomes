@@ -1,4 +1,4 @@
-name: epi2melabs-wf-isoforms-test
+name: epi2melabs-wf-isoforms
 channels:
     - epi2melabs
     - bioconda
@@ -26,3 +26,4 @@ dependencies:
     - isonclust2==2.3
     - parallel
     - scikit-learn==1.0.2
+    - natsort
