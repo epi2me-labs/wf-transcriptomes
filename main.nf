@@ -159,7 +159,12 @@ process assemble_transcripts{
     script:
         def out_filename = bam.name.replaceFirst(~/\.[^\.]+$/, '') + "_${sample_id}.gff"
         def G_FLAG = ref_annotation.name.startsWith('OPTIONAL_FILE') ? '' : "-G ${ref_annotation}"
-        def prefix = bam.name.split('-')[0][5..-1]
+        // Convert batch name to stringtie prefix to prevent clashing attribute names
+        // eg "0000000123_cluster..." to 123
+        def prefix =  StringUtils.stripStart(bam.name.split('_')[0],"0")
+        if (!prefix){
+            prefix = "0"
+        }
     """
     stringtie --rf ${G_FLAG} -L -v -A gene_abund.tab -p ${params.threads} ${params.stringtie_opts} -o  ${out_filename} \
         -l $prefix ${bam} 2>/dev/null
