@@ -301,6 +301,7 @@ process makeReport {
 process output {
     // publish inputs to output directory
     publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
+    label "isoforms"
     input:
         path fname
     output:
