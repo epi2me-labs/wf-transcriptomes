@@ -23,52 +23,6 @@ import pandas as pd
 import sigfig
 
 
-def _vbar(x, top, title, **kwargs):
-    """Vertical bar chart."""
-    fig = figure(title=title)
-
-    fig.vbar(x, top=top, **kwargs)
-    return fig
-
-
-def _hbar(y, right, title='', fig_height=300, fig_width=300,
-          bar_height=0.1, **kwargs):
-    """Horizontal bar chart."""
-    fig = figure(title=title, height=fig_height, width=fig_width)
-    yn = list(range(len(y)))
-    fig.hbar(yn,
-             right=right,
-             height=bar_height,
-             **kwargs)
-    # Overide the numerical labels with cate
-    fig.yaxis.ticker = yn
-    mapper = {k: v for (k, v) in zip(yn, y)}
-    fig.yaxis.major_label_overrides = mapper
-
-    return fig
-
-
-def simple_hbar(df, y, right, title="", color=Colors.cerulean,
-                fig_kwargs={}, plot_kwargs={}):
-    """Create a simple barplot.
-
-    :param groups: the grouping variable (the x-axis values).
-    :param values: the data for bars are drawn (the y-axis values).
-    :param kwargs: kwargs for bokeh figure.
-    """
-    defaults = {
-        'output_backend': 'webgl',
-        'height': 300, 'width': 600}
-    defaults.update(fig_kwargs)
-    p = figure(y_range=df[y], height=250, title=title,
-               toolbar_location=None, tools="")
-
-    plot_kwargs.update({'height': 0.2})
-    p.hbar(y=df[y], right=df[right], **plot_kwargs)
-
-    return p
-
-
 def _parse_stat_line(sl):
     """Parse a stats line."""
     res = {}
@@ -288,8 +242,9 @@ def grouped_bar(df, title="", tilted_xlabs=False):
     df = df.reset_index(drop=True)
     source = ColumnDataSource(data=df)
 
-    p = figure(x_range=df['x_groups'], y_range=yrange, height=250, title=title,
-               toolbar_location=None, tools="")
+    p = figure(
+        x_range=df['x_groups'], y_range=yrange, height=250, title=title,
+        toolbar_location=None, tools="")
     i = 0
     # Use the dodge method to plot groups of bars
     # https://docs.bokeh.org/en/latest/docs/user_guide/categorical.html
@@ -304,8 +259,9 @@ def grouped_bar(df, title="", tilted_xlabs=False):
     for col in df.columns:
 
         num_colors = df.shape[1] - 1
-        colors = list(zip(*[[Category10_10[x]] * (len(df.columns) - 1)
-                            for x in range(num_colors)]))
+        colors = list(zip(
+            *[[Category10_10[x]] * (len(df.columns) - 1)
+                for x in range(num_colors)]))
         colors = [item for sublist in colors for item in sublist]
 
         if col == 'x_groups':
@@ -314,9 +270,9 @@ def grouped_bar(df, title="", tilted_xlabs=False):
         i += 1
 
         width = df.size / 60
-        p.vbar(x=dodge('x_groups', current_dodge, range=p.x_range), top=col,
-               width=width, source=source, color=color,
-               legend_label=col)
+        p.vbar(
+            x=dodge('x_groups', current_dodge, range=p.x_range), top=col,
+            width=width, source=source, color=color, legend_label=col)
         current_dodge += dodge_increment
 
     p.x_range.range_padding = 0.1
@@ -341,8 +297,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
     # Plot overview panel:
     section = report.add_section()
-    # TODO: update this based on current version
-    section.markdown('''
+    gffcompare_md = ('''
     ### Annotation summary
 
     The following plots summarize some of the output from
@@ -370,19 +325,26 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         stats, _, miss, novel, total = \
             parse_gffcmp_stats(dir_ / 'str_merged.stats')
 
-        bar_totals = grouped_bar(total, title="Totals")
-        bar_performance = grouped_bar(stats, title="Performance",
-                                      tilted_xlabs=True)
-        bar_missed = grouped_bar(miss, title="Missed")
-        bar_novel = grouped_bar(novel, title="Novel")
+        if not any([x.empty for x in [stats, miss, novel, total]]):
+            bar_totals = grouped_bar(total, title="Totals")
+            bar_performance = grouped_bar(
+                stats, title="Performance", tilted_xlabs=True)
+            bar_missed = grouped_bar(miss, title="Missed")
+            bar_novel = grouped_bar(novel, title="Novel")
+            tabs.append(Panel(
+                child=gridplot(
+                    [bar_totals, bar_performance, bar_missed, bar_novel],
+                    ncols=2, width=350, height=260), title=id_))
 
-        tabs.append(Panel(
-            child=gridplot(
-                [bar_totals, bar_performance, bar_missed, bar_novel],
-                ncols=2, width=350, height=260), title=id_))
-
-    cover_panel = Tabs(tabs=tabs)
-    section.plot(cover_panel)
+            cover_panel = Tabs(tabs=tabs)
+            section.markdown(gffcompare_md)
+            section.plot(cover_panel)
+        else:
+            gffcompare_md = ('''
+                __Warning__: Gffcompare summary cannot be shown.
+                This could be due to  incompatible reference fasta and gff
+                files.''')
+            section.markdown(gffcompare_md)
 
     names = {
         '=': 'ExactMatch:=',
@@ -414,18 +376,19 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
     [This diagram](https://ccb.jhu.edu/software/stringtie/
     gffcompare_codes.png) illustrates the different classes.
-        ''')
+    ''')
 
     tracking_dfs = []
 
     print(gffcompare_outdirs)
     track_files = [x / 'str_merged.tracking' for x in gffcompare_outdirs]
 
-    df_tracking = load_sample_data(track_files, sample_ids,
-                                   read_func=lambda x:
-                                   pd.read_csv(x, sep="\t", header=None,
-                                               usecols=[0, 3],
-                                               names=['Count', 'Overlaps']))
+    df_tracking = load_sample_data(
+        track_files, sample_ids,
+        read_func=lambda x: pd.read_csv(
+            x, sep="\t", header=None,
+            usecols=[0, 3],
+            names=['Count', 'Overlaps']))
 
     tabs = []
     for id_, df_track in df_tracking.groupby('sample_id'):
@@ -433,9 +396,10 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         tracking.Overlaps = tracking.Overlaps.map(names)
         tracking['Percent'] = tracking.Count * 100 / tracking.Count.sum()
         tracking = tracking.sort_values("Overlaps")
-        track_bar = _hbar(
+        track_bar = bars.simple_hbar(
             tracking['Overlaps'].values.tolist(),
-            tracking['Percent'].values.tolist(), title="{}".format(id_))
+            tracking['Percent'].values.tolist(),
+            colors=Colors.cerulean, title=id_)
 
         tracking_dfs.append(tracking)
 
@@ -448,13 +412,12 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         tracking.drop(columns=['sample_id', 'Overlaps'], inplace=True)
         tracking = tracking[['Code', 'Description', 'Count', 'Percent']]
 
-        cols = [TableColumn(field=Ci, title=Ci, width=100)
-                for Ci in tracking.columns]
+        cols = [TableColumn(
+            field=Ci, title=Ci, width=100) for Ci in tracking.columns]
 
-        track_table = DataTable(columns=cols,
-                                source=ColumnDataSource(tracking),
-                                index_position=None,
-                                width=500)
+        track_table = DataTable(
+            columns=cols, source=ColumnDataSource(tracking),
+            index_position=None, width=500)
         tabs.append(Panel(
             child=gridplot([track_bar, track_table], ncols=2), title=id_)
         )
@@ -462,13 +425,12 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     cover_panel = Tabs(tabs=tabs)
     section.plot(cover_panel)
 
-    def plot_isoforms_per_tpm_bin(df_code, class_code, sample_id,
-                                  geomspace=False):
+    def plot_isoforms_per_tpm_bin(
+            df_code, class_code, sample_id, geomspace=False):
         """Make plots of number of isoforms per TPM coverage bin."""
         max_ = int(sigfig.round(df_code.TPM.max(), 2))
         if geomspace:
-            bins = [math.ceil(x) for x in
-                    np.geomspace(10, max_, num=15)]
+            bins = [math.ceil(x) for x in np.geomspace(10, max_, num=15)]
         else:
             bins = np.linspace(10, max_, 15)
         bins = np.unique(bins)  # Low max_ can end up with duplicated bins
@@ -527,11 +489,11 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     return df_tmap
 
 
-def pychopper_plots(report, df):
+def pychopper_plots(report, pychop_report):
     """Make plots from pychopper.cdna_classifier.py.
 
     :param report: aplanat WFReport
-    :param df: DataFrame of Pychopper stats
+    :param pychop_report: path to pychopper stats file
     """
     section = report.add_section()
     section.markdown('''
@@ -548,12 +510,15 @@ def pychopper_plots(report, df):
     ''')
 
     plots = []
+    df = pd.read_csv(pychop_report, sep='\t', index_col=0)
+
     for id_, df in df.groupby('sample_id'):
         df1 = df.set_index('Name', drop=True)
         df1 = df1.T[['Primers_found', 'Rescue', 'Unusable']]
-        df1.rename(columns={'Primers_found': 'Pr.found',
-                            'Rescue': 'Resc',
-                            'Unsable': 'Un'}, inplace=True)
+        df1.rename(columns={
+            'Primers_found': 'Pr.found',
+            'Rescue': 'Resc',
+            'Unusable': 'Un'}, inplace=True)
         df2 = df[df.index == 'Strand']
         bar_chop = bars.simple_bar(
             df1.columns.values.tolist() + df2.Name.values.tolist(),
@@ -562,8 +527,8 @@ def pychopper_plots(report, df):
             colors=Colors.cerulean)
 
         plots.extend([bar_chop])
-    grid = gridplot(plots, ncols=4,
-                    width=300, height=300)
+    grid = gridplot(
+        plots, ncols=4, width=300, height=300)
     section.plot(grid)
 
 
@@ -602,8 +567,7 @@ def cluster_quality(cluster_qc_dir, report, sample_ids):
     tabs = []
     for id_, cluster_dir in zip(sample_ids, cluster_qc_dir):
         plots = []
-        for fn in [
-                'v_ari_com_hom.csv', 'sing_nonsing.csv']:
+        for fn in ['v_ari_com_hom.csv', 'sing_nonsing.csv']:
             # Skip the next two plots for now
             # 'class_sizes1.csv', 'class_sizes2.csv']:
             df = pd.read_csv(Path(cluster_dir) / fn)
@@ -629,8 +593,9 @@ def transcript_table(report, df_tmaps, covr_threshold):
     # all in single table and sample_id column? Currently it's the latter
 
     # drop some columns for the big table and do some filtering
-    df = df_tmaps.drop(columns=['FPKM', 'qry_gene_id', 'major_iso_id',
-                                'ref_match_len', 'TPM'])
+    df = df_tmaps.drop(
+        columns=[
+            'FPKM', 'qry_gene_id', 'major_iso_id', 'ref_match_len', 'TPM'])
     df.sort_values('cov', ascending=True, inplace=True)
     counts = list(range(len(df)))
 
@@ -672,7 +637,7 @@ def transcript_table(report, df_tmaps, covr_threshold):
     section.table(df, index=False)
 
 
-def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
+def transcriptome_summary(report, gffs, sample_ids, denovo=False):
     """
     Plot transcriptome summaries.
 
@@ -745,12 +710,12 @@ def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
         if not denovo:
             x, y = zip(*sorted(exons_per_transcript.items()))
 
-            ept_bar = _vbar(x, list(y),
-                            title="Exons per transcript",
-                            color=Colors.cerulean)
+            fig = figure(title="Exons per transcript")
+            fig.vbar(
+                x, top=list(y), color=Colors.cerulean)
 
-            ept_bar.xaxis.major_label_orientation = math.pi / 2.8
-            plots.append(ept_bar)
+            fig.xaxis.major_label_orientation = math.pi / 2.8
+            plots.append(fig)
 
         df_sum = pd.DataFrame.from_dict(
             {'Total genes': [num_genes],
@@ -760,12 +725,11 @@ def tanscriptome_summary(report, gffs, sample_ids, denovo=False):
         df_sum.reset_index(drop=False, inplace=True)
 
         df_sum.columns = [' ', 'count']
-        cols = [TableColumn(field=Ci, title=Ci, width=80)
-                for Ci in df_sum.columns]
-        data_table = DataTable(columns=cols,
-                               source=ColumnDataSource(df_sum),
-                               index_position=None,
-                               width=180)
+        cols = [TableColumn(
+            field=Ci, title=Ci, width=80) for Ci in df_sum.columns]
+        data_table = DataTable(
+            columns=cols, source=ColumnDataSource(df_sum),
+            index_position=None, width=180)
         plots.append(data_table)
 
         tabs.append(Panel(
@@ -808,7 +772,6 @@ def main():
     parser.add_argument(
         "--commit", default='unknown',
         help="git commit of the executed workflow")
-
     parser.add_argument(
         "--alignment_stats", required=False, default=None, nargs='*',
         help="TSV summary file of alignment statistics")
@@ -819,7 +782,7 @@ def main():
         "--gffcompare_dir", required=False, default=None, nargs='*',
         help="gffcompare outout dir")
     parser.add_argument(
-        "--pychop_report", required=True, nargs='+',
+        "--pychop_report", required=False, default=None,
         help="TSV summary file of pychopper statistics")
     parser.add_argument(
         "--sample_ids", required=True, nargs='+',
@@ -860,8 +823,8 @@ def main():
         section.table(df_aln_stats)
 
     # workflow-specific plotting
-    tanscriptome_summary(report, args.gff_annotation, sample_ids,
-                         denovo=args.denovo)
+    transcriptome_summary(
+        report, args.gff_annotation, sample_ids, denovo=args.denovo)
 
     df_tmaps = gff_compare_plots(
         report,
@@ -870,17 +833,8 @@ def main():
 
     report.write(args.report)
 
-    pc_df = pd.DataFrame()
-    for id_, pyc in zip(sample_ids, args.pychop_report):
-        try:
-            p = pd.read_csv(pyc, sep='\t', index_col=0)
-        except pd.errors.EmptyDataError:
-            continue
-        p['sample_id'] = id_
-        pc_df = pd.concat([pc_df, p])
-
-    if len(pc_df) > 0:
-        pychopper_plots(report, pc_df)
+    if args.pychop_report is not None:
+        pychopper_plots(report, args.pychop_report)
 
     if df_tmaps is not None:
         transcript_table(report, df_tmaps, args.transcript_table_cov_thresh)

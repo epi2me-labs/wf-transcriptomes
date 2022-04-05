@@ -60,8 +60,8 @@ def main(args):
     assert os.path.isdir(args.output_dir)
     if args.annotation:
         os.path.isfile(args.annotation)
-    generate_tracking_summary(args.tracking, output_dir=args.output_dir,
-                              annotations=args.annotation)
+    generate_tracking_summary(
+        args.tracking, output_dir=args.output_dir, annotations=args.annotation)
 
 
 if __name__ == '__main__':

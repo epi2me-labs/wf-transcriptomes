@@ -24,8 +24,8 @@ class Node:
 
     def __repr__(self):
         """Get string repr of a node."""
-        return "Node:{} Level: {} File: {} Done: {} Left: {} Right: " \
-               "{} Parent: {}".format(
+        return "Node:{} Level: {} File: {} Done: " \
+            "{} Left: {} Right: {} Parent: {}".format(
                 self.Id, self.Level,
                 self.File, self.Done, self.Left.Id if
                 self.Left is not None else None,
@@ -47,8 +47,10 @@ def build_job_tree():
     """Build a job tree of nodes."""
     JOB_TREE = OrderedDict()
     batches = glob("batches/isONbatch_*.cer")
-    batch_ids = [int(re.search('batches/isONbatch_(.*)\\.cer$', x).group(1))
-                 for x in batches]
+    batch_ids = [
+        int(re.search(
+            'batches/isONbatch_(.*)\\.cer$', x).group(1))
+        for x in batches]
     LEVELS = OrderedDict()
     LEVELS[0] = []
     for Id, bf in sorted(zip(batch_ids, batches), key=lambda x: x[0]):
@@ -93,12 +95,14 @@ def main():
     Path('clusters').mkdir(exist_ok=True)
     job_tree, levels = build_job_tree()
 
-    init_template = 'isONclust2 cluster -x {} -v -Q -l batches/' \
-                    'isONbatch_{}.cer -o clusters/isONcluster_{}.cer {}; ' \
-                    'sync;\n'
-    template = 'isONclust2 cluster -x {} -v -Q -l clusters/isONcluster_{}' \
-               '.cer -r clusters/isONcluster_{}.cer -o clusters/isONcluster' \
-               '_{}.cer {}; sync\n'
+    init_template = (
+        'isONclust2 cluster -x {} -v -Q -l batches/isONbatch_{}.cer '
+        '-o clusters/isONcluster_{}.cer {}; '
+        'sync;\n')
+    template = (
+        'isONclust2 cluster -x {} -v -Q -l clusters/isONcluster_{}.cer '
+        '-r clusters/isONcluster_{}.cer -o clusters/isONcluster_{}.cer '
+        '{}; sync\n')
 
     for nr, l in levels.items():
         jobs_out = 'jobs_level_{}.sh'.format(nr)
@@ -109,14 +113,15 @@ def main():
                     jr = init_template.format('sahlin', n.Id, n.Id, purge)
                     fh.write(jr)
                 else:
-                    jr = template.format('sahlin', n.Left.Id,
-                                         n.Right.Id, n.Id, purge)
+                    jr = template.format(
+                        'sahlin', n.Left.Id, n.Right.Id, n.Id, purge)
                     fh.write(jr)
         # Run a level in parallel
         cmd = "parallel < {}".format(jobs_out)
         sub.call(cmd, shell=True)
-    sub.call("ln -s `realpath clusters/isONcluster_{}"
-             ".cer` isONcluster_ROOT.cer".format(n.Id), shell=True)
+    sub.call((
+        "ln -s `realpath clusters/isONcluster_{}.cer` "
+        "isONcluster_ROOT.cer".format(n.Id)), shell=True)
 
 
 if __name__ == '__main__':

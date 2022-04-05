@@ -15,8 +15,9 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import pysam
-from sklearn.metrics.cluster import adjusted_rand_score, completeness_score,\
-    homogeneity_score, v_measure_score
+from sklearn.metrics.cluster import (
+    adjusted_rand_score, completeness_score,
+    homogeneity_score, v_measure_score)
 matplotlib.use('Agg')
 
 
@@ -368,14 +369,26 @@ def get_cluster_information(clusters, classes):
     print("MIXED:", "Tot classes containing both:", len(
         set(clustered_classes.keys()) & set(not_clustered_classes.keys())))
     print("Total number of classes (unique gene ID):", total_nr_classes)
-    return (total_nr_classes - len(singleton_classes), len(singleton_classes),
-            min_class_size, max_class_size, mean_class_size, median_class_size,
-            total_nr_clusters, len(singleton_clusters)
-            + len(omitted_from_output_singletons),
-            min_cluster_size, max_cluster_size, mean_cluster_size,
-            median_cluster_size, len(unaligned_but_nontrivially_clustered),
-            upper_75_class_size, upper_75_cluster_size, e_class_size,
-            n50_class_size, e_cluster_size, n50_cluster_size)
+    return (
+        total_nr_classes - len(singleton_classes),
+        len(singleton_classes),
+        min_class_size,
+        max_class_size,
+        mean_class_size,
+        median_class_size,
+        total_nr_clusters,
+        len(singleton_clusters) + len(omitted_from_output_singletons),
+        min_cluster_size,
+        max_cluster_size,
+        mean_cluster_size,
+        median_cluster_size,
+        len(unaligned_but_nontrivially_clustered),
+        upper_75_class_size,
+        upper_75_cluster_size,
+        e_class_size,
+        n50_class_size,
+        e_cluster_size,
+        n50_cluster_size)
 
 
 def main(args):
@@ -400,14 +413,16 @@ def main(args):
     v_score, compl_score, homog_score, clustered_but_unaligned, ari = \
         compute_V_measure(clusters, classes)
 
-    nr_non_singleton_classes, singleton_classes, min_class_size, \
-        max_class_size, mean_class_size, median_class_size, total_nr_clusters,\
-        singleton_clusters, min_cluster_size, max_cluster_size, \
-        mean_cluster_size, median_cluster_size, \
-        unaligned_but_nontrivially_clustered, \
-        upper_75_class_size, upper_75_cluster_size, e_class_size, \
-        n50_class_size, e_cluster_size, n50_cluster_size = \
-        get_cluster_information(clusters, classes)
+    (
+        nr_non_singleton_classes, singleton_classes, min_class_size,
+        max_class_size, mean_class_size, median_class_size, total_nr_clusters,
+        singleton_clusters, min_cluster_size, max_cluster_size,
+        mean_cluster_size, median_cluster_size,
+        unaligned_but_nontrivially_clustered,
+        upper_75_class_size, upper_75_cluster_size, e_class_size,
+        n50_class_size, e_cluster_size,
+        n50_cluster_size
+    ) = get_cluster_information(clusters, classes)
 
     outfile = open(args.outfile, "w")
 
@@ -519,10 +534,10 @@ def main(args):
                 upper_75_class_size,
                 median_cluster_size,
                 median_class_size]}).set_index('Statistic')
-    dfs2 = pd.DataFrame({'Statistic': ['N50ClsSize', 'N50ClassSize'],
-                         'Value': [
-                        n50_cluster_size,
-                        n50_class_size]}).set_index('Statistic')
+    dfs2 = pd.DataFrame(
+        {'Statistic': ['N50ClsSize', 'N50ClassSize'],
+            'Value': [n50_cluster_size, n50_class_size]
+         }).set_index('Statistic')
 
     rdo = Path(args.raw_data_out)
     dfc.to_csv(rdo / 'v_ari_com_hom.csv')
