@@ -66,6 +66,11 @@
                     "description": "Extra pychopper opts",
                     "default": "-m edlib"
                 },
+                "direct_rna": {
+                    "type": "boolean",
+                    "description": "Set to true for direct RNA sequencing. Omits the pychopper step.",
+                    "default": false
+                },
                 "bundle_min_reads": {
                     "type": "integer",
                     "description": "Minimum size of bam bundle for parallel processing."

@@ -8,9 +8,9 @@ It has been adapted from two existing Snakemake pipelines:
 * https://github.com/nanoporetech/pipeline-nanopore-denovo-isoforms
 ---
 ## Overview
-* cDNA or direct RNA reads are initially and optionally preprocessed by [pychopper](https://github.com/nanoporetech/pychopper) 
-for identification of full-length reads, as well as trimming and orientation correction. <br>
-
+* cDNA reads are initially preprocessed by [pychopper](https://github.com/nanoporetech/pychopper) 
+for identification of full-length reads, as well as trimming and orientation correction (This step is omited for 
+ direct RNA reads)
 
 Reference-based approach
 * Full length reads are mapped to a supplied reference genome using [minimap2](https://github.com/lh3/minimap2) <br>
@@ -22,11 +22,12 @@ using [gffcompare](http://ccb.jhu.edu/software/stringtie/gffcompare.shtml)
 de novo-based approach (experimental!)
 * Sequence clusters are generated using [isONclust2](https://github.com/nanoporetech/isONclust2)
   * If a reference genome is supplied, cluster quality metrics are determined by comparing    
-  with clusters generated from a minimap2 alignment 
+  with clusters generated from a minimap2 alignment.
 * A consensus sequence for each cluster is generated using [spoa](https://github.com/rvaser/spoa)
 * Three rounds of polishing using racon and minimap2 to give a final polished CDS for each gene.
-* Full-length reads are then mapped to these polished CDS
-* Transcripts are assembled by stringtie as for the reference-based approach
+* Full-length reads are then mapped to these polished CDS.
+* Transcripts are assembled by stringtie as for the reference-based approach.
+* Note: This is currently not supported with direct RNA reads.
 
 
 For both approaches:
@@ -67,7 +68,7 @@ to see the options for the workflow.
 - Optional reference annotation in GFF2/3 format 
 
 **Example execution of a workflow for reference-based transcript assembly**
-This uses a synthetic SIRV dataset so we need to tell minimap2 about the non-canonical spplice junctions with 
+This uses a synthetic SIRV dataset, so we need to tell minimap2 about the non-canonical splice junctions with 
 --minimap2_opts '-uf --splice-flank=no'
 ```
 OUTPUT=~/output;
@@ -94,6 +95,8 @@ or at the command line:<br>
 
 - Threshold for including isoforms into interactive table `transcript_table_cov_thresh = 50`
 - Run the denovo pipeline `denovo = true` (default false)
+- To run the workflow with direct RNA reads `--direct_rna` (skips the pychopper step).
+
 
 Pychopper and minimap2 can take options via `minimap2_opts` and `pychopper_opts` 
 <br>
@@ -107,7 +110,7 @@ For example:
 - pychopper can use one of two available backends for identifying primers in the raw reads
   - nhmmscan `pychopper opts = '-m phmm'` 
   - edlib `pychopper opts = '-m edlib'`
-<br>Note: edlib is used in the configs as it's quite a lot faster. However it may be less sensitive than nhmmscan. 
+<br>Note: edlib is set by default in the config as it's quite a lot faster. However it may be less sensitive than nhmmscan. 
   
 ---
 ## Workflow outputs
@@ -129,9 +132,7 @@ Each sample will also have it's own directory containing the following (dependen
 * {sample_id}_transcriptome.fas
   - A transcriptome derived from the query reads 
 * {sample_id}_merged_transcriptome.fas
-  - A transcriptome derived from the query reads + reference annotation 
-* merged_transcriptome.fas
-  -A transcriptome made from the combined query reads and reference annotation
+  - A transcriptome derived from the query reads + reference annotation
   
 
 ## Useful links

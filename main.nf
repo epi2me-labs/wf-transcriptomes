@@ -84,12 +84,16 @@ process preprocess_reads {
         tuple val(sample_id), path(input_reads)
     output:
          tuple val(sample_id), path("${sample_id}_full_length_reads.fq"), emit: full_len_reads
-         tuple val(sample_id), path('*.tsv'),  emit: report
+         path '*.tsv',  emit: report
     script:
         """
         cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
         mv cdna_classifier_report.tsv ${sample_id}_cdna_classifier_report.tsv
         generate_pychopper_stats.py --data ${sample_id}_cdna_classifier_report.tsv --output .
+
+        # Add sample id column
+        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${sample_id}/" ${sample_id}_cdna_classifier_report.tsv > tmp
+        mv tmp ${sample_id}_cdna_classifier_report.tsv
         """
 }
 
@@ -266,12 +270,12 @@ process makeReport {
         path versions
         path "params.json"
         val denovo
+        path pychopper_report
         tuple val(sample_ids),
-                path(seq_summaries),
-                path(aln_stats),
-                path(gffcmp_dir),
-                path(cdna_class_report),
-                path(gff_annotation)
+              path(seq_summaries),
+              path(aln_stats),
+              path(gffcmp_dir),
+              path(gff_annotation)
     output:
         path("wf-isoforms-*.html"), emit: report
     script:
@@ -280,12 +284,13 @@ process makeReport {
         def report_name = "wf-isoforms-report.html"
         def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
         def OPT_DENOVO = denovo ? "--denovo" : ''
+        def OPT_PC_REPORT = pychopper_report.name.startsWith('OPTIONAL_FILE') ? '' : "--pychop_report ${pychopper_report}"
     """
     report.py --report $report_name \
     --versions $versions \
     --params params.json \
     $OPT_ALN \
-    --pychop_report $cdna_class_report \
+    $OPT_PC_REPORT \
     --sample_ids $sids \
     --summaries $seq_summaries \
     --gffcompare_dir $gffcmp_dir \
@@ -345,16 +350,25 @@ workflow pipeline {
 
         software_versions = getVersions()
         workflow_params = getParams()
-        preprocess_reads(summariseConcatReads.out.input_reads)
+
+        if (!params.direct_rna){
+            preprocess_reads(summariseConcatReads.out.input_reads)
+            full_len_reads = preprocess_reads.out.full_len_reads
+            pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+        }
+        else{
+            full_len_reads = summariseConcatReads.out.input_reads
+            pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
+        }
 
         if (params.denovo){
             println("Doing de novo assembly")
-             m = denovo_assembly(preprocess_reads.out.full_len_reads, ref_genome)
+             m = denovo_assembly(full_len_reads, ref_genome)
 
         } else {
             build_minimap_index(ref_genome)
             println("Doing reference based transcript analysis")
-            m = reference_assembly(build_minimap_index.out.index, ref_genome, preprocess_reads.out.full_len_reads)
+            m = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
         }
 
         split_bam(m.bam)
@@ -380,10 +394,10 @@ workflow pipeline {
             software_versions,
             workflow_params,
             params.denovo,
+            pychopper_report,
             summariseConcatReads.out.summary
             .join(m.stats)
             .join(run_gffcompare.out.gffcmp_dir)
-            .join(preprocess_reads.out.report)
             .join(merge_gff_bundles.out.gff)
             .toList().transpose().toList())
 
@@ -395,19 +409,18 @@ workflow pipeline {
             .join(seq_for_transcriptome_build))
 
        if (use_ref_ann){
-            results = preprocess_reads.out.report
+            results = run_gffcompare.output.gffcmp_dir
                       .concat(
-                          run_gffcompare.output.gffcmp_dir,
-                          m.stats,
-                          get_transcriptome.out.flatMap(map_sample_ids_cls))
+                      m.stats,
+                      get_transcriptome.out.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
 
        }
         if (!use_ref_ann && !params.denovo){
-            results = preprocess_reads.out.report
-                      .concat(m.stats,
-                          get_transcriptome.out.flatMap(map_sample_ids_cls))
+            results =  m.stats
+                      .concat(
+                       get_transcriptome.out.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
 
@@ -415,16 +428,17 @@ workflow pipeline {
         if (params.denovo){
             results = m.cds
                       .concat(m.stats,
-                          seq_for_transcriptome_build,
-                          get_transcriptome.out.flatMap(map_sample_ids_cls),
-                          merge_gff_bundles.out.gff,
-                          m.opt_qual_ch.flatMap {it ->
-                              l = []
-                              for (x in it[1..-1]){
-                                  l.add(tuple(it[0], x))
-                              }
-                            return l
-                          })
+                      seq_for_transcriptome_build,
+                      get_transcriptome.out.flatMap(map_sample_ids_cls),
+                      merge_gff_bundles.out.gff,
+                      m.opt_qual_ch.flatMap {
+                          it ->
+                          l = []
+                          for (x in it[1..-1]){
+                              l.add(tuple(it[0], x))
+                          }
+                        return l
+                      })
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
         }
