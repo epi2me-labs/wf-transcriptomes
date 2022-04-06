@@ -133,13 +133,17 @@ process split_bam{
     if (params["bundle_min_reads"] != false)
         """
         seqkit bam -j ${params.threads} -N ${params.bundle_min_reads} ${bam} -o  bam_bundles/
-            mv bam_bundles/* .
-        for f in *:*; do mv -v "\$f" \$(echo "\$f" | tr ':' '-'); done
+        mv bam_bundles/* .
+        let i=1
+        for b in *.bam; do
+          newname="${sample_id}_batch_\${i}.bam"
+          mv \$b \$newname
+          ((i++))
+        done
         """
     else
         """
-        mkdir -p ./${sample_id}_bam_bundles
-        ln -s ${bam} ${sample_id}_bam_bundles-000000000-ALL-0-1_bundle.bam
+        ln -s ${bam} ${sample_id}_batch_1.bam
         """
 }
 
@@ -161,17 +165,12 @@ process assemble_transcripts{
     output:
         tuple val(sample_id), path('*.gff'), emit: gff_bundles
     script:
-        def out_filename = bam.name.replaceFirst(~/\.[^\.]+$/, '') + "_${sample_id}.gff"
         def G_FLAG = ref_annotation.name.startsWith('OPTIONAL_FILE') ? '' : "-G ${ref_annotation}"
-        // Convert batch name to stringtie prefix to prevent clashing attribute names
-        // eg "0000000123_cluster..." to 123
-        def prefix =  StringUtils.stripStart(bam.name.split('_')[0],"0")
-        if (!prefix){
-            prefix = "0"
-        }
+        def prefix =  bam.name.split(/\./)[0]
+
     """
-    stringtie --rf ${G_FLAG} -L -v -A gene_abund.tab -p ${params.threads} ${params.stringtie_opts} -o  ${out_filename} \
-        -l $prefix ${bam} 2>/dev/null
+    stringtie --rf ${G_FLAG} -L -v -p ${params.threads} ${params.stringtie_opts} \
+    -o  ${prefix}.gff -l ${prefix} ${bam} 2>/dev/null
      """
 }
 
