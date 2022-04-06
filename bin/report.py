@@ -305,9 +305,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
     * **Totals**:
     Comparison of the number of stringtie-generated
-    transcripts, multiexonic transcripts and
-    loci (I'm not exactly sure what defines this class at the moment) between
-    reference
+    transcripts, multiexonic transcripts and loci between reference and query.
 
     * **Performance**:
     How accurate are the query transcript annotations with respect to the
@@ -411,6 +409,9 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
         tracking.drop(columns=['sample_id', 'Overlaps'], inplace=True)
         tracking = tracking[['Code', 'Description', 'Count', 'Percent']]
+        tracking = tracking.round({
+            'Percent': 2
+        })
 
         cols = [TableColumn(
             field=Ci, title=Ci, width=100) for Ci in tracking.columns]
