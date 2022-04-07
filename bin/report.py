@@ -594,9 +594,23 @@ def transcript_table(report, df_tmaps, covr_threshold):
     # all in single table and sample_id column? Currently it's the latter
 
     # drop some columns for the big table and do some filtering
+    section.markdown('''
+    ### Query transcript table
+
+    Low coverage transcripts are removed to speed up the table viewing. <br>
+    This can be set with the parameter `transcript_table_cov_thresh` in the
+    config.
+      ''')
+
     df = df_tmaps.drop(
         columns=[
             'FPKM', 'qry_gene_id', 'major_iso_id', 'ref_match_len', 'TPM'])
+
+    if len(df) == 0:
+        print("No transcripts found")
+        section.markdown("No transcripts found")
+        return
+
     df.sort_values('cov', ascending=True, inplace=True)
     counts = list(range(len(df)))
 
@@ -614,16 +628,11 @@ def transcript_table(report, df_tmaps, covr_threshold):
         y_axis_label='Coverage',
         colors=['blue', 'red'])
 
-    section.markdown('''
-    ### Query transcript table
-
-    Low coverage transcripts are removed to speed up the table viewing. <br>
-    This can be set with the parameter `transcript_table_cov_thresh` in the
-    config.
-      ''')
     section.plot(cov_plt)
-    # Filter on converge threshold
+    # Filter on coverage threshold
     df = df[df['cov'] >= covr_threshold]
+    if len(df) < 200:  # Min size of table should be 200
+        df = df.sort_values('cov', ascending=False).iloc[:, 0:200]
 
     # Make a column of number of isoforms in parent gene
     gb = df.groupby(['ref_gene_id', 'sample_id']).count()
