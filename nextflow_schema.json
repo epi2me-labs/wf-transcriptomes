@@ -53,9 +53,9 @@
             ]
         },
         "global_options": {
-            "title":  "Global options",
-            "type":  "object",
-            "description":  "Options for both sub-workflows",
+            "title": "Global options",
+            "type": "object",
+            "description": "Options for both sub-workflows",
             "properties": {
                 "threads": {
                     "type": "integer",
@@ -92,128 +92,127 @@
                 }
             }
         },
-            "reference_wf_options": {
-                "title": "Options for reference-based workflow",
-                "type": "object",
-                "description": "Parameters that are used solely for the referenc-guided workflow",
-                "properties": {
-                    "plot_gffcmp_stats": {
-                        "type": "boolean",
-                        "description": "Create a pdf of plots from showing gffcompare results"
-                    },
-                    "gffcompare_opts": {
-                        "type": "string",
-                        "description": "Extra options for gffcompare -r",
-                        "default": " -R "
-                    },
-                    "minimap_index_opts": {
-                        "type": "string",
-                        "description": "minimap2 extra indexing options.",
-                        "default": "-k14"
-                    },
-                    "minimap2_opts": {
-                        "type": "string",
-                        "description": "minimap2 extra mapping options.",
-                        "default": "-uf"
-                    },
-                    "minimum_mapping_quality": {
-                        "type": "integer",
-                        "description": "filter aligned reads by MAPQ quality.",
-                        "default": 40
-                    },
-                    "poly_context": {
-                        "type": "integer",
-                        "description": "Region size at end of reads to apply poly(A) filter.",
-                        "default": 24
-                    },
-                    "max_poly_run": {
-                        "type": "integer",
-                        "description": "Max poly(A) region allowed with poly_context-sized end regions.",
-                        "default": 8
-                    }
-                    
+        "reference_wf_options": {
+            "title": "Options for reference-based workflow",
+            "type": "object",
+            "description": "Parameters that are used solely for the referenc-guided workflow",
+            "properties": {
+                "plot_gffcmp_stats": {
+                    "type": "boolean",
+                    "description": "Create a pdf of plots from showing gffcompare results"
+                },
+                "gffcompare_opts": {
+                    "type": "string",
+                    "description": "Extra options for gffcompare -r",
+                    "default": " -R "
+                },
+                "minimap_index_opts": {
+                    "type": "string",
+                    "description": "minimap2 extra indexing options.",
+                    "default": "-k14"
+                },
+                "minimap2_opts": {
+                    "type": "string",
+                    "description": "minimap2 extra mapping options.",
+                    "default": "-uf"
+                },
+                "minimum_mapping_quality": {
+                    "type": "integer",
+                    "description": "filter aligned reads by MAPQ quality.",
+                    "default": 40
+                },
+                "poly_context": {
+                    "type": "integer",
+                    "description": "Region size at end of reads to apply poly(A) filter.",
+                    "default": 24
+                },
+                "max_poly_run": {
+                    "type": "integer",
+                    "description": "Max poly(A) region allowed with poly_context-sized end regions.",
+                    "default": 8
                 }
-            },
-            "denovo_wf_options": {
-                "title": "Options for de novo-based workflow",
-                "type": "object",
-                "description": "Parameters that are used solely for the de novo workflow",
-                "properties": {
-                    "batch_size": {
-                        "type": "integer",
-                        "description": "Maximum sequences per input batch (-1 means no limit)",
-                        "default": -1
-                    },
-                    "batch_max_seq": {
-                        "type": "integer",
-                        "description": "Maximum sequences per input batch (-1 means no limit)",
-                        "default": -1
-                    },
-                    "cls_mode": {
-                        "type": "string",
-                        "description": "Clustering mode",
-                        "default": "sahlin"
-                    },
-                    "kmer_size": {
-                        "type": "integer",
-                        "description": "Kmer size",
-                        "default": 11
-                    },
-                    "window_size": {
-                        "type": "integer",
-                        "description": "Window size",
-                        "default": 15
-                    },
-                    "min_left_cls": {
-                        "type": "integer",
-                        "description": "Minimum cluser size in the left batch",
-                        "default": 2
-                    },
-                    "consensus_period": {
-                        "type": "integer",
-                        "description": "Consensus period (-1 means no consensus)",
-                        "default": 500
-                    },
-                    "consensus_minimum": {
-                        "type": "integer",
-                        "description": "Minimum consensus sample size:",
-                        "default": 50
-                    },
-                    "consensus_maximum": {
-                        "type": "integer",
-                        "description": "Maximum consensus sample size",
-                        "default": -150
-                    },
-                    "min_shared": {
-                        "type": "integer",
-                        "description": "Minimum number of minimizers shared between read and cluster",
-                        "default": 5
-                    },
-                    "min_qual": {
-                        "description": "Minimum average quality value",
-                        "type": "number",
-                        "default": 7.0
-                    },
-                    "mapped_threshold": {
-                        "description": "Minimum mapped fraction of read to be included in cluster",
-                        "type": "number",
-                        "default": 0.65
-                    },
-                    "aligned_threshold": {
-                        "tpye": "number",
-                        "description": "Minimum aligned fraction of read to be included in cluster",
-                        "default": 0.2
-                    },
-                    "min_fraction": {
-                        "type": "number",
-                        "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
-                        "default": 0.8
-                    },
-                    "min_prob_no_hits" : {
-                        "type": "number",
-                        "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
-                        "default": 0.2
-                    }
+            }
+        },
+        "denovo_wf_options": {
+            "title": "Options for de novo-based workflow",
+            "type": "object",
+            "description": "Parameters that are used solely for the de novo workflow",
+            "properties": {
+                "batch_size": {
+                    "type": "integer",
+                    "description": "Maximum sequences per input batch (-1 means no limit)",
+                    "default": -1
+                },
+                "batch_max_seq": {
+                    "type": "integer",
+                    "description": "Maximum sequences per input batch (-1 means no limit)",
+                    "default": -1
+                },
+                "cls_mode": {
+                    "type": "string",
+                    "description": "Clustering mode",
+                    "default": "sahlin"
+                },
+                "kmer_size": {
+                    "type": "integer",
+                    "description": "Kmer size",
+                    "default": 11
+                },
+                "window_size": {
+                    "type": "integer",
+                    "description": "Window size",
+                    "default": 15
+                },
+                "min_left_cls": {
+                    "type": "integer",
+                    "description": "Minimum cluser size in the left batch",
+                    "default": 2
+                },
+                "consensus_period": {
+                    "type": "integer",
+                    "description": "Consensus period (-1 means no consensus)",
+                    "default": 500
+                },
+                "consensus_minimum": {
+                    "type": "integer",
+                    "description": "Minimum consensus sample size:",
+                    "default": 50
+                },
+                "consensus_maximum": {
+                    "type": "integer",
+                    "description": "Maximum consensus sample size",
+                    "default": -150
+                },
+                "min_shared": {
+                    "type": "integer",
+                    "description": "Minimum number of minimizers shared between read and cluster",
+                    "default": 5
+                },
+                "min_qual": {
+                    "description": "Minimum average quality value",
+                    "type": "number",
+                    "default": 7.0
+                },
+                "mapped_threshold": {
+                    "description": "Minimum mapped fraction of read to be included in cluster",
+                    "type": "number",
+                    "default": 0.65
+                },
+                "aligned_threshold": {
+                    "tpye": "number",
+                    "description": "Minimum aligned fraction of read to be included in cluster",
+                    "default": 0.2
+                },
+                "min_fraction": {
+                    "type": "number",
+                    "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
+                    "default": 0.8
+                },
+                "min_prob_no_hits": {
+                    "type": "number",
+                    "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
+                    "default": 0.2
+                }
             }
         },
         "meta_data": {
@@ -231,7 +230,6 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Enable to prevent sending a workflow ping."
-
                 }
             }
         },
@@ -251,7 +249,6 @@
             }
         }
     },
-   
     "allOf": [
         {
             "$ref": "#/definitions/basic_input_output_options"
@@ -296,5 +293,9 @@
         "show_hidden_params": {
             "type": "boolean"
         }
+    },
+    "docs": {
+        "intro": "## Introduction\n\nThis workflow identifies RNA isoforms using either cDNA or direct RNA (dRNA) \nOxford Nanopore reads.\n\n### Preprocesing\ncDNA reads are initially preprocessed by [pychopper](https://github.com/nanoporetech/pychopper) \nfor the identification of full-length reads, as well as trimming and orientation correction (This step is omitted for \n direct RNA reads).\n\n### Reference-aided approach\n* Full length reads are mapped to a supplied reference genome using [minimap2](https://github.com/lh3/minimap2)\n* Transcripts are assembled by [stringtie](http://ccb.jhu.edu/software/stringtie) \nin long read mode (with or without a guide reference annotation) to generate the GFF annotation.\n* The annotation generated by the pipeline is compared to the reference annotation. \nusing [gffcompare](http://ccb.jhu.edu/software/stringtie/gffcompare.shtml)\n\n### de novo-based approach (experimental!)\n* Sequence clusters are generated using [isONclust2](https://github.com/nanoporetech/isONclust2)\n  * If a reference genome is supplied, cluster quality metrics are determined by comparing    \n  with clusters generated from a minimap2 alignment.\n* A consensus sequence for each cluster is generated using [spoa](https://github.com/rvaser/spoa)\n* Three rounds of polishing using racon and minimap2 to give a final polished CDS for each gene.\n* Full-length reads are then mapped to these polished CDS.\n* Transcripts are assembled by stringtie as for the reference-based approach.\n* __Note__: This approach is currently not supported with direct RNA reads.\n\n### Workflow inputs\n- Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples\n  (in fastq/fastq.gz format)\n- Reference genome in fasta format (required for reference-based assembly).\n- Optional reference annotation in GFF2/3 format.",
+        "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [Singularity](https://sylabs.io/singularity/)\n* [conda](https://docs.conda.io/en/latest/miniconda.html)\n* [racon](https://github.com/isovic/racon)\n* [spoa](https://github.com/rvaser/spoa)\n* [inONclust](https://github.com/ksahlin/isONclust)\n* [isONclust2](https://github.com/nanoporetech/isONclust2)"
     }
 }
