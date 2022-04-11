@@ -130,21 +130,32 @@ process split_bam{
     output:
         tuple val(sample_id), path('*.bam'), emit: bundles
     script:
-    if (params["bundle_min_reads"] != false)
-        """
+    """
+    n=`samtools view -c $bam`
+    if [[ n -lt 1 ]]
+    then
+        echo 'There are no reads mapping for $sample_id. Exiting!'
+        exit 1
+    fi
+
+    re='^[0-9]+\$'
+
+    if [[ $params.bundle_min_reads =~ \$re ]]
+    then
+        echo "Bundling up the bams"
         seqkit bam -j ${params.threads} -N ${params.bundle_min_reads} ${bam} -o  bam_bundles/
-        mv bam_bundles/* .
         let i=1
-        for b in *.bam; do
-          newname="${sample_id}_batch_\${i}.bam"
-          mv \$b \$newname
-          ((i++))
+        for b in bam_bundles/*.bam; do
+            echo \$b
+            newname="${sample_id}_batch_\${i}.bam"
+            mv \$b \$newname
+           ((i++))
         done
-        """
     else
-        """
+        echo 'no bundling'
         ln -s ${bam} ${sample_id}_batch_1.bam
-        """
+    fi
+    """
 }
 
 
