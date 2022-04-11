@@ -7,12 +7,12 @@ import math
 from pathlib import Path
 
 from aplanat import bars, hist, lines
-from aplanat.components import fastcat
 from aplanat.components import simple as scomponents
+from aplanat.components.fastcat import read_length_plot, read_quality_plot
 from aplanat.report import WFReport
 from aplanat.util import Colors
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, Panel, Tabs
+from bokeh.models import ColumnDataSource, Legend, Panel, Tabs
 from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.palettes import Category10_10
 from bokeh.plotting import figure
@@ -253,6 +253,8 @@ def grouped_bar(df, title="", tilted_xlabs=False):
     dodge_increment = abs(dodge_range[0] - dodge_range[1]) / \
         (len(df.columns) - 1)
 
+    legend_it = []
+
     if tilted_xlabs:
         p.xaxis.major_label_orientation = math.pi / 4
 
@@ -270,15 +272,18 @@ def grouped_bar(df, title="", tilted_xlabs=False):
         i += 1
 
         width = df.size / 60
-        p.vbar(
+        v = p.vbar(
             x=dodge('x_groups', current_dodge, range=p.x_range), top=col,
-            width=width, source=source, color=color, legend_label=col)
+            width=width, source=source, color=color)
         current_dodge += dodge_increment
+        legend_it.append([col, [v]])
 
+    legend = Legend(items=legend_it)
+    p.add_layout(legend, 'right')
     p.x_range.range_padding = 0.1
     p.xgrid.grid_line_color = None
     p.legend.location = "top_left"
-    p.legend.orientation = "horizontal"
+    p.legend.orientation = "vertical"
     return p
 
 
@@ -319,6 +324,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     ''')
 
     tabs = []
+    gff_fails = False
     for id_, dir_ in zip(sample_ids, gffcompare_outdirs):
         stats, _, miss, novel, total = \
             parse_gffcmp_stats(dir_ / 'str_merged.stats')
@@ -333,16 +339,17 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
                 child=gridplot(
                     [bar_totals, bar_performance, bar_missed, bar_novel],
                     ncols=2, width=350, height=260), title=id_))
-
-            cover_panel = Tabs(tabs=tabs)
-            section.markdown(gffcompare_md)
-            section.plot(cover_panel)
         else:
-            gffcompare_md = ('''
-                __Warning__: Gffcompare summary cannot be shown.
-                This could be due to  incompatible reference fasta and gff
-                files.''')
-            section.markdown(gffcompare_md)
+            gff_fails = True
+
+    if gff_fails:
+        gffcompare_md += ('''
+                    __Warning__: Some gffcompare summary cannot be shown.
+                    This could be due to  incompatible reference fasta and gff
+                    files.''')
+    cover_panel = Tabs(tabs=tabs)
+    section.markdown(gffcompare_md)
+    section.plot(cover_panel)
 
     names = {
         '=': 'ExactMatch:=',
@@ -598,9 +605,9 @@ def transcript_table(report, df_tmaps, covr_threshold):
     ### Query transcript table
 
     Low coverage transcripts are removed to speed up the table viewing. <br>
-    This can be set with the parameter `transcript_table_cov_thresh` in the
-    config.
-      ''')
+    Coverage threshold can be set with the parameter
+    `transcript_table_cov_thresh`.
+    ''')
 
     df = df_tmaps.drop(
         columns=[
@@ -613,6 +620,12 @@ def transcript_table(report, df_tmaps, covr_threshold):
 
     df.sort_values('cov', ascending=True, inplace=True)
     counts = list(range(len(df)))
+
+    # Filter on coverage threshold
+    df = df[df['cov'] >= covr_threshold]
+    if len(df) < 200:  # Min size of table should be 200. Don't filter
+        df = df.sort_values('cov', ascending=False).iloc[:, 0:200]
+        covr_threshold = 0
 
     # Keep Isoforms with coverage > threshold
     vline_x = np.argmax(df['cov'] > covr_threshold)
@@ -629,10 +642,6 @@ def transcript_table(report, df_tmaps, covr_threshold):
         colors=['blue', 'red'])
 
     section.plot(cov_plt)
-    # Filter on coverage threshold
-    df = df[df['cov'] >= covr_threshold]
-    if len(df) < 200:  # Min size of table should be 200
-        df = df.sort_values('cov', ascending=False).iloc[:, 0:200]
 
     # Make a column of number of isoforms in parent gene
     gb = df.groupby(['ref_gene_id', 'sample_id']).count()
@@ -707,6 +716,8 @@ def transcriptome_summary(report, gffs, sample_ids, denovo=False):
         bar_isos = hist.histogram(
             [isoforms_per_gene], colors=[Colors.cerulean],
             title="isoforms per gene")
+        bar_isos.xaxis.axis_label = "Num. isoforms"
+        bar_isos.yaxis.axis_label = "Num. genes"
 
         bar_isos.xaxis.major_label_orientation = math.pi / 2.8
         plots.append(bar_isos)
@@ -723,6 +734,8 @@ def transcriptome_summary(report, gffs, sample_ids, denovo=False):
             fig = figure(title="Exons per transcript")
             fig.vbar(
                 x, top=list(y), color=Colors.cerulean)
+            fig.xaxis.axis_label = 'Num. exons'
+            fig.yaxis.axis_label = 'Num. genes'
 
             fig.xaxis.major_label_orientation = math.pi / 2.8
             plots.append(fig)
@@ -763,6 +776,23 @@ def load_sample_data(files, sample_ids, read_func=None):
         d['sample_id'] = id_
         df_ = pd.concat([df_, d])
     return df_
+
+
+def seq_stats_tabs(report, sample_ids, stats):
+    """Make tabs of sequence summaries by sample."""
+    tabs = []
+    for id_, summ in sorted(zip(sample_ids, stats)):
+        df_sum = pd.read_csv(summ, index_col=False, sep='\t')
+        rlp = read_length_plot(df_sum)
+        rqp = read_quality_plot(df_sum)
+        grid = gridplot(
+            [rlp, rqp], ncols=2, sizing_mode="stretch_width")
+
+        tabs.append(Panel(child=grid, title=id_))
+    section = report.add_section()
+    section.markdown("""
+    ### Sequence summaries""")
+    section.plot(Tabs(tabs=tabs))
 
 
 def main():
@@ -815,12 +845,7 @@ def main():
         revision=args.revision, commit=args.commit)
 
     # Add reads summary section
-    for id_, summ in zip(sample_ids, args.summaries):
-        report.add_section(
-            section=fastcat.full_report(
-                [summ],
-                header='#### Read stats: {}'.format(id_)
-            ))
+    seq_stats_tabs(report, args.sample_ids, args.summaries)
 
     if args.alignment_stats is not None:
         df_aln_stats = load_sample_data(args.alignment_stats, sample_ids)
