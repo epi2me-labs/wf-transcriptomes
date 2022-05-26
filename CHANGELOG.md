@@ -4,11 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+### Changed
+- Better help text on cli
+
 ## [v0.1.2]
-### Added 
+### Added
 - direct_rna option
 - Some extra error handling
-- Minor report display improvements 
+- Minor report display improvements
 
 ## [v0.1.1]
 ### Fixed
@@ -17,8 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Several small fixes in report plotting
 
 ## [v0.1.0]
-### Added 
-- Added the denovo pipeline 
+### Added
+- Added the denovo pipeline
 ### Changed
 - Updates to the report plots
 
@@ -26,5 +30,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First release
 - Initial port of Snakemake WF from https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
-
-
