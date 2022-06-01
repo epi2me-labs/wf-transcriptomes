@@ -74,7 +74,7 @@ process getParams {
 process preprocess_reads {
     /* 
     Concatenate reads from a sample directory.
-    Optionally classify, trim, and orient cDNA reads using cdna_classifier from pychopper
+    Optionally classify, trim, and orient cDNA reads using pychopper
     */
  
     label "isoforms"
@@ -87,13 +87,13 @@ process preprocess_reads {
          path '*.tsv',  emit: report
     script:
         """
-        cdna_classifier.py -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
-        mv cdna_classifier_report.tsv ${sample_id}_cdna_classifier_report.tsv
-        generate_pychopper_stats.py --data ${sample_id}_cdna_classifier_report.tsv --output .
+        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
+        mv pychopper.tsv ${sample_id}_pychopper.tsv
+        generate_pychopper_stats.py --data ${sample_id}_pychopper.tsv --output .
 
         # Add sample id column
-        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${sample_id}/" ${sample_id}_cdna_classifier_report.tsv > tmp
-        mv tmp ${sample_id}_cdna_classifier_report.tsv
+        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${sample_id}/" ${sample_id}_pychopper.tsv > tmp
+        mv tmp ${sample_id}_pychopper.tsv
         """
 }
 

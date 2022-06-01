@@ -498,7 +498,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
 
 def pychopper_plots(report, pychop_report):
-    """Make plots from pychopper.cdna_classifier.py.
+    """Make plots from pychopper output.
 
     :param report: aplanat WFReport
     :param pychop_report: path to pychopper stats file
@@ -507,7 +507,7 @@ def pychopper_plots(report, pychop_report):
     section.markdown('''
     ### Pychopper summary statisitcs
 
-    The following plots summarize the output of [cdna_classifier.py]
+    The following plots summarize [pychopper] output
     (https://github.com/nanoporetech/pychopper)
 
     * **Pr.found**: Reads with primers found in correct orientation at

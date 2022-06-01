@@ -4,7 +4,7 @@ This workflow identifies RNA isoforms using either cDNA or direct RNA (dRNA)
 Oxford Nanopore reads.
 
 ### Preprocesing
-cDNA reads are initially preprocessed by [pychopper](https://github.com/nanoporetech/pychopper) 
+cDNA reads are initially preprocessed by [pychopper](https://github.com/epi2me-labs/pychopper) 
 for the identification of full-length reads, as well as trimming and orientation correction (This step is omitted for 
  direct RNA reads).
 
