@@ -2,7 +2,7 @@ process map_reads{
     /*
     Map reads to reference using minimap2.
     Filter reads by mapping quality.
-    Filter reads where length of poly(A) > max_poly_run at either ends of the read (defined by poly_context)
+    Filter internally-primed reads.
     */
     label "isoforms"
     cpus params.threads
