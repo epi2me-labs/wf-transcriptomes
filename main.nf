@@ -502,9 +502,12 @@ workflow {
         ref_annotation = file("$projectDir/data/OPTIONAL_FILE")
     }
 
-    reads = fastq_ingress(
-        params.fastq, params.out_dir, params.sample, params.sample_sheet, params.sanitize_fastq
-    )
+    reads = fastq_ingress([
+        "input":params.fastq,
+        "sample":params.sample,
+        "sample_sheet":params.sample_sheet,
+        "sanitize": params.sanitize_fastq,
+        "output":params.out_dir])
 
     pipeline(reads, ref_genome, ref_annotation)
 
