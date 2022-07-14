@@ -20,8 +20,7 @@ process map_reads{
         RightShift: ${params.poly_context}, RegexEnd: "[Aa]{${params.max_poly_run},}",
         Stranded: True,Invert: True, Tsv: "internal_priming_fail.tsv"} """
     """
-    seqkit fq2fa ${fastq_reads} -o "reads.fa";
-    minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} ${index} "reads.fa"\
+    minimap2 -t ${params.threads} -ax splice ${params.minimap2_opts} ${index} ${fastq_reads}\
         | samtools view -q ${params.minimum_mapping_quality} -F 2304 -Sb -\
         | seqkit bam -j ${params.threads} -x -T '${ContextFilter}' -\
         | samtools sort -@ ${params.threads} -o "${sample_id}_reads_aln_sorted.bam" - ;
