@@ -10,7 +10,7 @@ import nextflow.util.BlankSeparatedList;
 import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
-include { fastq_ingress } from './lib/fastqingress' 
+include { fastq_ingress } from './lib/fastqingress'
 include { start_ping; end_ping } from './lib/ping'
 include { reference_assembly } from './reference_assembly'
 include { denovo_assembly } from './denovo_assembly'
@@ -22,13 +22,13 @@ process summariseConcatReads {
     label "isoforms"
     cpus 1
     input:
-        tuple path(directory), val(sample_id), val(type)
+        tuple path(directory), val(meta)
     output:
-        tuple val(sample_id), path("${sample_id}.fastq"), emit: input_reads
-        tuple val(sample_id), path('*.stats'), emit: summary
+        tuple val(meta.sample_id), path("${meta.sample_id}.fastq"), emit: input_reads
+        tuple val(meta.sample_id), path('*.stats'), emit: summary
     script:
     """
-    fastcat -s ${sample_id} -r ${sample_id}.stats -x ${directory} >  ${sample_id}.fastq
+    fastcat -s ${meta.sample_id} -r ${meta.sample_id}.stats -x ${directory} >  ${meta.sample_id}.fastq
     """
 }
 
@@ -72,11 +72,11 @@ process getParams {
 }
 
 process preprocess_reads {
-    /* 
+    /*
     Concatenate reads from a sample directory.
     Optionally classify, trim, and orient cDNA reads using pychopper
     */
- 
+
     label "isoforms"
     cpus 4
 

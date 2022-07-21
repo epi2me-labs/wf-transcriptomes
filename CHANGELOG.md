@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 ### Changed
-- Skip unnecessary conversion to fasta from fastq.
+- Skip unnecessary conversion to fasta from fastq
+- Fastqingress metadata map
 
 ## [v0.1.4]
 ### Changed
