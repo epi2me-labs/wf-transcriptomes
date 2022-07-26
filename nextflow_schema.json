@@ -200,7 +200,7 @@
                     "default": 0.65
                 },
                 "aligned_threshold": {
-                    "tpye": "number",
+                    "type": "number",
                     "description": "Minimum aligned fraction of read to be included in cluster",
                     "default": 0.2
                 },
