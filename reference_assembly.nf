@@ -28,8 +28,8 @@ process map_reads{
 
     if [[ -s "internal_priming_fail.tsv" ]];
         then
-            tail -n +2 "internal_priming_fail.tsv" | awk '{{print ">" \$1 "\\n" \$4 }}' - > "context_internal_priming_fail_start.fasta"
-            tail -n +2 "internal_priming_fail.tsv" | awk '{{print ">" \$1 "\\n" \$6 }}' - > "context_internal_priming_fail_end.fasta"
+            tail -n +2 "internal_priming_fail.tsv" | awk '{print ">" \$1 "\\n" \$4 }' - > "context_internal_priming_fail_start.fasta"
+            tail -n +2 "internal_priming_fail.tsv" | awk '{print ">" \$1 "\\n" \$6 }' - > "context_internal_priming_fail_end.fasta"
     fi
     """
 }
