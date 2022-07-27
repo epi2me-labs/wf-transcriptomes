@@ -21,6 +21,7 @@
                 "fastq": {
                     "type": "string",
                     "format": "path",
+                    "demo_data": "${projectDir}/test_data/fastq",
                     "description": "A fastq file or directory containing fastq input files or directories of input files.",
                     "help_text": "If directories named \\\"barcode*\\\" are found under the `--fastq` directory the data is assumed to be multiplex and each barcode directory will be processed independently. If `.fastq(.gz)` files are found under the `--fastq` directory the sample is assumed to not be multiplexed. In this second case `--samples` should be a simple name rather than a CSV file."
                 },
@@ -41,11 +42,13 @@
                 "ref_genome": {
                     "type": "string",
                     "format": "file-path",
+                    "demo_data": "${projectDir}/test_data/SIRV_150601a.fasta",
                     "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow"
                 },
                 "ref_annotation": {
                     "type": "string",
                     "format": "file-path",
+                    "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
                     "description": "A reference annotation of gff format"
                 }
             },
