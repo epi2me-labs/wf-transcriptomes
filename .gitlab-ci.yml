@@ -9,4 +9,4 @@ variables:
     # Only common file inputs and option values need to be given here
     # (not things such as -profile)
     NF_WORKFLOW_OPTS: "--fastq test_data/fastq \
-      --ref_genome test_data/SIRV_150601a.fasta --ref_annotation test_data/SIRV_isofroms.gtf"
+      --ref_genome test_data/SIRV_150601a.fasta --ref_annotation test_data/SIRV_isoforms.gtf"
