@@ -798,20 +798,16 @@ def seq_stats_tabs(report, sample_ids, stats):
     section.plot(Tabs(tabs=tabs))
 
 
-def jaffal_table(report, sample_ids, result_csvs):
+def jaffal_table(report, result_csv):
     """Make a table of fusion transcripts identified by JAFFAL."""
     cols = [
         'sample_id', 'fusion genes', 'chrom1', 'chrom2', 'spanning reads',
         'classification', 'known']
-    dfs = []
-    for csv, sid in zip(result_csvs, sample_ids):
-        df = pd.read_csv(csv)
-        df['sample_id'] = sid
-        sid_col = df.pop('sample_id')
-        df.insert(0, 'sample_id', sid_col)
-        dfs.append(df)
 
-    df = pd.concat(dfs)
+    df = pd.read_csv(result_csv)
+    sid_col = df.pop('sample_id')
+    df.insert(0, 'sample_id', sid_col)
+
     df = df[cols]
     df['chroms'] = df.chrom1.astype(str) + ':' + df.chrom2.astype(str)
     df.rename(columns={
@@ -874,7 +870,7 @@ def main():
         "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
         help="Directory with various cluster quality csvs")
     parser.add_argument(
-        "--jaffal_csv", required=False, type=str, default=None,  nargs='*',
+        "--jaffal_csv", required=False, type=str, default=None,
         help="Path to JAFFAL results csv")
     parser.add_argument('--denovo', dest='denovo', action='store_true')
 
@@ -921,8 +917,8 @@ def main():
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)
 
-    if args.jaffal_csv is not None:
-        jaffal_table(report, sample_ids, args.jaffal_csv)
+    if args.jaffal_csv:
+        jaffal_table(report, args.jaffal_csv)
 
     # Arguments and software versions
     report.add_section(

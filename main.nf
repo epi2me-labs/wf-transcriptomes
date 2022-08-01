@@ -282,12 +282,12 @@ process makeReport {
         path "params.json"
         val denovo
         path pychopper_report
+        path jaffal_csv
         tuple val(sample_ids),
               path(seq_summaries),
               path(aln_stats),
               path(gffcmp_dir),
-              path(gff_annotation),
-              path(jaffal_csv)
+              path(gff_annotation)
     output:
         path("wf-transcriptomes-*.html"), emit: report
     script:
@@ -297,6 +297,8 @@ process makeReport {
         def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
         def OPT_DENOVO = denovo ? "--denovo" : ''
         def OPT_PC_REPORT = pychopper_report.name.startsWith('OPTIONAL_FILE') ? '' : "--pychop_report ${pychopper_report}"
+        def OPT_JAFFAL_CSV = jaffal_csv.name.startsWith('OPTIONAL_FILE') ? '' : "--jaffal_csv ${jaffal_csv}"
+
     """
     report.py --report $report_name \
     --versions $versions \
@@ -308,7 +310,7 @@ process makeReport {
     --gffcompare_dir $gffcmp_dir \
     --gff_annotation $gff_annotation \
     --transcript_table_cov_thresh $params.transcript_table_cov_thresh \
-    --jaffal_csv $jaffal_csv
+    $OPT_JAFFAL_CSV \
     $OPT_DENOVO
     """
 }
@@ -408,6 +410,9 @@ workflow pipeline {
 
         if (jaffal_refBase){
             gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
+            jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
+        }else{
+            jaffal_out = file("$projectDir/data/OPTIONAL_FILE_1")
         }
 
         makeReport(
@@ -415,11 +420,11 @@ workflow pipeline {
             workflow_params,
             params.denovo,
             pychopper_report,
+            jaffal_out,
             summariseConcatReads.out.summary
             .join(m.stats)
             .join(run_gffcompare.out.gffcmp_dir)
             .join(merge_gff_bundles.out.gff)
-            .join(gene_fusions.out.results_csv)
             .toList().transpose().toList())
 
         report = makeReport.out.report
