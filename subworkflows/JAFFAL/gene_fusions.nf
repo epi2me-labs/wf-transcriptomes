@@ -22,6 +22,12 @@ process jaffal{
         $params.jaffal_dir/JAFFAL.groovy \
         $fastq
     mv "\$JAFFAOUT/jaffa_results.csv" "\$JAFFAOUT/${sample_id}_jaffa_results.csv"
+
+    # Add sample id column
+    sed "s/\$/,${sample_id}/" \$JAFFAOUT/${sample_id}_jaffa_results.csv > tmp1
+    # Add header
+    sed "1 s/${sample_id}/sample_id/" tmp1 > tmp2
+    mv tmp2 \$JAFFAOUT/${sample_id}_jaffa_results.csv
     """
 }
 

@@ -90,7 +90,7 @@ do:
 ```shell
 mkdir jaffal_data_dir
 cd jaffal_data_dir/
-wf-transcriptomes/download_jaffal_references.sh
+wf-transcriptomes/subworkflows/JAFFAL/load_jaffal_references.sh
 ````
 
 To use alternative genome and annotation files, they should be prepared as described
@@ -99,7 +99,7 @@ To use alternative genome and annotation files, they should be prepared as descr
 **Specifying the location of the JAFFA code and reference directories**
 
 `--jaffal_dir`
-This is the directory made by running install_jaffa.sh as shown above
+Full path to the directory made by running install_jaffa.sh as shown above. eg: /home/wf-trnascriptomes/JAFFA
 
 `--jaffal_refBase`
 The directory containing the reference data prepared for use with JAFFAL
