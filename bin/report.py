@@ -400,10 +400,10 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         tracking = df_track.groupby("Overlaps").count().reset_index()
         tracking.Overlaps = tracking.Overlaps.map(names)
         tracking['Percent'] = tracking.Count * 100 / tracking.Count.sum()
-        tracking = tracking.sort_values("Overlaps")
+        tracking = tracking.sort_values("Count", ascending=False)
         track_bar = bars.simple_hbar(
-            tracking['Overlaps'].values.tolist(),
-            tracking['Percent'].values.tolist(),
+            list(reversed(tracking['Overlaps'].values.tolist())),
+            list(reversed(tracking['Percent'].values.tolist())),
             colors=Colors.cerulean, title=id_)
 
         tracking_dfs.append(tracking)
@@ -426,6 +426,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         track_table = DataTable(
             columns=cols, source=ColumnDataSource(tracking),
             index_position=None, width=500)
+
         tabs.append(Panel(
             child=gridplot([track_bar, track_table], ncols=2), title=id_)
         )
@@ -602,7 +603,7 @@ def transcript_table(report, df_tmaps, covr_threshold):
 
     # drop some columns for the big table and do some filtering
     section.markdown('''
-    ### Query transcript table
+    ### Isoforms table
 
     Low coverage transcripts are removed to speed up the table viewing. <br>
     Coverage threshold can be set with the parameter
@@ -650,6 +651,8 @@ def transcript_table(report, df_tmaps, covr_threshold):
 
     df['parent gene iso num'] = df.apply(
         lambda x: gb.loc[(x.ref_gene_id, x.sample_id), 'num_isoforms'], axis=1)
+    # Uncalssified transcritps should not be lumped togetehr
+    df.loc[df.class_code == 'u', 'parent gene iso num'] = None
 
     df.sort_values('parent gene iso num', inplace=True, ascending=True)
 
@@ -795,6 +798,43 @@ def seq_stats_tabs(report, sample_ids, stats):
     section.plot(Tabs(tabs=tabs))
 
 
+def jaffal_table(report, sample_ids, result_csvs):
+    """Make a table of fusion transcripts identified by JAFFAL."""
+    cols = [
+        'sample_id', 'fusion genes', 'chrom1', 'chrom2', 'spanning reads',
+        'classification', 'known']
+    dfs = []
+    for csv, sid in zip(result_csvs, sample_ids):
+        df = pd.read_csv(csv)
+        df['sample_id'] = sid
+        sid_col = df.pop('sample_id')
+        df.insert(0, 'sample_id', sid_col)
+        dfs.append(df)
+
+    df = pd.concat(dfs)
+    df = df[cols]
+    df['chroms'] = df.chrom1.astype(str) + ':' + df.chrom2.astype(str)
+    df.rename(columns={
+        'spanning reads': 'nreads',
+        'fusion genes': 'genes'}, inplace=True)
+    df.drop(columns=['chrom1', 'chrom2'], inplace=True)
+    section = report.add_section()
+    section.markdown("""
+    ### JAFFAL fusion transcript summary
+
+    This table summarizes putative fusion transcripts identified
+    by [JAFFAL](https://github.com/Oshlack/JAFFA/).
+
+    * genes: the gene symbols of the fusion partners
+    * nreads: The number of reads supporting the fusion
+    * classification: JAFFAL's classification
+    * known: whether this fusion is in the given set of known gene fusions
+    * chroms: the respective, original chromosome location of the two partner
+    genes
+    """)
+    section.table(df)
+
+
 def main():
     """Run the entry point."""
     parser = argparse.ArgumentParser()
@@ -833,15 +873,17 @@ def main():
     parser.add_argument(
         "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
         help="Directory with various cluster quality csvs")
+    parser.add_argument(
+        "--jaffal_csv", required=False, type=str, default=None,  nargs='*',
+        help="Path to JAFFAL results csv")
     parser.add_argument('--denovo', dest='denovo', action='store_true')
 
     args = parser.parse_args()
-    print('denovo', args.denovo)
 
     sample_ids = args.sample_ids
 
     report = WFReport(
-        "Transcript isoform report", "wf-isoforms",
+        "Transcript isoform report", "wf-transcriptomes",
         revision=args.revision, commit=args.commit)
 
     # Add reads summary section
@@ -853,7 +895,9 @@ def main():
         section.markdown('''
           ### Read mapping summary
 
-          Output of [seqkit](https://bioinf.shenwei.me/seqkit/) bam -s''')
+          Summary of minimap2 mapping from
+          [seqkit](https://bioinf.shenwei.me/seqkit/)
+          `seqkit bam -s`''')
 
         section.table(df_aln_stats)
 
@@ -876,6 +920,9 @@ def main():
 
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)
+
+    if args.jaffal_csv is not None:
+        jaffal_table(report, sample_ids, args.jaffal_csv)
 
     # Arguments and software versions
     report.add_section(

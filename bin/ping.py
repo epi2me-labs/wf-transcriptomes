@@ -53,7 +53,7 @@ def main():
             hostname=args.hostname,
             opsys=args.opsys
         ).send_workflow_ping(
-            workflow='wf-isoforms',
+            workflow='wf-transcriptomes',
             message=args.message,
             revision=args.revision,
             commit=args.commit,

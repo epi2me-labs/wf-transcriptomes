@@ -12,8 +12,9 @@ nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
 include { start_ping; end_ping } from './lib/ping'
-include { reference_assembly } from './reference_assembly'
-include { denovo_assembly } from './denovo_assembly'
+include { reference_assembly } from './subworkflows/reference_assembly'
+include { denovo_assembly } from './subworkflows/denovo_assembly'
+include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 
 
 process summariseConcatReads {
@@ -83,11 +84,11 @@ process preprocess_reads {
     input:
         tuple val(sample_id), path(input_reads)
     output:
-         tuple val(sample_id), path("${sample_id}_full_length_reads.fq"), emit: full_len_reads
+         tuple val(sample_id), path("${sample_id}_full_length_reads.fastq"), emit: full_len_reads
          path '*.tsv',  emit: report
     script:
         """
-        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fq
+        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fastq
         mv pychopper.tsv ${sample_id}_pychopper.tsv
         generate_pychopper_stats.py --data ${sample_id}_pychopper.tsv --output .
 
@@ -285,13 +286,14 @@ process makeReport {
               path(seq_summaries),
               path(aln_stats),
               path(gffcmp_dir),
-              path(gff_annotation)
+              path(gff_annotation),
+              path(jaffal_csv)
     output:
-        path("wf-isoforms-*.html"), emit: report
+        path("wf-transcriptomes-*.html"), emit: report
     script:
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
-        def report_name = "wf-isoforms-report.html"
+        def report_name = "wf-transcriptomes-report.html"
         def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
         def OPT_DENOVO = denovo ? "--denovo" : ''
         def OPT_PC_REPORT = pychopper_report.name.startsWith('OPTIONAL_FILE') ? '' : "--pychop_report ${pychopper_report}"
@@ -306,6 +308,7 @@ process makeReport {
     --gffcompare_dir $gffcmp_dir \
     --gff_annotation $gff_annotation \
     --transcript_table_cov_thresh $params.transcript_table_cov_thresh \
+    --jaffal_csv $jaffal_csv
     $OPT_DENOVO
     """
 }
@@ -332,6 +335,9 @@ workflow pipeline {
         reads
         ref_genome
         ref_annotation
+        jaffal_refBase
+        jaffal_genome
+        jaffal_annotation
     main:
         map_sample_ids_cls = {it ->
         /* Harmonize tuples
@@ -400,6 +406,10 @@ workflow pipeline {
             seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
         }
 
+        if (jaffal_refBase){
+            gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
+        }
+
         makeReport(
             software_versions,
             workflow_params,
@@ -409,6 +419,7 @@ workflow pipeline {
             .join(m.stats)
             .join(run_gffcompare.out.gffcmp_dir)
             .join(merge_gff_bundles.out.gff)
+            .join(gene_fusions.out.results_csv)
             .toList().transpose().toList())
 
         report = makeReport.out.report
@@ -452,6 +463,11 @@ workflow pipeline {
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
         }
+        if (params.jaffal_refBase){
+            results = results
+                .concat(gene_fusions.out.results
+                .map {it -> it[1]})
+        }
 
     emit:
         results
@@ -466,52 +482,60 @@ workflow {
 
     fastq = file(params.fastq, type: "file")
 
-     if (!fastq.exists()) {
-        println("--fastq: File doesn't exist, check path.")
-        exit 1
+    error = null
+
+    if (!fastq.exists()) {
+        error = "--fastq: File doesn't exist, check path."
     }
 
     if (!params.denovo && !params.ref_genome){
-        println("--ref_genome must be supplied unless doing de novo assembly (--denovo)")
-        exit 1
+        error = "--ref_genome must be supplied unless doing de novo assembly (--denovo)"
     }
-
 
     if (params.ref_genome){
         ref_genome = file(params.ref_genome, type: "file")
         if (!ref_genome.exists()) {
-            println("--ref_genome: File doesn't exist, check path.")
-            exit 1
+            error = "--ref_genome: File doesn't exist, check path."
         }
     }else {
         ref_genome = file("$projectDir/data/OPTIONAL_FILE")
     }
 
     if (params.denovo && params.ref_annotation) {
-        println("Reference annotation with de denovo assembly is not supported")
-        exit 1
+        error = "Reference annotation with de denovo assembly is not supported"
     }
 
     if (params.ref_annotation){
         ref_annotation = file(params.ref_annotation, type: "file")
         if (!ref_annotation.exists()) {
-            println("--annotation: File doesn't exist, check path.")
-            exit 1
+            error = "--annotation: File doesn't exist, check path."
         }
     }else{
         ref_annotation = file("$projectDir/data/OPTIONAL_FILE")
     }
+     if (params.jaffal_refBase){
+        jaffal_refBase = file(params.jaffal_refBase, type: "dir")
+        if (!jaffal_refBase.exists()) {
+            error = "--jaffa_refBase: Directory doesn't exist, check path."
+        }
+     }else{
+        jaffal_refBase = null
+     }
 
-    reads = fastq_ingress([
-        "input":params.fastq,
-        "sample":params.sample,
-        "sample_sheet":params.sample_sheet,
-        "sanitize": params.sanitize_fastq,
-        "output":params.out_dir])
+    if (error){
+        println(error)
+    }else{
+        reads = fastq_ingress([
+            "input":params.fastq,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "sanitize": params.sanitize_fastq,
+            "output":params.out_dir])
 
-    pipeline(reads, ref_genome, ref_annotation)
+        pipeline(reads, ref_genome, ref_annotation, jaffal_refBase, params.jaffal_genome, params.jaffal_annotation)
 
-    output(pipeline.out.results)
+        output(pipeline.out.results)
 
-    end_ping(pipeline.out.telemetry)
+        end_ping(pipeline.out.telemetry)
+    }
 }
