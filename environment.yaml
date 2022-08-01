@@ -1,8 +1,8 @@
-name: epi2melabs-wf-isoforms
+name: epi2melabs-wf-transcriptomes
 channels:
     - epi2melabs
-    - bioconda
     - conda-forge
+    - bioconda
     - defaults
 dependencies:
     - python==3.8.*
@@ -27,4 +27,8 @@ dependencies:
     - parallel
     - scikit-learn==1.0.2
     - natsort
-    - graphviz
+# Fusion detection dependencies
+#    - bpipe=0.9.9.2
+    - java-jdk
+    - r-base
+    - gxx

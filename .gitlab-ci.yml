@@ -8,5 +8,8 @@ variables:
     # The workflow should define `--out_dir`, the CI template sets this.
     # Only common file inputs and option values need to be given here
     # (not things such as -profile)
-    NF_WORKFLOW_OPTS: "--fastq test_data/fastq \
-      --ref_genome test_data/SIRV_150601a.fasta --ref_annotation test_data/SIRV_isoforms.gtf"
+    NF_BEFORE_SCRIPT: |
+       wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
+    NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq \
+      --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
+      --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22"

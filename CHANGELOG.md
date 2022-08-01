@@ -6,13 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 ### Changed
-- Skip unnecessary conversion to fasta from fastq
-- Fastqingress metadata map
+
 
 ## [v0.1.4]
+### Added
+- JAFFAL fusion detectoion subworkflow
 ### Changed
 - Args parser for fastqingress
 - Set out_dir option type to ensure output is written to correct directory on Windows
+- Skip unnecessary conversion to fasta from fastq
+- Fastqingress metadata map
+- Changed workflow name to wf-transcriptomes
 
 ## [v0.1.3]
 ### Changed

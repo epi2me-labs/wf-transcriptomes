@@ -15,6 +15,11 @@ RUN \
     && rm -rf $CONDA_DIR/lib/python3.*/site-packages/pip \
     && find $CONDA_DIR -name '__pycache__' -type d -exec rm -rf '{}' '+'
 
+
 USER $WF_UID
 WORKDIR $HOME
+
+# Install JAFFA
+ADD subworkflows $HOME/subworkflows
+RUN /bin/sh -c $HOME/subworkflows/JAFFAL/install_jaffa.sh
 
