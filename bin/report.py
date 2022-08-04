@@ -882,7 +882,7 @@ def main():
         "Transcript isoform report", "wf-transcriptomes",
         revision=args.revision, commit=args.commit)
 
-    # Add reads summary section
+    # QC
     seq_stats_tabs(report, args.sample_ids, args.summaries)
 
     if args.alignment_stats is not None:
@@ -897,7 +897,10 @@ def main():
 
         section.table(df_aln_stats)
 
-    # workflow-specific plotting
+    if args.pychop_report is not None:
+        pychopper_plots(report, args.pychop_report)
+
+    # Results
     transcriptome_summary(
         report, args.gff_annotation, sample_ids, denovo=args.denovo)
 
@@ -907,9 +910,6 @@ def main():
         sample_ids)
 
     report.write(args.report)
-
-    if args.pychop_report is not None:
-        pychopper_plots(report, args.pychop_report)
 
     if df_tmaps is not None:
         transcript_table(report, df_tmaps, args.transcript_table_cov_thresh)
