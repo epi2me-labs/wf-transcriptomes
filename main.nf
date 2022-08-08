@@ -309,7 +309,7 @@ process makeReport {
     --summaries $seq_summaries \
     --gffcompare_dir $gffcmp_dir \
     --gff_annotation $gff_annotation \
-    --transcript_table_cov_thresh $params.transcript_table_cov_thresh \
+    --isoform_table_nrows $params.isoform_table_nrows \
     $OPT_JAFFAL_CSV \
     $OPT_DENOVO
     """
