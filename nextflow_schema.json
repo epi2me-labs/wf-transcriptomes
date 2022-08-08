@@ -84,10 +84,10 @@
                     "description": "Extra options for stringtie transcript assembly.",
                     "default": " --conservative "
                 },
-                "transcript_table_cov_thresh": {
+                "isoform_table_nrows": {
                     "type": "integer",
-                    "description": "Minimum coverage for a transcript to appear in the report table",
-                    "default": 50
+                    "description": "Maximum rows to dispay in the isoform report table",
+                    "default": 5000
                 },
                 "denovo": {
                     "type": "boolean",
