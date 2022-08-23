@@ -16,7 +16,7 @@ dependencies:
     - gffread==0.12.7
     - gffcompare==0.11.2
     - gffutils==0.10.1
-    - seqkit==2.1.0
+    - seqkit==2.2.0
     - stringtie==2.1.1
     - curl
     - pysam==0.17.0
@@ -32,3 +32,12 @@ dependencies:
     - java-jdk
     - r-base
     - gxx
+# Differential expression dependencies
+    - bioconductor-genomicfeatures
+    - bioconductor-drimseq
+    - bioconductor-edger
+    - bioconductor-dexseq
+    - bioconductor-stager
+    - r-dplyr
+    - r-tidyr
+    - salmon==1.9.0

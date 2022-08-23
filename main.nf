@@ -15,6 +15,8 @@ include { start_ping; end_ping } from './lib/ping'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
+include { differential_expression } from './subworkflows/differential_expression'
+
 
 
 process summariseConcatReads {
@@ -181,7 +183,7 @@ process assemble_transcripts{
         def prefix =  bam.name.split(/\./)[0]
 
     """
-    stringtie --rf ${G_FLAG} -L -v -p ${params.threads} ${params.stringtie_opts} \
+    stringtie --rf ${G_FLAG} -L -v -p ${task.cpus} ${params.stringtie_opts} \
     -o  ${prefix}.gff -l ${prefix} ${bam} 2>/dev/null
      """
 }
@@ -225,6 +227,7 @@ process run_gffcompare{
        path ref_annotation
     output:
         tuple val(sample_id), path("${sample_id}_gffcompare"), emit: gffcmp_dir
+        path ("${sample_id}_annotated.gtf"), emit: gtf, optional: true
     script:
     def out_dir = "${sample_id}_gffcompare"
 
@@ -245,6 +248,7 @@ process run_gffcompare{
 
         mv *.tmap $out_dir
         mv *.refmap $out_dir
+        cp ${out_dir}/str_merged.annotated.gtf ${sample_id}_annotated.gtf
         """
     }
 }
@@ -273,6 +277,29 @@ process get_transcriptome{
         """
 }
 
+process merge_transcriptomes {
+    // Merge the transcriptomes from all samples
+    label 'isoforms'
+    input:
+        path "query_annotations/*"
+        path ref_annotation
+        path ref_genome
+    output:
+        path "non_redundant.fasta", emit: fasta
+        path "stringtie.gtf", emit: gtf
+    """
+    stringtie --merge -G $ref_annotation -p ${task.cpus} -o stringtie.gtf query_annotations/*
+    seqkit subseq --feature "transcript" --gtf-tag "transcript_id" --gtf stringtie.gtf $ref_genome > temp_transcriptome.fasta
+    seqkit rmdup -s < temp_transcriptome.fasta > temp_del_repeats.fasta
+    cat temp_del_repeats.fasta | sed 's/>.* />/'  | sed -e 's/_[0-9]* \\[/ \\[/' > temp_rm_empty_seq.fasta
+    awk 'BEGIN {RS = ">" ; FS = "\\n" ; ORS = ""} \$2 {print ">"\$0}' temp_rm_empty_seq.fasta > non_redundant.fasta
+    rm temp_transcriptome.fasta
+    rm temp_del_repeats.fasta
+    rm temp_rm_empty_seq.fasta
+    """
+}
+
+
 process makeReport {
 
     label "isoforms"
@@ -288,6 +315,8 @@ process makeReport {
               path(aln_stats),
               path(gffcmp_dir),
               path(gff_annotation)
+        path "de_report/*"
+        path "seqkit/*"
     output:
         path("wf-transcriptomes-*.html"), emit: report
     script:
@@ -298,8 +327,15 @@ process makeReport {
         def OPT_DENOVO = denovo ? "--denovo" : ''
         def OPT_PC_REPORT = pychopper_report.name.startsWith('OPTIONAL_FILE') ? '' : "--pychop_report ${pychopper_report}"
         def OPT_JAFFAL_CSV = jaffal_csv.name.startsWith('OPTIONAL_FILE') ? '' : "--jaffal_csv ${jaffal_csv}"
-
+    
     """
+    if [ -e "de_report/OPTIONAL_FILE" ]; then
+        dereport=""
+    else
+        dereport="--de_report true --de_stats "seqkit/*""
+        mv de_report/*.gtf de_report/stringtie_merged.gtf
+    fi
+
     report.py --report $report_name \
     --versions $versions \
     --params params.json \
@@ -311,7 +347,9 @@ process makeReport {
     --gff_annotation $gff_annotation \
     --isoform_table_nrows $params.isoform_table_nrows \
     $OPT_JAFFAL_CSV \
-    $OPT_DENOVO
+    $OPT_DENOVO \
+    \$dereport 
+
     """
 }
 
@@ -340,6 +378,8 @@ workflow pipeline {
         jaffal_refBase
         jaffal_genome
         jaffal_annotation
+        condition_sheet
+        ref_transcriptome
     main:
         map_sample_ids_cls = {it ->
         /* Harmonize tuples
@@ -381,15 +421,15 @@ workflow pipeline {
 
         if (params.denovo){
             println("Doing de novo assembly")
-             m = denovo_assembly(full_len_reads, ref_genome)
+             assembly = denovo_assembly(full_len_reads, ref_genome)
 
         } else {
             build_minimap_index(ref_genome)
             println("Doing reference based transcript analysis")
-            m = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
+            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
         }
 
-        split_bam(m.bam)
+        split_bam(assembly.bam)
 
         assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
 
@@ -401,13 +441,13 @@ workflow pipeline {
 
         if (params.denovo){
             // Use the per-sample, de novo-assembled CDS
-            seq_for_transcriptome_build = m.cds
+            seq_for_transcriptome_build = assembly.cds
         }else {
             // For reference based assembly, there is only one reference
             // So map this reference to all sample_ids
             seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
         }
-
+        
         if (jaffal_refBase){
             gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
             jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
@@ -415,6 +455,31 @@ workflow pipeline {
             jaffal_out = file("$projectDir/data/OPTIONAL_FILE_1")
         }
 
+        
+        get_transcriptome(
+            merge_gff_bundles.out.gff
+            .join(run_gffcompare.out.gffcmp_dir)
+            .join(seq_for_transcriptome_build))
+
+        if (params.de_analysis){
+
+            if (!params.ref_transcriptome){
+                merge_transcriptomes(run_gffcompare.output.gtf.collect(), ref_annotation, ref_genome)
+                transcriptome = merge_transcriptomes.out.fasta
+                gtf = merge_transcriptomes.out.gtf
+            }
+            else {
+                transcriptome = ref_transcriptome
+                gtf = Channel.fromPath(ref_annotation)
+            }
+            de = differential_expression(transcriptome, summariseConcatReads.out.input_reads, condition_sheet, gtf)
+            de_report = de.all_de
+            count_transcripts_file = de.count_transcripts
+            dtu_plots = de.dtu_plots
+        } else{
+            de_report = file("$projectDir/data/OPTIONAL_FILE")
+            count_transcripts_file = file("$projectDir/data/OPTIONAL_FILE")
+        }
         makeReport(
             software_versions,
             workflow_params,
@@ -422,42 +487,41 @@ workflow pipeline {
             pychopper_report,
             jaffal_out,
             summariseConcatReads.out.summary
-            .join(m.stats)
+            .join(assembly.stats)
             .join(run_gffcompare.out.gffcmp_dir)
             .join(merge_gff_bundles.out.gff)
-            .toList().transpose().toList())
+            .toList().transpose().toList(),
+            de_report,
+            count_transcripts_file)
 
         report = makeReport.out.report
 
-        get_transcriptome(
-            merge_gff_bundles.out.gff
-            .join(run_gffcompare.out.gffcmp_dir)
-            .join(seq_for_transcriptome_build))
+
 
        if (use_ref_ann){
             results = run_gffcompare.output.gffcmp_dir
                       .concat(
-                      m.stats,
-                      get_transcriptome.out.flatMap(map_sample_ids_cls))
+                      assembly.stats,
+                      get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
 
        }
         if (!use_ref_ann && !params.denovo){
-            results =  m.stats
+            results =  assembly.stats
                       .concat(
-                       get_transcriptome.out.flatMap(map_sample_ids_cls))
+                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(makeReport.out.report)
 
         }
         if (params.denovo){
-            results = m.cds
-                      .concat(m.stats,
+            results = assembly.cds
+                      .concat(assembly.stats,
                       seq_for_transcriptome_build,
-                      get_transcriptome.out.flatMap(map_sample_ids_cls),
+                      get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls),
                       merge_gff_bundles.out.gff,
-                      m.opt_qual_ch.flatMap {
+                      assembly.opt_qual_ch.flatMap {
                           it ->
                           l = []
                           for (x in it[1..-1]){
@@ -472,6 +536,10 @@ workflow pipeline {
             results = results
                 .concat(gene_fusions.out.results
                 .map {it -> it[1]})
+        }
+
+        if (params.de_analysis){
+            results = results.concat(de.dtu_plots)
         }
 
     emit:
@@ -518,7 +586,7 @@ workflow {
     }else{
         ref_annotation = file("$projectDir/data/OPTIONAL_FILE")
     }
-     if (params.jaffal_refBase){
+    if (params.jaffal_refBase){
         jaffal_refBase = file(params.jaffal_refBase, type: "dir")
         if (!jaffal_refBase.exists()) {
             error = "--jaffa_refBase: Directory doesn't exist, check path."
@@ -526,7 +594,22 @@ workflow {
      }else{
         jaffal_refBase = null
      }
+    ref_transcriptome = file("$projectDir/data/OPTIONAL_FILE")
+    if (params.ref_transcriptome){
+        ref_transcriptome = file(params.ref_transcriptome, type:"file")
+    }
+    if (params.de_analysis){
+        if (!params.ref_annotation){
+            error = "You must provide a reference annotation."
+        }
+        if (!params.condition_sheet){
 
+            error = "You must provide a condition_sheet or set de_analysis to false."
+        }
+        condition_sheet = file(params.condition_sheet, type:"file")
+    } else{
+        condition_sheet = file("$projectDir/data/OPTIONAL_FILE")
+    }
     if (error){
         println(error)
     }else{
@@ -537,7 +620,9 @@ workflow {
             "sanitize": params.sanitize_fastq,
             "output":params.out_dir])
 
-        pipeline(reads, ref_genome, ref_annotation, jaffal_refBase, params.jaffal_genome, params.jaffal_annotation)
+        pipeline(reads, ref_genome, ref_annotation,
+            jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
+            condition_sheet, ref_transcriptome)
 
         output(pipeline.out.results)
 

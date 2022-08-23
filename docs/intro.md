@@ -32,9 +32,17 @@ using [gffcompare](http://ccb.jhu.edu/software/stringtie/gffcompare.shtml)
 Fusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFFA), with the JAFFAL extension for use 
 with ONT long reads. 
 
+### Differential expression analysis
+* Differential expression is done using the transcripts output by the workflow.
+* A non redundant transcriptome is found using the merge function in [stringtie](http://ccb.jhu.edu/software/stringtie).
+* The reads are then aligned to the transcriptome using minimap2 in a splice-aware manner.
+* [salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification.
+* R packages [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) and [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html) are used for differential expression analysis.
+* [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) is then used for differential transcript usage analysis.
+
 ### Workflow inputs
 - Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples
   (in fastq/fastq.gz format)
 - Reference genome in fasta format (required for reference-based assembly).
-- Optional reference annotation in GFF2/3 format.
+- Optional reference annotation in GFF2/3 format (required for differential expression analysis `--de_analysis`).
 - For fusion detection, JAFFAL reference files (see Quickstart) 
