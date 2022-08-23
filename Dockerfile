@@ -1,10 +1,10 @@
-ARG BASEIMAGE=ontresearch/base-workflow-image:v0.1.1
+ARG BASEIMAGE=ontresearch/base-workflow-image:v0.2.0
 FROM $BASEIMAGE
 ARG ENVFILE=environment.yaml
 
 COPY $ENVFILE $HOME/environment.yaml
 RUN \
-    . $CONDA_DIR/etc/profile.d/mamba.sh \
+    . $CONDA_DIR/etc/profile.d/micromamba.sh \
     && micromamba activate \
     && micromamba install -n base --file $HOME/environment.yaml \
     && micromamba clean --all --yes \
@@ -14,7 +14,6 @@ RUN \
     && rm -rf $CONDA_DIR/include \
     && rm -rf $CONDA_DIR/lib/python3.*/site-packages/pip \
     && find $CONDA_DIR -name '__pycache__' -type d -exec rm -rf '{}' '+'
-
 
 USER $WF_UID
 WORKDIR $HOME

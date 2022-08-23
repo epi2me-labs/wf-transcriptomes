@@ -40,11 +40,19 @@ using [gffcompare](http://ccb.jhu.edu/software/stringtie/gffcompare.shtml)
 Fusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFFA), with the JAFFAL extension for use 
 with ONT long reads. 
 
+### Differential expression analysis
+* Differential expression is done using the transcripts output by the workflow.
+* A non redundant transcriptome is found using the merge function in [stringtie](http://ccb.jhu.edu/software/stringtie).
+* The reads are then aligned to the transcriptome using minimap2 in a splice-aware manner.
+* [salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification.
+* R packages [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) and [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html) are used for differential expression analysis.
+* [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) is then used for differential transcript usage analysis.
+
 ### Workflow inputs
 - Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples
   (in fastq/fastq.gz format)
 - Reference genome in fasta format (required for reference-based assembly).
-- Optional reference annotation in GFF2/3 format.
+- Optional reference annotation in GFF2/3 format (required for differential expression analysis `--de_analysis`).
 - For fusion detection, JAFFAL reference files (see Quickstart) 
 ## Quickstart
 
@@ -164,6 +172,25 @@ g++ must be installed. JAFFAL is not currently working on Mac M1 (osx-arm64 arch
 detected, the workflow will terminate with an error at the JAFFAL stage. If this happens, 
 skip the JAFFAL stage by omitting ` --jaffal_refBase`
 
+### Differential Expression
+
+Differential Expression requires at least 2 replicates of each sample to compare. You can see an example condition_sheet.tsv in test_data.  
+
+**Example workflow for differential expression transcript assembly**
+
+Download differential expression data set 
+
+`wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_differential_expression.tar.gz && tar -xzvf  differential_expression.tar.gz`
+
+Run the cmd 
+
+```
+OUTPUT=~/output;
+nexflow run epi2me-labs/wf-transcriptomes --fastq  differential_expression_dataset/fastq --de_analysis \
+--ref_genome differential_expression_dataset/hg38_chr20.fa \
+--ref_annotation differential_expression_dataset/gencode.v22.annotation.chr20.gtf \
+--direct_rna
+```
 
 ## Workflow outputs
 * an HTML report document detailing the primary findings of the workflow.
@@ -179,6 +206,9 @@ skip the JAFFAL stage by omitting ` --jaffal_refBase`
 in `${out_dir}/jaffal_output_${sample_id}` you will find:
 * jaffa_results.csv - the csv results summary file 
 * jaffa_results.fasta - fusion transcritpt sequences
+
+### Differential Expression outputs
+* dtu_plots.pdf - a pdf with differntial transcript usage plots
 ## Useful links
 
 * [nextflow](https://www.nextflow.io/)

@@ -4,6 +4,7 @@
 import argparse
 from collections import Counter, defaultdict, OrderedDict
 import math
+import os
 from pathlib import Path
 
 from aplanat import bars, hist
@@ -17,6 +18,7 @@ from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.palettes import Category10_10
 from bokeh.plotting import figure
 from bokeh.transform import dodge
+import de_plots
 import gffutils
 import numpy as np
 import pandas as pd
@@ -816,6 +818,22 @@ def jaffal_table(report, result_csv):
     section.table(df)
 
 
+def de_section(report):
+    """Make differential transcript expression section."""
+    dexseq = os.path.join("de_report", "results_dexseq.tsv")
+    dge = os.path.join("de_report", "results_dge.tsv")
+    dtu = os.path.join("de_report", "results_dtu_stageR.tsv")
+    stringtie = os.path.join("de_report", "stringtie_merged.gtf")
+    tpm = os.path.join("de_report", "tpm_counts.tsv")
+    de_plots.de_section(
+        stringtie=stringtie,
+        dexseq=dexseq,
+        dge=dge,
+        dtu=dtu,
+        tpm=tpm,
+        report=report)
+
+
 def main():
     """Run the entry point."""
     parser = argparse.ArgumentParser()
@@ -857,6 +875,12 @@ def main():
     parser.add_argument(
         "--jaffal_csv", required=False, type=str, default=None,
         help="Path to JAFFAL results csv")
+    parser.add_argument(
+        "--de_report", required=False, type=str, default=None,
+        help="Differential expression report optional")
+    parser.add_argument(
+        "--de_stats", required=False, type=str, default=None, nargs='*',
+        help="Differential expression report optional")
     parser.add_argument('--denovo', dest='denovo', action='store_true')
 
     args = parser.parse_args()
@@ -901,6 +925,9 @@ def main():
 
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)
+
+    if args.de_report:
+        de_section(report)
 
     if args.jaffal_csv:
         jaffal_table(report, args.jaffal_csv)
