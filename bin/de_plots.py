@@ -340,7 +340,6 @@ def de_section(
         tpm, report):
     """Differential expression sections."""
     section = report.add_section()
-    """Add Differential expression section."""
     section.markdown("# Differential expression.")
     section.markdown("""
 This section shows differential gene expression
