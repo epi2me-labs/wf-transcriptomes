@@ -186,7 +186,7 @@ Run the cmd
 
 ```
 OUTPUT=~/output;
-nexflow run epi2me-labs/wf-transcriptomes --fastq  differential_expression_dataset/fastq --de_analysis \
+nextflow run epi2me-labs/wf-transcriptomes --fastq  differential_expression_dataset/fastq --de_analysis \
 --ref_genome differential_expression_dataset/hg38_chr20.fa \
 --ref_annotation differential_expression_dataset/gencode.v22.annotation.chr20.gtf \
 --direct_rna
