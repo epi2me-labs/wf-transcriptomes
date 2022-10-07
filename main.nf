@@ -11,7 +11,6 @@ import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
-include { start_ping; end_ping } from './lib/ping'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
@@ -551,7 +550,9 @@ workflow pipeline {
 WorkflowMain.initialise(workflow, params, log)
 workflow {
 
-    start_ping()
+    if (params.disable_ping == false) {
+            Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
+    }
 
     fastq = file(params.fastq, type: "file")
 
@@ -625,7 +626,14 @@ workflow {
             condition_sheet, ref_transcriptome)
 
         output(pipeline.out.results)
+    }
+}
 
-        end_ping(pipeline.out.telemetry)
+if (params.disable_ping == false) {
+    workflow.onComplete {
+        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
+    }
+    workflow.onError {
+        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
     }
 }
