@@ -174,7 +174,7 @@ skip the JAFFAL stage by omitting ` --jaffal_refBase`
 
 ### Differential Expression
 
-Differential Expression requires at least 2 replicates of each sample to compare. You can see an example condition_sheet.tsv in test_data.  
+Differential Expression requires at least 2 replicates of each sample to compare. You can see an example condition_sheet.csv in test_data.  
 
 **Example workflow for differential expression transcript assembly**
 

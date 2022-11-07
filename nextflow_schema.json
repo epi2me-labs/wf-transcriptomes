@@ -261,7 +261,7 @@
                 "condition_sheet": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "tsv with (sample, condition, type)",
+                    "description": "csv with (sample, condition, type)",
                     "default": "null"
                 },
                 "ref_transcriptome": {
