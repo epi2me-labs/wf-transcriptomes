@@ -44,14 +44,15 @@ def generate_tracking_summary(tracking_file, output_dir, annotations=None):
         # write a separate table for each class
         for class_code, table in tracking.groupby('class'):
             if not write_empty_tsvs and table.empty:
-                print("Skipping: No transcripts found for: {}".format(
+                sys.stdout("Skipping: No transcripts found for: {}".format(
                     class_code))
                 continue
 
             path = tracking_file + ".{}.tsv".format(class_code)
             table.to_csv(path)
     else:
-        print("Skipping classification summary as no annotation provided.")
+        sys.stdout(
+            "Skipping classification summary as no annotation provided.")
 
 
 def main(args):

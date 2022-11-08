@@ -9,6 +9,7 @@ import argparse
 from collections import defaultdict
 import math
 from pathlib import Path
+import sys
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -61,7 +62,6 @@ def parse_true_clusters(ref_file):
         # deal with supplementary alignments!!
         if read.is_secondary or read.is_supplementary:
             continue
-        # print(read.query_name, read.flag)
         assert prev_read_id != read.query_name
 
         chrom = read.reference_name
@@ -89,7 +89,6 @@ def parse_true_clusters(ref_file):
         # if chrom not in class_ranges:
         #     class_ranges[chrom] = {}
 
-        # print(chrom, read_ref_start, read_ref_end)
         # for start, stop in class_ranges[chrom]:
         #     if start <= read_ref_start and  read_ref_end <= stop:
         #         # entirly within
@@ -112,8 +111,8 @@ def parse_true_clusters_simulated(ref_file):
     return classes
 
 
-def compute_V_measure(clusters, classes):
-    """compute_V_measure."""
+def compute_v_measure(clusters, classes):
+    """compute_v_measure."""
     class_list, cluster_list = [], []
     # not_found_id = 1000000
     clustered_but_unaligned = 0
@@ -122,7 +121,6 @@ def compute_V_measure(clusters, classes):
             class_list.append(classes[read])
             cluster_list.append(clusters[read])
         else:
-            # print("Read was clustered but unaligned:", read)
             clustered_but_unaligned += 1
 
     # added the unprocessed reads to the measure
@@ -139,22 +137,22 @@ def compute_V_measure(clusters, classes):
     homog_score = homogeneity_score(class_list, cluster_list)
     ari = adjusted_rand_score(class_list, cluster_list)
 
-    print("Not included in clustering but aligned:", len(not_clustered))
-    print(
-        "V:",
+    sys.stdout("Not included in clustering but aligned:", len(not_clustered))
+    sys.stdout(
+        "v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    print(
+    sys.stdout(
         "Nr reads clustered but unaligned "
-        "(i.e., no class and excluded from V-measure): ",
+        "(i.e., no class and excluded from v-measure): ",
         clustered_but_unaligned)
     return v_score, compl_score, homog_score, clustered_but_unaligned, ari
 
 
-def compute_V_measure_non_singleton_classes(clusters, classes):
+def compute_v_measure_non_singleton_classes(clusters, classes):
     """V measure for non-singleton classes."""
     max_cluster_id = max(clusters.values())
     new_id = max_cluster_id + 1
@@ -188,19 +186,19 @@ def compute_V_measure_non_singleton_classes(clusters, classes):
     homog_score = homogeneity_score(class_list, cluster_list)
     nr_filtered_classes = len(
         [1 for cl_id in classes_dict if len(classes_dict[cl_id]) >= 5])
-    print(
-        "NONTRIVIAL CLASSES: V:",
+    sys.stdout(
+        "NONTRIvIAL CLASSES: v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    print("NUMBER OF CLASSES (FILTERED):", len(
+    sys.stdout("NUMBER OF CLASSES (FILTERED):", len(
         [1 for cl_id in classes_dict if len(classes_dict[cl_id]) >= 5]))
     return v_score, compl_score, homog_score, nr_filtered_classes
 
 
-def compute_V_measure_non_singletons(clusters, classes):
+def compute_v_measure_non_singletons(clusters, classes):
     """V measure for non-singletons."""
     cluster_dict = {}
     for read_acc, cl_id in clusters.items():
@@ -225,46 +223,46 @@ def compute_V_measure_non_singletons(clusters, classes):
             class_list.append(classes[read])
             cluster_list.append(clusters[read])
         else:
-            # print("Read was clustered but unaligned:", read)
+            # sys.stdout("Read was clustered but unaligned:", read)
             clustered_but_unaligned += 1
 
     v_score = v_measure_score(class_list, cluster_list)
     compl_score = completeness_score(class_list, cluster_list)
     homog_score = homogeneity_score(class_list, cluster_list)
-    print(
-        "NONTRIVIAL CLUSTERS: V:",
+    sys.stdout(
+        "NONTRIvIAL CLUSTERS: v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    print(
-        "NONTRIVIAL CLUSTERS: Nr reads clustered but unaligned "
-        "(i.e., no class and excluded from V-veasure): ",
+    sys.stdout(
+        "NONTRIvIAL CLUSTERS: Nr reads clustered but unaligned "
+        "(i.e., no class and excluded from v-veasure): ",
         clustered_but_unaligned)
     return v_score, compl_score, homog_score, clustered_but_unaligned
 
 
-def percentile(N, percent, key=lambda x: x):
+def percentile(n, percent, key=lambda x: x):
     """
     Find the percentile of a list of values.
 
-    @parameter N - is a list of values. Note N MUST BE already sorted.
+    @parameter n - is a list of values. Note N MUST BE already sorted.
     @parameter percent - a float value from 0.0 to 1.0.
     @parameter key - optional key function to compute value
     from each element of N.
 
     @return - the percentile of the values
     """
-    if not N:
+    if not n:
         return None
-    k = (len(N) - 1) * percent
+    k = (len(n) - 1) * percent
     f = math.floor(k)
     c = math.ceil(k)
     if f == c:
-        return key(N[int(k)])
-    d0 = key(N[int(f)]) * (c - k)
-    d1 = key(N[int(c)]) * (k - f)
+        return key(n[int(k)])
+    d0 = key(n[int(f)]) * (c - k)
+    d1 = key(n[int(c)]) * (k - f)
     return d0 + d1
 
 # end of http://code.activestate.com/recipes/511478/ }}}
@@ -364,11 +362,11 @@ def get_cluster_information(clusters, classes):
         else:
             clustered_classes[class_id] += 1
 
-    print("UNCLUSTERED:", "Tot classes:", len(not_clustered_classes))
-    print("CLUSTERED:", "Tot classes:", len(clustered_classes))
-    print("MIXED:", "Tot classes containing both:", len(
+    sys.stdout("UNCLUSTERED:", "Tot classes:", len(not_clustered_classes))
+    sys.stdout("CLUSTERED:", "Tot classes:", len(clustered_classes))
+    sys.stdout("MIXED:", "Tot classes containing both:", len(
         set(clustered_classes.keys()) & set(not_clustered_classes.keys())))
-    print("Total number of classes (unique gene ID):", total_nr_classes)
+    sys.stdout("Total number of classes (unique gene ID):", total_nr_classes)
     return (
         total_nr_classes - len(singleton_classes),
         len(singleton_classes),
@@ -411,7 +409,7 @@ def main(args):
         classes, tot_nr_reads, unclassified = parse_true_clusters(ref_file)
 
     v_score, compl_score, homog_score, clustered_but_unaligned, ari = \
-        compute_V_measure(clusters, classes)
+        compute_v_measure(clusters, classes)
 
     (
         nr_non_singleton_classes, singleton_classes, min_class_size,
@@ -451,30 +449,31 @@ def main(args):
             e_class_size,
             n50_class_size))
 
-    # Reads_nontrivially_clustered_(%), Singletons_(%),
-    # Reads_Nontrivially_clustered_but_unaligned, V, c,h ,V_nt, c_nt,h_nt,
+    # reads_nontrivially_clustered_(%), Singletons_(%),
+    # reads_nontrivially_clustered_but_unaligned, v, c,h ,v_nt, c_nt,h_nt,
     # non_singleton_clusters, min, max, median, mean
 
-    Reads_nontrivially_clustered_percent = round(
+    reads_nontrivially_clustered_percent = round(
         100 * (float(tot_nr_reads - singleton_clusters) / tot_nr_reads), 1)
-    # round(1.0 - Reads_nontrivially_clustered_percent, 2)
-    Reads_Nontrivially_clustered_but_unaligned = \
+    # round(1.0 - reads_nontrivially_clustered_percent, 2)
+    reads_nontrivially_clustered_but_unaligned = \
         unaligned_but_nontrivially_clustered
-    V, c, h = round(v_score, 3), round(compl_score, 3), round(homog_score, 3)
+    v, c, h = round(v_score, 3), round(compl_score, 3), round(homog_score, 3)
 
     non_singleton_clusters = total_nr_clusters - singleton_clusters
 
-    print("NONTRIVIAL CLUSTERS: ", (total_nr_clusters - singleton_clusters))
+    sys.stdout(
+        "NONTRIVIAL CLUSTERS: ", (total_nr_clusters - singleton_clusters))
 
     outfile.write("CLUSTERS\n")
     outfile.write(
         "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}\n".format(
-            "V",
+            "v",
             "c",
             "h",
             "ARI",
-            "Reads_nontrivially_clustered_percent",
-            "Reads_Nontrivially_clustered_but_unaligned",
+            "reads_nontrivially_clustered_percent",
+            "reads_nontrivially_clustered_but_unaligned",
             "non_singleton_clusters",
             "singleton_clusters",
             "upper_75_cluster_size",
@@ -483,12 +482,12 @@ def main(args):
             "n50_cluster_size"))
     outfile.write(
         "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}\n".format(
-            V,
+            v,
             c,
             h,
             ari,
-            Reads_nontrivially_clustered_percent,
-            Reads_Nontrivially_clustered_but_unaligned,
+            reads_nontrivially_clustered_percent,
+            reads_nontrivially_clustered_but_unaligned,
             non_singleton_clusters,
             singleton_clusters,
             upper_75_cluster_size,
@@ -508,19 +507,19 @@ def main(args):
     dfc = pd.DataFrame(
         {
             'Statistic': [
-                'V-measure',
+                'v-measure',
                 'ARI',
                 'Completeness',
                 'Homogeneity'],
-            'Value': [
-                V,
+            'value': [
+                v,
                 ari,
                 c,
                 h]}).set_index('Statistic')
     dfn = pd.DataFrame(
         {'Statistic': ['NonSingleton',
                        'Singletons'],
-         'Value': [non_singleton_clusters,
+         'value': [non_singleton_clusters,
                    singleton_clusters]}).set_index('Statistic')
     dfs = pd.DataFrame(
         {
@@ -529,14 +528,14 @@ def main(args):
                 'Upper75ClassSize',
                 'MedianClsSize',
                 'MedianClassSize'],
-            'Value': [
+            'value': [
                 upper_75_cluster_size,
                 upper_75_class_size,
                 median_cluster_size,
                 median_class_size]}).set_index('Statistic')
     dfs2 = pd.DataFrame(
         {'Statistic': ['N50ClsSize', 'N50ClassSize'],
-            'Value': [n50_cluster_size, n50_class_size]
+            'value': [n50_cluster_size, n50_class_size]
          }).set_index('Statistic')
 
     rdo = Path(args.raw_data_out)
@@ -648,6 +647,6 @@ if __name__ == '__main__':
         help='dir to save raw data for plotting')
     args = parser.parse_args()
 
-    print("------------------------------------------------------------")
+    sys.stdout("------------------------------------------------------------")
     main(args)
-    print("------------------------------------------------------------")
+    sys.stdout("------------------------------------------------------------")

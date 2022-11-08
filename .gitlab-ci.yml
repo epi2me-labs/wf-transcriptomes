@@ -46,10 +46,10 @@ docker-run:
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
         - if: $MATRIX_NAME == "differential_expression"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_differential_expression.tar.gz && tar -xzvf  differential_expression.tar.gz
-              NF_WORKFLOW_OPTS: "--fastq  differential_expression_dataset/fastq \
+              NF_BEFORE_SCRIPT: tar -xzvf test_data/differential_expression.tar.gz
+              NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
                   --de_analysis \
-                  --ref_genome differential_expression_dataset/hg38_chr20.fa \
-                --ref_annotation differential_expression_dataset/gencode.v22.annotation.chr20.gtf \
+                  --ref_genome differential_expression/hg38_chr20.fa \
+                --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
                 --direct_rna"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes

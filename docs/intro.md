@@ -33,12 +33,38 @@ Fusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFF
 with ONT long reads. 
 
 ### Differential expression analysis
-* Differential expression is done using the transcripts output by the workflow.
-* A non redundant transcriptome is found using the merge function in [stringtie](http://ccb.jhu.edu/software/stringtie).
-* The reads are then aligned to the transcriptome using minimap2 in a splice-aware manner.
-* [salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification.
-* R packages [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) and [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html) are used for differential expression analysis.
-* [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) is then used for differential transcript usage analysis.
+
+Differential gene expression (DGE) and differential transcript usage (DTU) analyses aim to identify genes and/or transcripts that show statistically altered expression patterns in a studied biological system. The results of the differential analyses are presented in a quantitative format and therefore the degree of change (up or down regulation) between experimental conditions can be calculated for each gene identified.
+
+These differential analyses work by taking a “snapshot” of mRNA abundance and calculating the relative levels of transcripts and isoforms. In this context, expression corresponds to the number of messenger RNAs (mRNA) measured from each gene isoform within the organism / tissue / culture being investigated. In order to determine expression levels across the whole genome, sequence data specifically targeting the mRNA molecules can be generated.
+
+Oxford Nanopore Technologies provides a number of sequencing solutions to allow users to generate the required snapshot of gene expression. This can be achieved by both sequencing the mRNA directly, or via a complementary DNA (cDNA) proxy. In contrast to short read sequencing technologies, entire mRNA transcripts can be captured as single reads. The example data provided with this tutorial is from a study based on the PCR-cDNA kit. This is a robust choice for performing differential transcript usage studies. This kit is suitable for preparation of sequence libraries from low mRNA input quantities. The cDNA population is enriched through PCR with low bias; an important prerequisite for the subsequent statistical analysis.
+
+[Workflow-transcriptomes](https://github.com/epi2me-labs/wf-transcriptomes) includes a subworkflow for DGE and DTU. The first step involves using either a reference alignment or _de novo_ assembly approach to create a set of mRNA sequences per sample. These are merged into a non-redundant transcriptome using [stringtie merge](http://ccb.jhu.edu/software/stringtie). The reads are then aligned to the transcriptome using minimap2 in a splice-aware manner. [Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving per transcript counts and then the following R packages are used for analysis.
+
+### Pre-filtering of quantitative data using DRIMSeq
+DRIMSeq (Nowicka and Robinson (2016)) is used to filter the transcript count data from the salmon analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed and minimum threshold levels for the number of observed reads. The parameters used for filtering are defined in the config.yaml file. The default parameters defined for this analysis include
+* min_samps_gene_expr = 3 - a transcript must be mapped to a gene in at least this minimum number of samples for the gene be included in the analysis
+*	min_samps_feature_expr = 1 - a transcript must be mapped to an isoform in at least this this minimum number of samples for the gene isoform to be included in the analysis
+*	min_gene_expr = 10 - the minimum number of total mapped sequence reads for a gene to be considered expressed
+*	min_feature_expr = 3 - the minimum number of total mapped sequence reads for a gene isoform to be considered
+
+### edgeR based differential expression analysis
++A statistical analysis is first performed using edgeR (Robinson, McCarthy, and Smyth (2010), McCarthy et al. (2012)) to identify the subset of differentially expressed genes. The filtered list of gene counts is used as input. A normalisation factor is calculated for each sequence library (using the default TMM method - please see McCarthy et al. (2012) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (fdr) using the method of Benjamini & Hochberg (Benjamini and Hochberg (1995))
+
+### Differential transcript usage using DEXSeq
+Differential transcript usage analysis is performed using the R DEXSeq package (Reyes et al. (2013)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. 
+
+### StageR stage-wise analysis of DGE and DTU
+The final component of this isoform analysis is a stage-wise statistical test using the R software package `stageR` (Van den Berge and Clement (2018)). stageR uses (1) the raw p-values for DTU from the DEXSeq analysis in the previous section and (2) a false-discovery corrected set of p-values from testing whether individual genes contain at least one exon showing DTU. A hierarchical two-stage statistical testing evaluates the set of genes for DTU.
+
+## Running the workflow
+For the differential expression analysis section you should have at least 3 repeats for each sample. 
+Your fastq data will need to be organised in to 6 directories that represent 3 repeats for each condition. You may also need to provide a condition sheet. 
+
+
+## Analysis 
+Differential gene expression is sensitive to the input data quantity and quality.  There should be equivalence between samples in the number of sequence reads, mapped reads and quality scores. The sequence and alignment summary plots in the report can be used to assess these metrics. There is also a table that shows the transcript per million(TPM) calculated from the salmon counts. TPM normalizes the data for gene length and then sequencing depth, and makes it easier to compare across samples compared to counts.
 
 ### Workflow inputs
 - Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples

@@ -1,7 +1,6 @@
-sample,condition,type
-barcode01,untreated,single-read
-barcode02,untreated,single-read
-barcode03,untreated,single-read
-barcode04,treated,single-read
-barcode05,treated,single-read
-barcode06,treated,single-read
+sample,condition
+barcode01,untreated
+barcode02,untreated
+barcode04,treated
+barcode05,treated
+barcode06,treated

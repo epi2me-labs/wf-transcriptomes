@@ -36,7 +36,7 @@ def number_of_alignments(df, field_name):
 
 def create_summary_table(df):
     """Create summary table."""
-    all = number_of_alignments(df, "Read mappings")
+    all_aln = number_of_alignments(df, "Read mappings")
     primary = number_of_alignments(df.loc[df['Type'] == 'Primary'], "Primary")
     secondary = number_of_alignments(
         df.loc[df['Type'] == 'Secondary'], "Secondary")
@@ -47,7 +47,7 @@ def create_summary_table(df):
     avg_mapq = df.loc[df['Type'] == 'Primary'].groupby(
         'fname').agg(**{"Median MAPQ": ('MapQual', 'median'), }).transpose()
     return pd.concat([
-        all, primary, secondary, supplementary,
+        all_aln, primary, secondary, supplementary,
         avg_acc, avg_mapq])
 
 

@@ -51,6 +51,7 @@ process deAnalysis {
         path "merged/all_gene_counts.tsv", emit: gene_counts
         path "de_analysis/results_dge.tsv", emit: dge
         path  "de_analysis/results_dexseq.tsv", emit: dexseq
+        path "de_analysis", emit: de_analysis
     
     """
     cp $annotation annotation.gtf
@@ -74,18 +75,17 @@ process plotResults {
         path flt_count
         path res_dtu
         path condition_sheet 
+        path de_analysis
     output:
         path "de_analysis/dtu_plots.pdf", emit: dtu_plots
         path "condition_sheet.tsv", emit: condition_sheet_tsv
+        path "de_analysis", emit: stageR
     """
     mkdir merged
-    mkdir de_analysis
-    mv $res_dtu de_analysis/results_dtu_stageR.tsv
     mv $condition_sheet de_analysis/coldata.tsv
     mv $flt_count merged/all_counts_filtered.tsv
     plot_dtu_results.R
-    cp de_analysis/coldata.tsv condition_sheet.tsv
-
+    mv de_analysis/coldata.tsv condition_sheet.tsv
     """
 }
 
@@ -144,7 +144,7 @@ workflow differential_expression {
         merged = mergeCounts(count_transcripts.out.counts.collect())
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
         analysis = deAnalysis(condition_sheet, merged, ref_annotation)
-        plotResults(analysis.flt_counts, analysis.stageR, condition_sheet)
+        plotResults(analysis.flt_counts, analysis.stageR, condition_sheet, analysis.de_analysis)
         de_report = analysis.flt_counts.combine(analysis.gene_counts).combine(analysis.dge).combine(analysis.dexseq).combine(
                     analysis.stageR).combine(plotResults.out.condition_sheet_tsv).combine(merged).combine(
                     ref_annotation).combine(merged_TPM)
@@ -153,4 +153,5 @@ emit:
        all_de = de_report
        count_transcripts = count_transcripts_file
        dtu_plots = plotResults.out.dtu_plots
+       de_outputs = plotResults.out.stageR
 }

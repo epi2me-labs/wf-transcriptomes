@@ -4,13 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+### Updated
+- Removed sanitize option
+### Added
+- Demo differential expression data in repository.
+- Improved DE explanation in docs
+
 ## [v0.1.5]
 ### Added
 - Differential transcript and gene expression subworkflow
 
 ## [v0.1.4]
 ### Added
-- JAFFAL fusion detectoion subworkflow
+- JAFFAL fusion detection subworkflow
 ### Changed
 - Args parser for fastqingress
 - Set out_dir option type to ensure output is written to correct directory on Windows
