@@ -11,14 +11,14 @@ import subprocess as sub
 class Node:
     """Node."""
 
-    def __init__(self, Id, File, Left, Right, Parent, Level):
+    def __init__(self, node_id, file_, left, right, parent, level):
         """Set node attaributes."""
-        self.Id = Id
-        self.File = File
-        self.Left = Left
-        self.Right = Right
-        self.Parent = Parent
-        self.Level = Level
+        self.Id = node_id
+        self.File = file_
+        self.Left = left
+        self.Right = right
+        self.Parent = parent
+        self.Level = level
         self.Done = False
         self.RightSide = False
 
@@ -45,35 +45,35 @@ def grouper(n, iterable, fillvalue=None):
 
 def build_job_tree():
     """Build a job tree of nodes."""
-    JOB_TREE = OrderedDict()
+    job_tree = OrderedDict()
     batches = glob("batches/isONbatch_*.cer")
     batch_ids = [
         int(re.search(
             'batches/isONbatch_(.*)\\.cer$', x).group(1))
         for x in batches]
-    LEVELS = OrderedDict()
-    LEVELS[0] = []
-    for Id, bf in sorted(zip(batch_ids, batches), key=lambda x: x[0]):
+    levels = OrderedDict()
+    levels[0] = []
+    for k, bf in sorted(zip(batch_ids, batches), key=lambda x: x[0]):
         n = Node(
-            Id,
-            "clusters/isONcluster_{}.cer".format(Id),
+            k,
+            "clusters/isONcluster_{}.cer".format(k),
             None,
             None,
             None,
             0)
         n.Done = True
-        JOB_TREE[Id] = n
-        LEVELS[0].append(n)
+        job_tree[k] = n
+        levels[0].append(n)
     level = 0
-    max_id = LEVELS[0][-1].Id
-    while len(LEVELS[level]) != 1:  # Final level will be link
+    max_id = levels[0][-1].k
+    while len(levels[level]) != 1:  # Final level will be link
         next_level = level + 1
-        LEVELS[next_level] = []
-        for l_, r in grouper(2, LEVELS[level]):
+        levels[next_level] = []
+        for l_, r in grouper(2, levels[level]):
             if r is None:  # End of a level
-                LEVELS[level].pop()  # remove last node?
+                levels[level].pop()  # remove last node?
                 l_.Level += 1  # ncrement level
-                LEVELS[next_level].append(l_)  # Add the left to the next level
+                levels[next_level].append(l_)  # Add the left to the next level
                 continue
             max_id += 1
             new_batch = "clusters/isONcluster_{}.cer".format(max_id)
@@ -81,13 +81,13 @@ def build_job_tree():
             l_.Parent = new_node
             r.Parent = new_node
             r.RightSide = True
-            LEVELS[next_level].append(new_node)
-            JOB_TREE[max_id] = new_node
+            levels[next_level].append(new_node)
+            job_tree[max_id] = new_node
         level = next_level
-    ROOT = JOB_TREE[len(JOB_TREE) - 1].Id
-    JOB_TREE[ROOT].RightSide = True
+    root = job_tree[len(job_tree) - 1].k
+    job_tree[root].RightSide = True
 
-    return JOB_TREE, LEVELS
+    return job_tree, levels
 
 
 def main():
@@ -121,7 +121,7 @@ def main():
         sub.call(cmd, shell=True)
     sub.call((
         "ln -s `realpath clusters/isONcluster_{}.cer` "
-        "isONcluster_ROOT.cer".format(n.Id)), shell=True)
+        "isONcluster_root.cer".format(n.Id)), shell=True)
 
 
 if __name__ == '__main__':

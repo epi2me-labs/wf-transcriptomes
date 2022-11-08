@@ -1,7 +1,15 @@
 import ArgumentParser
 
-process handleSingleFile {
+// Downstream tooling assumes FASTQ files are nicely organised into directories.
+// In the case where a single FASTQ file has been input and the parent directory
+// contains other valid FASTQ, we will create a directory in the work area to
+// hold it instead. We stage the file in with `copy` (rather than `link`)
+// to ensure that when the new dir is mounted to containers downstream it does
+// not contain a symlink that cannot be read.
+// See CW-1154
+process isolateSingleFile {
     label params.process_label
+    stageInMode 'copy'
     cpus 1
     input:
         file reads
@@ -9,7 +17,6 @@ process handleSingleFile {
         path "$reads.simpleName"
     script:
         def name = reads.simpleName
-        def reads_dir = 'reads_dir'
     """
     mkdir $name
     mv $reads $name
@@ -51,7 +58,9 @@ def compareSampleSheetFastq(int sample_sheet_count, int valid_dir_count)
 
 /**
  * Take an input file and sample name to return a channel with
- * a single named sample.
+ * a single named sample. If the input file is in a directory with other valid
+ * input files (or other directories containing valid files), a copy of it will
+ * be made to the working directory using the isolateSingleFile process.
  *
  *
  * @param input_file Single fastq file
@@ -61,9 +70,16 @@ def compareSampleSheetFastq(int sample_sheet_count, int valid_dir_count)
 def handle_single_file(input_file, sample_name)
 {
     singleFile = Channel.fromPath(input_file)
-    sample = handleSingleFile(singleFile)
-    return sample.map { it -> tuple(it, create_metamap([sample_id:sample_name ?: it.simpleName])) }
-
+    ArrayList valid_files_in_dir = find_fastq(input_file.parent, true)
+    if (valid_files_in_dir.size() == 1) {
+        // Avoid a stageInMode copy if the parent directory contains only one valid FASTQ anyway
+        return singleFile.map { it -> tuple(it.parent, create_metamap([sample_id:sample_name ?: it.simpleName])) }
+    }
+    else {
+        // Isolate the file via copy with isolateSingleFile
+        sample = isolateSingleFile(singleFile)
+        return sample.map { it -> tuple(it, create_metamap([sample_id:sample_name ?: it.simpleName])) }
+    }
 }
 
 
@@ -72,54 +88,23 @@ def handle_single_file(input_file, sample_name)
  * method.
  *
  * @param pattern file object corresponding to top level input folder.
- * @param maxdepth maximum depth to traverse
+ * @param search_subdirs boolean flag to search subdirectories of pattern
  * @return list of files.
  */
 
-def find_fastq(pattern, maxdepth)
+def find_fastq(pattern, search_subdirs)
 {
-    files = []
-    extensions = ["fastq", "fastq.gz", "fq", "fq.gz"]
+    ArrayList files = []
+    ArrayList extensions = ["fastq", "fastq.gz", "fq", "fq.gz"]
     for (ext in extensions) {
-        files += file(pattern.resolve("*.${ext}"), type: 'file', maxdepth: maxdepth)
-    }
-    return files
-}
-
-
-/**
- * Rework EPI2ME flattened directory structure into standard form
- * files are matched on barcode\d+ and moved into corresponding
- * subdirectories ready for processing.
- *
- * @param input_folder Top-level input directory.
- * @param staging Top-level output_directory.
- * @return A File object representating the staging directory created
- *     under output
- */
-def sanitize_fastq(input_folder, staging)
-{
-    // TODO: this fails if input_folder is an S3 path
-    log.info "Running sanitization."
-    log.info  " - Moving files: ${input_folder} -> ${staging}"
-    staging.mkdirs()
-    files = find_fastq(input_folder.resolve("**"), 1)
-    for (fastq in files) {
-        fname = fastq.getFileName()
-        // find barcode
-        pattern = ~/barcode\d+/
-        matcher = fname =~ pattern
-        if (!matcher.find()) {
-            // not barcoded - leave alone
-            fastq.renameTo(staging.resolve(fname))
-        } else {
-            bc_dir = file(staging.resolve(matcher[0]))
-            bc_dir.mkdirs()
-            fastq.renameTo(staging.resolve("${matcher[0]}/${fname}"))
+        if (search_subdirs) {
+            files += file(pattern.resolve("**.${ext}"), type: 'file')
+        }
+        else {
+            files += file(pattern.resolve("*.${ext}"), type: 'file')
         }
     }
-    log.info " - Finished sanitization."
-    return staging
+    return files
 }
 
 
@@ -129,13 +114,19 @@ def sanitize_fastq(input_folder, staging)
  *
  *
  * @param input_directory Top level input folder to locate sub directories
+ * @param unclassified Keep unclassified directory
+ *
  * @return A list containing sublists of barcode and non_barcode sub directories
  */
-def get_subdirectories(input_directory)
+def get_subdirectories(input_directory, unclassified)
 {
     barcode_dirs = file(input_directory.resolve("barcode*"), type: 'dir', maxdepth: 1)
     all_dirs = file(input_directory.resolve("*"), type: 'dir', maxdepth: 1)
-    non_barcoded = ( all_dirs + barcode_dirs ) - all_dirs.intersect(barcode_dirs)
+    if (!unclassified) {
+        all_dirs.removeIf(it -> it.SimpleName.toLowerCase() == "unclassified")
+    }
+    non_barcoded = (all_dirs + barcode_dirs) - all_dirs.intersect(barcode_dirs)
+    
     return [barcode_dirs, non_barcoded]
 }
 
@@ -183,7 +174,7 @@ def get_valid_directories(input_dirs)
     invalid_files_dirs = []
     for (d in input_dirs) {
         valid = true
-        fastq = find_fastq(d, 1)
+        fastq = find_fastq(d, false)
         all_files = file(d.resolve("*"), type: 'file', maxdepth: 1)
         non_fastq = ( all_files + fastq ) - all_files.intersect(fastq)
 
@@ -345,10 +336,9 @@ def create_metamap(Map arguments) {
  * @param input Top level input file or folder to locate fastq data.
  * @param sample string to name single sample data.
  * @param sample_sheet Path to sample sheet CSV file.
- * @param sanitize regularize inputs from EPI2ME platform.
- * @param output output location, required if sanitize==true
  * @param min_barcode Minimum barcode to accept.
  * @param max_barcode Maximum (inclusive) barcode to accept.
+ * @param unclassified Keep unclassified reads.
  *
  * @return Channel of tuples (path, map(sample_id, type, barcode))
  */
@@ -357,14 +347,11 @@ def fastq_ingress(Map arguments)
     def parser = new ArgumentParser(
         args:["input"],
         kwargs:[
-            "sample":null, "sample_sheet":null, "sanitize":false, "output":null,
-            "min_barcode":0, "max_barcode":Integer.MAX_VALUE],
+            "sample":null, "sample_sheet":null,
+            "min_barcode":0, "max_barcode":Integer.MAX_VALUE,
+            "unclassified":false],
         name:"fastq_ingress")
     Map margs = parser.parse_args(arguments)
-
-    if (margs.sanitize && margs.output == null) {
-        throw new Exception("Argument 'output' required if 'sanitize' is true.")
-    }
 
 
     log.info "Checking fastq input."
@@ -382,14 +369,8 @@ def fastq_ingress(Map arguments)
 
     // Handle directory input
     if (input.isDirectory()) {
-        // EPI2ME harness
-        if (margs.sanitize) {
-            staging = file(margs.output).resolve("staging")
-            input = sanitize_fastq(input, staging)
-        }
-
         // Get barcoded and non barcoded subdirectories
-        (barcoded, non_barcoded) = get_subdirectories(input)
+        (barcoded, non_barcoded) = get_subdirectories(input, margs.unclassified)
 
         // Case 03: If no subdirectories, handle the single dir
         if (!barcoded && !non_barcoded) {

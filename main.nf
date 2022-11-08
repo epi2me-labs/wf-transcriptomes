@@ -475,6 +475,7 @@ workflow pipeline {
             de_report = de.all_de
             count_transcripts_file = de.count_transcripts
             dtu_plots = de.dtu_plots
+            de_outputs = de.de_outputs
         } else{
             de_report = file("$projectDir/data/OPTIONAL_FILE")
             count_transcripts_file = file("$projectDir/data/OPTIONAL_FILE")
@@ -538,7 +539,7 @@ workflow pipeline {
         }
 
         if (params.de_analysis){
-            results = results.concat(de.dtu_plots)
+            results = results.concat(de.dtu_plots, de_outputs)
         }
 
     emit:
@@ -617,9 +618,7 @@ workflow {
         reads = fastq_ingress([
             "input":params.fastq,
             "sample":params.sample,
-            "sample_sheet":params.sample_sheet,
-            "sanitize": params.sanitize_fastq,
-            "output":params.out_dir])
+            "sample_sheet":params.sample_sheet])
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,

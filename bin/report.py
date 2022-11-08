@@ -6,6 +6,7 @@ from collections import Counter, defaultdict, OrderedDict
 import math
 import os
 from pathlib import Path
+import sys
 
 from aplanat import bars, hist
 from aplanat.components import simple as scomponents
@@ -289,7 +290,7 @@ def grouped_bar(df, title="", tilted_xlabs=False):
     return p
 
 
-def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
+def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
     """Create various sections and plots in a WfReport.
 
     :param report: aplanat WFReport
@@ -387,7 +388,6 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
 
     tracking_dfs = []
 
-    print(gffcompare_outdirs)
     track_files = [x / 'str_merged.tracking' for x in gffcompare_outdirs]
 
     df_tracking = load_sample_data(
@@ -423,7 +423,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
         })
 
         cols = [TableColumn(
-            field=Ci, title=Ci, width=100) for Ci in tracking.columns]
+            field=ci, title=ci, width=100) for ci in tracking.columns]
 
         track_table = DataTable(
             columns=cols, source=ColumnDataSource(tracking),
@@ -473,7 +473,7 @@ def gff_compare_plots(report, gffcompare_outdirs: Path, sample_ids):
     try:
         tmap_files = [next(x.glob('*.tmap')) for x in gffcompare_outdirs]
     except StopIteration:
-        print("Cannot find .tmap files in {}".format(gffcompare_outdirs))
+        sys.stderr("Cannot find .tmap files in {}".format(gffcompare_outdirs))
         return
 
     df_tmap = load_sample_data(tmap_files, sample_ids)
@@ -621,7 +621,7 @@ def transcript_table(report, df_tmaps, max_rows):
             'FPKM', 'qry_gene_id', 'major_iso_id', 'ref_match_len', 'TPM'])
 
     if len(df) == 0:
-        print("No transcripts found")
+        sys.stderr("No transcripts found")
         section.markdown("No transcripts found")
         return
 
@@ -739,7 +739,7 @@ def transcriptome_summary(report, gffs, sample_ids, denovo=False):
 
         df_sum.columns = [' ', 'count']
         cols = [TableColumn(
-            field=Ci, title=Ci, width=80) for Ci in df_sum.columns]
+            field=ci, title=ci, width=80) for ci in df_sum.columns]
         data_table = DataTable(
             columns=cols, source=ColumnDataSource(df_sum),
             index_position=None, width=180)

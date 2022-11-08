@@ -122,19 +122,36 @@ Differential Expression requires at least 2 replicates of each sample to compare
 
 **Example workflow for differential expression transcript assembly**
 
-Download differential expression data set 
+#### Condition sheet
+The condition sheet should be a .tsv with two columns.
+- The sample column will need to match the 6 directories in the input fastq directory.
+- The condition column will need to contain one of two keys to indicate the two samples being compared.
 
-`wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_differential_expression.tar.gz && tar -xzvf  differential_expression.tar.gz`
+In the default `condition_sheet.tsv` available in the test_data directory we have used the following.
 
-Run the cmd 
+eg. condition_sheet.tsv
+```
+sample,condition
+barcode01,untreated
+barcode02,untreated
+barcode03,untreated
+barcode04,treated
+barcode05,treated
+barcode06,treated
+```
+
+You will also need to provide a reference genome and a reference annotation file.
+Here is an example cmd to run the workflow using the test_data provided. 
 
 ```
 OUTPUT=~/output;
-nexflow run epi2me-labs/wf-transcriptomes --fastq  differential_expression_dataset/fastq --de_analysis \
---ref_genome differential_expression_dataset/hg38_chr20.fa \
---ref_annotation differential_expression_dataset/gencode.v22.annotation.chr20.gtf \
---direct_rna
+nexflow run epi2me-labs/wf-transcriptomes --fastq test_data/differential_expression_fastq \
+  --de_analysis \
+  --ref_genome test_data/hg38_chr20.fa \
+  --ref_annotation test_data/gencode.v22.annotation.chr20.gtf \
+  --direct_rna
 ```
+
 
 ## Workflow outputs
 * an HTML report document detailing the primary findings of the workflow.
@@ -145,11 +162,22 @@ nexflow run epi2me-labs/wf-transcriptomes --fastq  differential_expression_datas
   * merged_transcritptome.fas - annotated, assembled transcriptome
   * [jaffal](https://github.com/Oshlack/JAFFA) ooutput directories
   
-
 ### Fusion detection outputs
 in `${out_dir}/jaffal_output_${sample_id}` you will find:
 * jaffa_results.csv - the csv results summary file 
 * jaffa_results.fasta - fusion transcritpt sequences
 
 ### Differential Expression outputs
-* dtu_plots.pdf - a pdf with differntial transcript usage plots
+* `de_analysis/results_dge.tsv` and `de_analysis/results_dge.pdf`- results of `edgeR` differential gene expression analysis.
+* `de_analysis/results_dtu_gene.tsv`, `de_analysis/results_dtu_transcript.tsv` and `de_analysis/results_dtu.pdf` - results of differential transcript usage by `DEXSeq`.
+* `de_analysis/results_dtu_stageR.tsv` - results of the `stageR` analysis of the `DEXSeq` output.
+* `de_analysis/dtu_plots.pdf` - DTU results plot based on the `stageR` results and filtered counts.
+
+### References
+
+* Benjamini, Yoav, and Yosef Hochberg. 1995. “Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing.” Journal of the Royal Statistical Society. Series B (Methodological) 57 (1): 289–300. http://www.jstor.org/stable/2346101.
+* McCarthy, Davis J., Chen, Yunshun, Smyth, and Gordon K. 2012. “Differential Expression Analysis of Multifactor Rna-Seq Experiments with Respect to Biological Variation.” Nucleic Acids Research 40 (10): 4288–97.
+* Nowicka, Malgorzata, and Mark D. Robinson. 2016. “DRIMSeq: A Dirichlet-Multinomial Framework for Multivariate Count Outcomes in Genomics [Version 2; Referees: 2 Approved].” F1000Research 5 (1356). https://doi.org/10.12688/f1000research.8900.2.
+* Patro, Robert, Geet Duggal, Michael I Love, Rafael A Irizarry, and Carl Kingsford. 2017. “Salmon Provides Fast and Bias-Aware Quantification of Transcript Expression.” Nature Methods 14 (March). https://doi.org/10.1038/nmeth.4197.
+* Robinson, Mark D, Davis J McCarthy, and Gordon K Smyth. 2010. “EdgeR: A Bioconductor Package for Differential Expression Analysis of Digital Gene Expression Data.” Bioinformatics 26 (1): 139–40.
+* Love, Michael I., et al. Swimming Downstream: Statistical Analysis of Differential Transcript Usage Following Salmon Quantification. 7:952, F1000Research, 14 Sept. 2018. f1000research.com, https://f1000research.com/articles/7-952
