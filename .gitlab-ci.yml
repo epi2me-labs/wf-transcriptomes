@@ -12,9 +12,6 @@ variables:
 
 docker-run:
 
-    # Remove this directive in downstream templates
-    tags: [large_ram] # no need for big ram
-
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
     #   the CI environment, we can use the value of MATRIX_NAME to determine
     #   which options to apply as part of the rules block below

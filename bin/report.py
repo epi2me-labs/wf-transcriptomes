@@ -791,31 +791,43 @@ def jaffal_table(report, result_csv):
         'sample_id', 'fusion genes', 'chrom1', 'chrom2', 'spanning reads',
         'classification', 'known']
 
-    df = pd.read_csv(result_csv)
-    sid_col = df.pop('sample_id')
-    df.insert(0, 'sample_id', sid_col)
-
-    df = df[cols]
-    df['chroms'] = df.chrom1.astype(str) + ':' + df.chrom2.astype(str)
-    df.rename(columns={
-        'spanning reads': 'nreads',
-        'fusion genes': 'genes'}, inplace=True)
-    df.drop(columns=['chrom1', 'chrom2'], inplace=True)
     section = report.add_section()
-    section.markdown("""
-    ### JAFFAL fusion transcript summary
+    try:
+        df = pd.read_csv(result_csv)
+    except pd.errors.EmptyDataError:
+        section.markdown("""
+        ### JAFFAL fusion transcript summary
 
-    This table summarizes putative fusion transcripts identified
-    by [JAFFAL](https://github.com/Oshlack/JAFFA/).
+        This section summarizes putative fusion transcripts identified
+        by [JAFFAL](https://github.com/Oshlack/JAFFA/).
 
-    * genes: the gene symbols of the fusion partners
-    * nreads: The number of reads supporting the fusion
-    * classification: JAFFAL's classification
-    * known: whether this fusion is in the given set of known gene fusions
-    * chroms: the respective, original chromosome location of the two partner
-    genes
-    """)
-    section.table(df)
+        No fusion transcripts detected for current sample.
+        """)
+    else:
+        sid_col = df.pop('sample_id')
+        df.insert(0, 'sample_id', sid_col)
+
+        df = df[cols]
+        df['chroms'] = df.chrom1.astype(str) + ':' + df.chrom2.astype(str)
+        df.rename(columns={
+            'spanning reads': 'nreads',
+            'fusion genes': 'genes'}, inplace=True)
+        df.drop(columns=['chrom1', 'chrom2'], inplace=True)
+
+        section.markdown("""
+        ### JAFFAL fusion transcript summary
+
+        This table summarizes putative fusion transcripts identified
+        by [JAFFAL](https://github.com/Oshlack/JAFFA/).
+
+        * genes: the gene symbols of the fusion partners
+        * nreads: The number of reads supporting the fusion
+        * classification: JAFFAL's classification
+        * known: whether this fusion is in the given set of known gene fusions
+        * chroms: the respective, original chromosome location of the
+        two partner genes
+        """)
+        section.table(df)
 
 
 def de_section(report):

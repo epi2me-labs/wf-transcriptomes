@@ -12,6 +12,8 @@ process jaffal{
     script:
     """
     JAFFAOUT=jaffal_output_$sample_id
+
+    # JAFFAL exists with status code 1 when there's 0 fusion hits. Prevent this with '||:'
     $params.jaffal_dir/tools/bin/bpipe run \
         -n $params.threads \
         -p jaffa_output="\$JAFFAOUT/" \
@@ -20,14 +22,26 @@ process jaffal{
         -p annotation=$annotation \
         -p fastqInputFormat="*.fastq" \
         $params.jaffal_dir/JAFFAL.groovy \
-        $fastq
-    mv "\$JAFFAOUT/jaffa_results.csv" "\$JAFFAOUT/${sample_id}_jaffa_results.csv"
+        $fastq || :
 
-    # Add sample id column
-    sed "s/\$/,${sample_id}/" \$JAFFAOUT/${sample_id}_jaffa_results.csv > tmp1
-    # Add header
-    sed "1 s/${sample_id}/sample_id/" tmp1 > tmp2
-    mv tmp2 \$JAFFAOUT/${sample_id}_jaffa_results.csv
+    summary="\$JAFFAOUT/all/all.summary"
+
+    if [ -f \$summary ]; then
+        # The summary is writtten so assume JAFFAL completed.
+        if [ ! -s \$summary ]; then
+            echo "JAFFAL failed to find any fusion transcripts for ${sample_id}"
+            touch "\$JAFFAOUT/${sample_id}_jaffa_results.csv"
+        else
+            echo JAFFAL found fusion transcripts for ${sample_id}
+            mv "\$JAFFAOUT/jaffa_results.csv" "\$JAFFAOUT/${sample_id}_jaffa_results.csv"
+            # Add sample id column and header
+            sed "s/\$/,${sample_id}/" \$JAFFAOUT/${sample_id}_jaffa_results.csv \
+                | sed "1 s/${sample_id}/sample_id/" > tmp
+            mv tmp \$JAFFAOUT/${sample_id}_jaffa_results.csv
+        fi
+    else
+        echo JAFFAL encountered an error while prosessing ${sample_id}
+    fi
     """
 }
 
