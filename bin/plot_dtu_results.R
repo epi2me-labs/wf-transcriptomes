@@ -5,7 +5,7 @@ suppressMessages(library(ggplot2))
 suppressMessages(library(tidyr))
 
 # Set up sample data frame:
-coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample", sep=",")
+coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample_id", sep=",")
 coldata$sample_id <- rownames(coldata)
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
 coldata$type <-NULL

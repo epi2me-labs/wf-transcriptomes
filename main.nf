@@ -471,6 +471,11 @@ workflow pipeline {
                 transcriptome = ref_transcriptome
                 gtf = Channel.fromPath(ref_annotation)
             }
+            check_match = Channel.fromPath(params.condition_sheet)
+            check_condition_sheet = check_match.splitCsv(header: true).map{ row -> tuple(
+                row.sample_id)
+            }
+            check_condition_sheet.join(summariseConcatReads.out.input_reads, failOnMismatch: true)
             de = differential_expression(transcriptome, summariseConcatReads.out.input_reads, condition_sheet, gtf)
             de_report = de.all_de
             count_transcripts_file = de.count_transcripts

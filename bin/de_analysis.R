@@ -7,7 +7,8 @@ cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
 
 # Set up sample data frame:
-coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample", sep=",", stringsAsFactors=TRUE)
+#changed this to sample_id
+coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample_id", sep=",", stringsAsFactors=TRUE)
 
 coldata$sample_id <- rownames(coldata)
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
