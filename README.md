@@ -206,14 +206,14 @@ Differential Expression requires at least 2 replicates of each sample to compare
 
 #### Condition sheet
 The condition sheet should be a .tsv with two columns.
-- The sample column will need to match the 6 directories in the input fastq directory.
+- The sample_id column will need to match the 6 directories in the input fastq directory, if you are additionally using a sample_sheet they will need to correspond to the sample_ids in that.
 - The condition column will need to contain one of two keys to indicate the two samples being compared.
 
 In the default `condition_sheet.tsv` available in the test_data directory we have used the following.
 
 eg. condition_sheet.tsv
 ```
-sample,condition
+sample_id,condition
 barcode01,untreated
 barcode02,untreated
 barcode03,untreated

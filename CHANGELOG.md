@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Demo differential expression data in repository.
 - Improved DE explanation in docs
+### Fixed
+- Error if condition sheet and sample sheet don't match.
 
 ## [v0.1.5]
 ### Added
