@@ -454,7 +454,6 @@ workflow pipeline {
             jaffal_out = file("$projectDir/data/OPTIONAL_FILE_1")
         }
 
-        
         get_transcriptome(
             merge_gff_bundles.out.gff
             .join(run_gffcompare.out.gffcmp_dir)

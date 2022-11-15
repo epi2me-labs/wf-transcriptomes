@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Demo differential expression data in repository.
 - Improved DE explanation in docs
 ### Fixed
+- Fix JAFFAL terminating workflow when no fusions found.
 - Error if condition sheet and sample sheet don't match.
 
 ## [v0.1.5]
