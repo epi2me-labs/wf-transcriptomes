@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unreleased]
 ### Updated
 - Removed sanitize option
+- Reduce size of differential expression data.
 ### Added
-- Demo differential expression data in repository.
 - Improved DE explanation in docs
 - Option to turn off transcript assembly steps with param transcript_assembly
 ### Fixed
