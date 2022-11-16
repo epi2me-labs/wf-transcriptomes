@@ -38,15 +38,25 @@ tar -xzvf  test_data.tar.gz
 **Example execution of a workflow for reference-based transcript assembly and fusion detection**
 ```
 OUTPUT=~/output;
-nexflow run epi2me-labs/wf-transcriptomes --fastq ERR6053095_chr20.fastq --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
-      --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22" --out_dir outdir -w workspace_dir -profile conda -resume
+nexflow run epi2me-labs/wf-transcriptomes \
+  --fastq ERR6053095_chr20.fastq \
+  --ref_genome chr20/hg38_chr20.fa \
+  --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
+  --jaffal_refBase chr20/ \
+  --jaffal_genome hg38_chr20 \
+  --jaffal_annotation "genCode22" \
+  --out_dir outdir -w workspace_dir
 ```
 
 **Example workflow for denovo transcript assembly**
 ```
 OUTPUT=~/output
-nextflow run . --fastq test_data/fastq --denovo --ref_genome test_data/SIRV_150601a.fasta  -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
---sample sample_id -resume
+nextflow run . --fastq test_data/fastq \
+  --denovo \
+  --ref_genome test_data/SIRV_150601a.fasta \
+  --out_dir ${OUTPUT} \
+  -w ${OUTPUT}/workspace \
+  --sample sample_id
 ```
 A full list of options can be seen in nextflow_schema.json. Below are some commonly used ones.
 
@@ -141,17 +151,30 @@ barcode06,treated
 ```
 
 You will also need to provide a reference genome and a reference annotation file.
-Here is an example cmd to run the workflow using the test_data provided. 
-
+Here is an example cmd to run the workflow. First you will need to download the data with wget. 
+eg.
 ```
+wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
 OUTPUT=~/output;
-nexflow run epi2me-labs/wf-transcriptomes --fastq test_data/differential_expression_fastq \
+nextflow run epi2me-labs/wf-transcriptomes \
+  --fastq  differential_expression/differential_expression_fastq \
   --de_analysis \
-  --ref_genome test_data/hg38_chr20.fa \
-  --ref_annotation test_data/gencode.v22.annotation.chr20.gtf \
-  --direct_rna
+  --ref_genome differential_expression/hg38_chr20.fa \
+  --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
+  --direct_rna --minimap_index_opts \-k15
 ```
-
+You can also run the differential expression section of the workflow on its own by providing a reference transcriptome and setting the transcriptome assembly parameter to false.
+eg.
+```
+nextflow run epi2me-labs/wf-transcriptomes \
+  --fastq  differential_expression/differential_expression_fastq \
+  --de_analysis \
+  --ref_genome differential_expression/hg38_chr20.fa \
+  --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
+  --direct_rna --minimap_index_opts \-k15 \
+  --ref_transcriptome differential_expression/ref_transcriptome.fasta \
+  --transcriptome_assembly false
+```
 
 ## Workflow outputs
 * an HTML report document detailing the primary findings of the workflow.
