@@ -353,8 +353,29 @@
         }
     ],
     "properties": {
-        "aws_image_prefix": {
+        "slurm_queue": {
             "type": "string",
+            "default": "parallel",
+            "hidden": true
+        },
+        "slurm_cpus": {
+            "type": "integer",
+            "default": 8,
+            "hidden": true
+        },
+        "slurm_memory": {
+            "type": "string",
+            "default": "8G",
+            "hidden": true
+        },
+        "slurm_time": {
+            "type": "string",
+            "default": "3h",
+            "hidden": true
+        },
+        "slurm_options": {
+            "type": "string",
+            "default": "",
             "hidden": true
         },
         "aws_queue": {
