@@ -20,7 +20,7 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "fusions", "differential_expression", "isoforms"
+                "fusions", "differential_expression", "only_differential_expression", "isoforms"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -48,5 +48,18 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-                --direct_rna"
+                --direct_rna --minimap_index_opts \\-k15"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
+        - if: $MATRIX_NAME == "only_differential_expression"
+          variables:
+              NF_BEFORE_SCRIPT: tar -xzvf test_data/differential_expression.tar.gz
+              NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
+                  --de_analysis \
+                  --ref_genome differential_expression/hg38_chr20.fa \
+                --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
+                --direct_rna --minimap_index_opts \\-k15 \
+                --ref_transcriptome differential_expression/ref_transcriptome.fasta \
+                --transcriptome_assembly false"
+              NF_IGNORE_PROCESSES: >
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,
+                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
