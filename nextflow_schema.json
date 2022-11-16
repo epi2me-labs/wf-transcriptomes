@@ -45,6 +45,11 @@
                     "format": "file-path",
                     "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
                     "description": "A reference annotation of gff format"
+                },
+                "transcriptome_assembly": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Find a reference assembly and use in differential expression analysis, set to false if you want to use exisiting ref_transcriptome."
                 }
             },
             "required": [
@@ -263,7 +268,7 @@
                     "type": "string",
                     "default": "null",
                     "format": "file-path",
-                    "description": "Transcriptome reference file"
+                    "description": "Transcriptome reference file, if supplied will be used instead of finding transcriptome using reference assembly or denovo methods"
                 },
                 "min_gene_expr": {
                     "type": "integer",

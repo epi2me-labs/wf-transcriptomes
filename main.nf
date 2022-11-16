@@ -307,13 +307,13 @@ process makeReport {
         path versions
         path "params.json"
         val denovo
-        path pychopper_report
-        path jaffal_csv
-        tuple val(sample_ids),
-              path(seq_summaries),
-              path(aln_stats),
-              path(gffcmp_dir),
-              path(gff_annotation)
+        path "pychopper_report/*"
+        path"jaffal_csv/*"
+        val sample_ids
+        path seq_summaries
+        path "aln_stats/*"
+        path gffcmp_dir
+        path "gff_annotation/*"
         path "de_report/*"
         path "seqkit/*"
     output:
@@ -322,30 +322,45 @@ process makeReport {
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
         def report_name = "wf-transcriptomes-report.html"
-        def OPT_ALN = denovo ?  '' : "--alignment_stats ${aln_stats}"
         def OPT_DENOVO = denovo ? "--denovo" : ''
-        def OPT_PC_REPORT = pychopper_report.name.startsWith('OPTIONAL_FILE') ? '' : "--pychop_report ${pychopper_report}"
-        def OPT_JAFFAL_CSV = jaffal_csv.name.startsWith('OPTIONAL_FILE') ? '' : "--jaffal_csv ${jaffal_csv}"
-    
     """
-    if [ -e "de_report/OPTIONAL_FILE" ]; then
+    if [ -f "de_report/OPTIONAL_FILE" ]; then
         dereport=""
     else
         dereport="--de_report true --de_stats "seqkit/*""
         mv de_report/*.gtf de_report/stringtie_merged.gtf
     fi
-
+    if [ -f "gff_annotation/OPTIONAL_FILE" ]; then
+        OPT_GFF=""
+    else
+        OPT_GFF="--gffcompare_dir ${gffcmp_dir} --gff_annotation gff_annotation/*"
+        
+    fi
+    if [ -f "jaffal_csv/OPTIONAL_FILE" ]; then
+        OPT_JAFFAL_CSV=""
+    else
+        OPT_JAFFAL_CSV="--jaffal_csv jaffal_csv/*"
+    fi
+    if [ -f "aln_stats/OPTIONAL_FILE" ]; then
+        OPT_ALN=""
+    else
+        OPT_ALN="--alignment_stats aln_stats/*"
+    fi
+    if [ -f "pychopper_report/OPTIONAL_FILE" ]; then
+        OPT_PC_REPORT=""
+    else
+        OPT_PC_REPORT="--pychop_report pychopper_report/*"
+    fi
     report.py --report $report_name \
     --versions $versions \
     --params params.json \
-    $OPT_ALN \
-    $OPT_PC_REPORT \
+    \$OPT_ALN \
+    \$OPT_PC_REPORT \
     --sample_ids $sids \
     --summaries $seq_summaries \
-    --gffcompare_dir $gffcmp_dir \
-    --gff_annotation $gff_annotation \
+    \$OPT_GFF \
     --isoform_table_nrows $params.isoform_table_nrows \
-    $OPT_JAFFAL_CSV \
+    \$OPT_JAFFAL_CSV \
     $OPT_DENOVO \
     \$dereport 
 
@@ -417,47 +432,61 @@ workflow pipeline {
             full_len_reads = summariseConcatReads.out.input_reads
             pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
         }
-
-        if (params.denovo){
-            println("Doing de novo assembly")
-             assembly = denovo_assembly(full_len_reads, ref_genome)
-
-        } else {
-            build_minimap_index(ref_genome)
-            println("Doing reference based transcript analysis")
-            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
-        }
-
-        split_bam(assembly.bam)
-
-        assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
-
-        merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
-
-        use_ref_ann = !ref_annotation.name.startsWith('OPTIONAL_FILE')
-
-        run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
-
-        if (params.denovo){
-            // Use the per-sample, de novo-assembled CDS
-            seq_for_transcriptome_build = assembly.cds
-        }else {
-            // For reference based assembly, there is only one reference
-            // So map this reference to all sample_ids
-            seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
-        }
+        if (params.transcriptome_assembly){
         
+            if (params.denovo){
+                println("Doing de novo assembly")
+                assembly = denovo_assembly(full_len_reads, ref_genome)
+
+            } else {
+                build_minimap_index(ref_genome)
+                println("Doing reference based transcript analysis")
+                assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
+            }
+            assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
+
+            split_bam(assembly.bam)
+        
+            assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
+
+            merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
+
+            use_ref_ann = !ref_annotation.name.startsWith('OPTIONAL_FILE')
+
+            run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
+
+            if (params.denovo){
+                // Use the per-sample, de novo-assembled CDS
+                seq_for_transcriptome_build = assembly.cds
+            }else {
+                // For reference based assembly, there is only one reference
+                // So map this reference to all sample_ids
+                seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
+            }
+            
+            get_transcriptome(
+                merge_gff_bundles.out.gff
+                .join(run_gffcompare.out.gffcmp_dir)
+                .join(seq_for_transcriptome_build))
+
+            gff_compare = run_gffcompare.out.gffcmp_dir.map{ it -> it[1]}.collect()
+            merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
+            results = Channel.empty()
+        }else
+        {
+            gff_compare = file("$projectDir/data/OPTIONAL_FILE")
+            merge_gff = file("$projectDir/data/OPTIONAL_FILE")
+            assembly_stats = file("$projectDir/data/OPTIONAL_FILE")
+            use_ref_ann = false
+            results = Channel.empty()
+        }
         if (jaffal_refBase){
-            gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
-            jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
-        }else{
-            jaffal_out = file("$projectDir/data/OPTIONAL_FILE_1")
+                gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
+                jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
+            }else{
+                jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
         }
 
-        get_transcriptome(
-            merge_gff_bundles.out.gff
-            .join(run_gffcompare.out.gffcmp_dir)
-            .join(seq_for_transcriptome_build))
 
         if (params.de_analysis){
 
@@ -484,44 +513,44 @@ workflow pipeline {
             de_report = file("$projectDir/data/OPTIONAL_FILE")
             count_transcripts_file = file("$projectDir/data/OPTIONAL_FILE")
         }
+        
         makeReport(
             software_versions,
             workflow_params,
             params.denovo,
             pychopper_report,
             jaffal_out,
-            summariseConcatReads.out.summary
-            .join(assembly.stats)
-            .join(run_gffcompare.out.gffcmp_dir)
-            .join(merge_gff_bundles.out.gff)
-            .toList().transpose().toList(),
+            summariseConcatReads.out.summary.map{it->it[0]}.collect(),
+            summariseConcatReads.out.summary.map{it->it[1]}.collect(),
+            assembly_stats,
+            gff_compare,
+            merge_gff,
             de_report,
             count_transcripts_file)
 
         report = makeReport.out.report
-
-
-
+        
+        results = results.concat(makeReport.out.report)
+       
        if (use_ref_ann){
-            results = run_gffcompare.output.gffcmp_dir
-                      .concat(
+            results = run_gffcompare.output.gffcmp_dir.concat(
                       assembly.stats,
                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
-                      .concat(makeReport.out.report)
+                      .concat(results)
 
        }
-        if (!use_ref_ann && !params.denovo){
-            results =  assembly.stats
-                      .concat(
+    
+        if (!use_ref_ann && !params.denovo && params.transcriptome_assembly){
+            results =  assembly.stats.concat(
                        get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
-                      .concat(makeReport.out.report)
+                      .concat(results)
 
         }
         if (params.denovo){
-            results = assembly.cds
-                      .concat(assembly.stats,
+            results = assembly.cds.concat(
+                       assembly.stats,
                       seq_for_transcriptome_build,
                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls),
                       merge_gff_bundles.out.gff,
@@ -534,7 +563,7 @@ workflow pipeline {
                         return l
                       })
                       .map {it -> it[1]}
-                      .concat(makeReport.out.report)
+                      .concat(results)
         }
         if (params.jaffal_refBase){
             results = results
@@ -586,8 +615,9 @@ workflow {
 
     if (params.ref_annotation){
         ref_annotation = file(params.ref_annotation, type: "file")
+
         if (!ref_annotation.exists()) {
-            error = "--annotation: File doesn't exist, check path."
+            error = "--ref_annotation: File doesn't exist, check path."
         }
     }else{
         ref_annotation = file("$projectDir/data/OPTIONAL_FILE")
@@ -602,6 +632,7 @@ workflow {
      }
     ref_transcriptome = file("$projectDir/data/OPTIONAL_FILE")
     if (params.ref_transcriptome){
+        log.info("Reference Transcriptome provided will be used for differential expression.")
         ref_transcriptome = file(params.ref_transcriptome, type:"file")
     }
     if (params.de_analysis){

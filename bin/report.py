@@ -867,7 +867,7 @@ def main():
         "--alignment_stats", required=False, default=None, nargs='*',
         help="TSV summary file of alignment statistics")
     parser.add_argument(
-        "--gff_annotation", required=True, nargs='+',
+        "--gff_annotation", required=False, nargs='+',
         help="transcriptome annotation gff file")
     parser.add_argument(
         "--gffcompare_dir", required=False, default=None, nargs='*',
@@ -922,17 +922,16 @@ def main():
         pychopper_plots(report, args.pychop_report)
 
     # Results
-    transcriptome_summary(
-        report, args.gff_annotation, sample_ids, denovo=args.denovo)
+    if args.gff_annotation is not None:
+        transcriptome_summary(
+            report, args.gff_annotation, sample_ids, denovo=args.denovo)
 
-    df_tmaps = gff_compare_plots(
-        report,
-        [Path(x) for x in args.gffcompare_dir],
-        sample_ids)
+    if args.gffcompare_dir is not None:
+        df_tmaps = gff_compare_plots(
+            report,
+            [Path(x) for x in args.gffcompare_dir],
+            sample_ids)
 
-    report.write(args.report)
-
-    if df_tmaps is not None:
         transcript_table(report, df_tmaps, args.isoform_table_nrows)
 
     if args.cluster_qc_dirs is not None:
