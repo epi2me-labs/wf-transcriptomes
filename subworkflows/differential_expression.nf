@@ -2,6 +2,7 @@ process count_transcripts {
     // Count transcripts using Salmon.
     // library type is specified as forward stranded (-l SF) as it should have either been through pychopper or come from direct RNA reads.
     label "isoforms"
+    cpus params.threads
     input:
         tuple val(sample_id), path(bam)
         path ref_transcriptome
@@ -9,9 +10,9 @@ process count_transcripts {
         path "*transcript_counts.tsv", emit: counts
         path "*seqkit.stats", emit: seqkit_stats
     """
-    salmon quant --noErrorModel -p $params.threads -t $ref_transcriptome -l SF -a $bam -o counts
-    mv counts/quant.sf "${sample_id}".transcript_counts.tsv
-    seqkit bam  "$bam" 2>  "${sample_id}".seqkit.stats
+    salmon quant --noErrorModel -p "${task.cpus}" -t "${ref_transcriptome}" -l SF -a "${bam}" -o counts
+    mv counts/quant.sf "${sample_id}.transcript_counts.tsv"
+    seqkit bam  "${bam}" 2>  "${sample_id}.seqkit.stats"
     """
 }
 
@@ -23,7 +24,7 @@ process mergeCounts {
     output:
         path "all_counts.tsv"
     """
-    merge_count_tsvs.py -z -o all_counts.tsv $counts
+    merge_count_tsvs.py -z -o all_counts.tsv -tsvs ${counts}
     """
 }
 
@@ -34,7 +35,7 @@ process mergeTPM {
     output:
         path "tpm_counts.tsv"
     """
-    merge_count_tsvs.py -z -o tpm_counts.tsv $counts -tpm 
+    merge_count_tsvs.py -o tpm_counts.tsv -z -tpm True -tsvs $counts 
     """
 }
 
@@ -101,7 +102,7 @@ process build_minimap_index_transcriptome{
         path "genome_index.mmi", emit: index
     script:
     """
-    minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
+    minimap2 -t "${task.cpus}" ${params.minimap_index_opts}  -I 1000G -d "genome_index.mmi" "${reference}"
   
     """
 }
@@ -123,10 +124,10 @@ process map_transcriptome{
     output:
        tuple val(sample_id), path("${sample_id}_reads_aln_sorted.bam"), emit: bam
     """
-    minimap2 -t ${params.threads} -ax splice -uf -p 1.0 $index $fastq_reads\
-    | samtools view -Sb > output.bam
-    samtools sort -@ ${params.threads} output.bam -o "${sample_id}"_reads_aln_sorted.bam
-    samtools index "${sample_id}"_reads_aln_sorted.bam
+    minimap2 -t ${task.cpus} -ax splice -uf -p 1.0 "${index}" "${fastq_reads}" \
+    | samtools view -Sb > "output.bam"
+    samtools sort -@ ${task.cpus} "output.bam" -o "${sample_id}_reads_aln_sorted.bam"
+    samtools index "${sample_id}_reads_aln_sorted.bam"
     """
 }
 

@@ -205,9 +205,9 @@ thresholds defined are shaded as 'Up-' or 'Down-' regulated.""")
                 ],
         title="Average copy per million (CPM) vs Log-fold change (LFC)",
         colors=["red", "blue", "black"],
-        xlim=[0, 5],
         names=["Up", "Down", "NotSig"]
         )
+
     dexseq_plot.xaxis.axis_label = "A (log2 transformed mean exon read counts)"
     dexseq_plot.yaxis.axis_label = """
     M (log2 transformed differential abundance)
@@ -277,10 +277,9 @@ defined are shaded as 'Up-' or 'Down-' regulated.
                 not_sig["logFC"],
                 ],
         title="Average copy per million (CPM) vs Log-fold change (LFC)",
-        colors=["blue", "red", "black"],
+        colors=["red", "blue", "black"],
         names=["Up", "Down", "NotSig"]
         )
-
     logcpm_vs_logfc.xaxis.axis_label = "Average log CPM"
     logcpm_vs_logfc.yaxis.axis_label = "Log-fold change"
     logcpm_caption = """### Results of the edgeR Analysis."""
