@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [v0.1.7]
 ### Updated
 - `-profile conda` is no longer supported, users should use `-profile standard` (Docker) or `-profile singularity` instead
 - `nextflow run epi2me-labs/wf-transcriptomes --version` will now print the workflow version number and exit
