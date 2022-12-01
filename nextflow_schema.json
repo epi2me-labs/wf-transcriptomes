@@ -2,138 +2,156 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-transcriptomes",
-    "description": "Isoform detection and characterisation.",
+    "description": "Transcriptome analysis workflow including gene fusions and differential expression.",
+    "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
     "url": "https://github.com/epi2me-labs/wf-transcriptomes",
     "type": "object",
     "definitions": {
-        "basic_input_output_options": {
-            "title": "Basic Input/Output Options",
+        "input_options": {
+            "title": "Input Options",
             "type": "object",
             "fa_icon": "fas fa-terminal",
-            "description": "Define where the pipeline should find input data and save output data.",
+            "description": "Parameters for finding and handling input data for analysis.",
+            "properties": {
+                "fastq": {
+                    "type": "string",
+                    "format": "path",
+                    "demo_data": "${projectDir}/test_data/fastq",
+                    "description": "FASTQ files to use in the analysis.",
+                    "help_text": "This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`."
+                },
+                "transcriptome_source": {
+                    "type": "string",
+                    "enum": [
+                        "precomputed",
+                        "reference-guided",
+                        "denovo"
+                    ],
+                    "description": "Select how the transcriptome used for analysis should be prepared.",
+                    "help_text": "To analyse only gene fusions and differential expression use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter. To create a transcriptome from your sequencing data select 'denovo'."
+                },
+                "ref_genome": {
+                    "type": "string",
+                    "format": "file-path",
+                    "demo_data": "${projectDir}/test_data/SIRV_150601a.fasta",
+                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow.",
+                    "help_text": "A reference genome is required for reference-based assembly of a transcriptome."
+                },
+                "ref_transcriptome": {
+                    "type": "string",
+                    "default": "null",
+                    "format": "file-path",
+                    "description": "Transcriptome reference file. Required for precomputed transcriptome calculation and for differential expression analysis.",
+                    "help_text": "A reference transcriptome related to the sample under study. Must be supplied when the 'Transcriptome source' parameter has been set to 'precomputed' or to perform differential expression."
+                },
+                "ref_annotation": {
+                    "type": "string",
+                    "format": "file-path",
+                    "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
+                    "description": "A reference annotation in GTF format",
+                    "help_text": "This will be used for guiding the transcriptome assembly and to label transcripts with their corresponding gene identifiers."
+                },
+                "direct_rna": {
+                    "type": "boolean",
+                    "description": "Set to true for direct RNA sequencing.",
+                    "help_text": " Omits the pychopper step."
+                },
+                "analyse_unclassified": {
+                    "type": "boolean",
+                    "description": "Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory.",
+                    "help_text": "If selected and if the input is a multiplex directory the workflow will also process the unclassified directory."
+                }
+            },
+            "required": [
+                "fastq",
+                "transcriptome_source"
+            ]
+        },
+        "output_options": {
+            "title": "Output Options",
+            "type": "object",
+            "description": "Parameters for saving and naming workflow outputs.",
+            "default": "",
             "properties": {
                 "out_dir": {
                     "type": "string",
                     "format": "directory-path",
                     "default": "output",
                     "description": "Directory for output of all user-facing files."
-                },
-                "fastq": {
-                    "type": "string",
-                    "format": "file-path",
-                    "demo_data": "${projectDir}/test_data/fastq",
-                    "description": "A fastq file or directory containing fastq input files or directories of input files.",
-                    "help_text": "If directories named \\\"barcode*\\\" are found under the `--fastq` directory the data is assumed to be multiplex and each barcode directory will be processed independently. If `.fastq(.gz)` files are found under the `--fastq` directory the sample is assumed to not be multiplexed. In this second case `--samples` should be a simple name rather than a CSV file."
-                },
-                "sample": {
-                    "type": "string",
-                    "description": "A sample name for non-multiplexed data. Permissible if passing a file or directory of .fastq(.gz)."
-                },
-                "sample_sheet": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "CSV file with columns named `barcode`, `sample_name` and `type`. Permissible if passing a directory containing barcodeXX sub-directories."
-                },
-                "ref_genome": {
-                    "type": "string",
-                    "format": "file-path",
-                    "demo_data": "${projectDir}/test_data/SIRV_150601a.fasta",
-                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow"
-                },
-                "ref_annotation": {
-                    "type": "string",
-                    "format": "file-path",
-                    "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
-                    "description": "A reference annotation of gff format"
-                },
-                "transcriptome_assembly": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Find a reference assembly and use in differential expression analysis, set to false if you want to use exisiting ref_transcriptome."
-                }
-            },
-            "required": [
-                "fastq"
-            ]
-        },
-        "global_options": {
-            "title": "Global options",
-            "type": "object",
-            "description": "Options for both sub-workflows",
-            "properties": {
-                "threads": {
-                    "type": "integer",
-                    "default": 4
-                },
-                "pychopper_opts": {
-                    "type": "string",
-                    "description": "Extra pychopper opts",
-                    "default": "-m edlib"
-                },
-                "direct_rna": {
-                    "type": "boolean",
-                    "description": "Set to true for direct RNA sequencing. Omits the pychopper step.",
-                    "default": false
-                },
-                "bundle_min_reads": {
-                    "type": "integer",
-                    "description": "Minimum size of bam bundle for parallel processing."
-                },
-                "stringtie_opts": {
-                    "type": "string",
-                    "description": "Extra options for stringtie transcript assembly.",
-                    "default": " --conservative "
-                },
-                "isoform_table_nrows": {
-                    "type": "integer",
-                    "description": "Maximum rows to dispay in the isoform report table",
-                    "default": 5000
-                },
-                "denovo": {
-                    "type": "boolean",
-                    "description": "Use denovo transcript assembly rather than reference guided",
-                    "default": false
                 }
             }
         },
-        "reference_wf_options": {
+        "sample_options": {
+            "title": "Sample Options",
+            "type": "object",
+            "description": "Parameters that relate to samples such as sample sheets and sample names.",
+            "default": "",
+            "properties": {
+                "sample_sheet": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files.",
+                    "help_text": "The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed. A `type` column is required for certain workflows and should have the following values; `test_sample`, `positive_control`, `negative_control`, `no_template_control`."
+                },
+                "sample": {
+                    "type": "string",
+                    "description": "A single sample name for non-multiplexed data. Permissible if passing a single .fastq(.gz) file or directory of .fastq(.gz) files."
+                }
+            }
+        },
+        "options_for_reference_based_workflow": {
             "title": "Options for reference-based workflow",
             "type": "object",
             "description": "Parameters that are used solely for the reference-guided workflow",
             "properties": {
                 "plot_gffcmp_stats": {
                     "type": "boolean",
-                    "description": "Create a pdf of plots from showing gffcompare results"
+                    "description": "Create a PDF of plots from showing gffcompare results",
+                    "help_text": "If set to true, a PDF file containing detailed gffcompare reults will be output"
                 },
                 "gffcompare_opts": {
                     "type": "string",
-                    "description": "Extra options for gffcompare -r",
-                    "default": " -R "
+                    "description": "Extra command-line options to give to gffcompare -r",
+                    "default": " -R ",
+                    "help_text": "For a list of possible options see [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml)."
                 },
                 "minimap_index_opts": {
                     "type": "string",
-                    "description": "minimap2 extra indexing options.",
-                    "default": "-k14"
+                    "description": "Extra command-line options for minimap2 indexing.",
+                    "default": "-k14",
+                    "help_text": "See [minimap2 index options](https://lh3.github.io/minimap2/minimap2.html#4) for more information. These will only be relevant in the reference based transcriptome assembly."
                 },
                 "minimap2_opts": {
                     "type": "string",
-                    "description": "minimap2 extra mapping options.",
-                    "default": "-uf"
+                    "description": "Additional command-line options for minimap2 alignment.",
+                    "default": "-uf",
+                    "help_text": "See [minimap2 options](https://lh3.github.io/minimap2/minimap2.html#5) for further information. These will only be relevant in the reference based transcriptome assembly."
                 },
                 "minimum_mapping_quality": {
                     "type": "integer",
                     "description": "filter aligned reads by MAPQ quality.",
-                    "default": 40
+                    "default": 40,
+                    "help_text": "Reads that do not meet this mapping quality after minimap2 alignment, will be filtered out."
                 },
                 "poly_context": {
                     "type": "integer",
                     "description": "Region size at end of reads to apply poly(A) filter.",
+                    "help_text": "Mispriming of polyT primers can occur when, instead of priming transcription from a polyA tail, it is primed from internal polyA rich regions in the genome. In these cases the 3` end of the transcript will not be captured and should be discarded. This parameter defines the size of a genomic region centered around the 3` alignment position from which to search for polyA rich regions.",
+                    "hidden": true,
                     "default": 24
                 },
                 "max_poly_run": {
                     "type": "integer",
                     "description": "Max poly(A) region allowed with poly_context-sized end regions.",
+                    "help_text": "See `poly_context` parameter. This parameter defines the maximum allowed polyA tract within a `poly_context` defined genomic region.",
+                    "hidden": true,
                     "default": 8
+                },
+                "stringtie_opts": {
+                    "type": "string",
+                    "description": "Extra command-line options for stringtie transcript assembly.",
+                    "default": " --conservative ",
+                    "help_text": "For additional String tie options see [here](https://github.com/gpertea/stringtie#stringtie-options)."
                 }
             }
         },
@@ -142,115 +160,55 @@
             "type": "object",
             "description": "Parameters that are used solely for the de novo workflow",
             "properties": {
-                "batch_size": {
+                "isOnClust2_batch_size": {
                     "type": "integer",
-                    "description": "Maximum sequences per input batch (-1 means no limit)",
+                    "description": "Number of batches to to process the data in.",
+                    "help_text": "If set to -1 number of batches witll be the same as the number of threads avaiable.",
                     "default": -1
                 },
-                "batch_max_seq": {
-                    "type": "integer",
-                    "description": "Maximum sequences per input batch (-1 means no limit)",
-                    "default": -1
-                },
-                "cls_mode": {
+                "isOnClust2_sort_options": {
                     "type": "string",
-                    "description": "Clustering mode",
-                    "default": "sahlin"
-                },
-                "kmer_size": {
-                    "type": "integer",
-                    "description": "Kmer size",
-                    "default": 11
-                },
-                "window_size": {
-                    "type": "integer",
-                    "description": "Window size",
-                    "default": 15
-                },
-                "min_left_cls": {
-                    "type": "integer",
-                    "description": "Minimum cluser size in the left batch",
-                    "default": 2
-                },
-                "consensus_period": {
-                    "type": "integer",
-                    "description": "Consensus period (-1 means no consensus)",
-                    "default": 500
-                },
-                "consensus_minimum": {
-                    "type": "integer",
-                    "description": "Minimum consensus sample size:",
-                    "default": 50
-                },
-                "consensus_maximum": {
-                    "type": "integer",
-                    "description": "Maximum consensus sample size",
-                    "default": -150
-                },
-                "min_shared": {
-                    "type": "integer",
-                    "description": "Minimum number of minimizers shared between read and cluster",
-                    "default": 5
-                },
-                "min_qual": {
-                    "description": "Minimum average quality value",
-                    "type": "number",
-                    "default": 7.0
-                },
-                "mapped_threshold": {
-                    "description": "Minimum mapped fraction of read to be included in cluster",
-                    "type": "number",
-                    "default": 0.65
-                },
-                "aligned_threshold": {
-                    "type": "number",
-                    "description": "Minimum aligned fraction of read to be included in cluster",
-                    "default": 0.2
-                },
-                "min_fraction": {
-                    "type": "number",
-                    "description": "Minimum fraction of minimizers shared compared to best hit, in order to continue mapping",
-                    "default": 0.8
-                },
-                "min_prob_no_hits": {
-                    "type": "number",
-                    "description": "Minimum probability for i consecutive minimizers to be different between read and representative",
-                    "default": 0.2
+                    "description": "Additional command-line options for isOnClust2 sort.",
+                    "help_text": "isOnClust2 is used for **de novo** transcript assembly. Options for the sort command can be be supplied like so `-opt1 arg -opt2 arg`. Available arguments can be found at [isOnClust2](https://github.com/nanoporetech/isONclust2). It is recommended not to alter this parameter.",
+                    "default": "--kmer-size 11 --window-size 15 --min-shared 5 --min-qual 7.0 --mapped-threshold 0.65 --aligned-threshold 0.2 --min-fraction 0.8 --min-prob-no-hits 0.0 -M -1 -P 500 -g 50 -c 150 -F 2"
                 }
             }
         },
-        "fusion_detection_options": {
-            "title": "Gene fusion detection options",
+        "gene_fusion_detection_options": {
+            "title": "Gene Fusion Detection Options",
             "type": "object",
             "description": "Parameters for gene fusion detection",
             "properties": {
                 "jaffal_refBase": {
                     "type": "string",
-                    "format": "path",
-                    "description": "JAFFAl reference genome directory"
+                    "format": "directory-path",
+                    "description": "JAFFAl reference genome directory.",
+                    "help_text": "JAFFAL human hg38 reference data directory can be downloaded from here: https://figshare.com/ndownloader/files/25410494 or see the README for alternative instructions. If custom gemome files are required, see the instructions here: https://github.com/Oshlack/JAFFA/wiki/FAQandTroubleshooting#how-can-i-generate-the-reference-files-for-a-non-supported-genome."
                 },
                 "jaffal_genome": {
                     "type": "string",
-                    "description": "Genome reference prefix. e.g. hg38",
+                    "description": "Genome reference prefix. e.g. hg38.",
+                    "help_text": "JAFFAL reference files are prefixed with the genome reference file name and need to be supplied . If using the human reference data provided by JAFFAL, this can be left at `hg38`.",
                     "default": "hg38"
                 },
                 "jaffal_annotation": {
                     "type": "string",
-                    "description": "Annotation prefix",
+                    "description": "Annotation suffix.",
+                    "help_text": "JAFFAL reference files are suffixed with the annotation filename and this needs to be supplied. For the human hg38 reference data supplied by JAFFAL, this is `genCode22`.",
                     "default": "genCode22"
                 },
                 "jaffal_dir": {
                     "type": "string",
-                    "format": "path",
-                    "description": "Path to JAFFAL git code directory. Defaults is epi2me-labs container location",
+                    "format": "directory-path",
+                    "description": "Path to the JAFFAL code directory. If running within EPI2ME-Labs, the default path of /home/epi2melabs/JAFFA within the application container will be used. If using outside of EPI2ME-Labs, the path to the code directory downloaded from github should be supplied.",
                     "default": "/home/epi2melabs/JAFFA"
                 }
             }
         },
         "differential_expression_options": {
-            "title": "Differential expression options",
+            "title": "Differential Expression Options",
             "type": "object",
-            "description": "",
+            "description": "Options relevant to the differential expression section of the workflow, only need to set if running DE.",
             "default": "",
             "properties": {
                 "de_analysis": {
@@ -261,98 +219,118 @@
                 "condition_sheet": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "tsv with (sample, condition, type)",
-                    "default": "null"
-                },
-                "ref_transcriptome": {
-                    "type": "string",
+                    "description": "TSV file with sample_id, condition",
                     "default": "null",
-                    "format": "file-path",
-                    "description": "Transcriptome reference file, if supplied will be used instead of finding transcriptome using reference assembly or denovo methods"
+                    "help_text": "The condition sheet should be a headed TSV file with two columns sample_id,condition. Should be at least 3 repeats for each condition."
                 },
                 "min_gene_expr": {
                     "type": "integer",
                     "default": 10,
-                    "description": "Minimum gene counts"
+                    "description": "Minimum gene counts",
+                    "help_text": "The minimum number of total mapped sequence reads for a gene to be considered expressed."
                 },
                 "min_feature_expr": {
                     "type": "integer",
                     "default": 3,
-                    "description": "Minimum transcript counts"
+                    "description": "Minimum transcript counts",
+                    "help_text": "The minimum number of total mapped sequence reads for a transcript to be considered."
+                },
+                "min_samps_gene_expr": {
+                    "type": "integer",
+                    "description": "Genes expressed in a minimum of this many samples will be included in the differential expression analysis.",
+                    "default": 3,
+                    "help_text": "A gene must be mapped to at least this minimum number of samples for the gene be included in the analysis."
                 },
                 "min_samps_feature_expr": {
                     "type": "integer",
                     "default": 1,
-                    "description": "Transcripts expressed in minimum this many samples"
-                },
-                "min_samps_gene_expr": {
-                    "type": "integer",
-                    "description": "Genes expressed in minimum this many samples",
-                    "default": 3
+                    "description": "Transcripts expressed in minimum this many samples",
+                    "help_text": "A transcript must be mapped in at least this this minimum number of samples to be included in the analysis."
                 }
             }
         },
-        "meta_data": {
-            "title": "Meta Data",
+        "advanced_options": {
+            "title": "Advanced Options",
             "type": "object",
-            "description": "",
-            "default": "",
+            "description": "Advanced options for configuring processes inside the workflow.",
             "properties": {
-                "report_name": {
-                    "type": "string",
-                    "default": "report",
-                    "description": "Output report filename suffix."
+                "threads": {
+                    "type": "integer",
+                    "default": 2,
+                    "description": "Number of CPU threads.",
+                    "help_text": "Only provided to processes including alignment and and assembly that benefit from multiple threads."
                 },
-                "disable_ping": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Enable to prevent sending a workflow ping."
+                "pychopper_opts": {
+                    "type": "string",
+                    "description": "Extra pychopper opts",
+                    "default": "-m edlib",
+                    "help_text": "See available options (here)[https://github.com/epi2me-labs/pychopper#usage]"
+                },
+                "bundle_min_reads": {
+                    "type": "integer",
+                    "description": "Minimum size of bam bundle for parallel processing."
+                },
+                "isoform_table_nrows": {
+                    "type": "integer",
+                    "description": "Maximum rows to dispay in the isoform report table",
+                    "default": 5000
                 }
             }
         },
-        "generic_options": {
-            "title": "Generic options",
+        "miscellaneous_options": {
+            "title": "Miscellaneous Options",
             "type": "object",
-            "fa_icon": "far fa-question-circle",
-            "description": "Less common options for the pipeline, typically set in a config file.",
-            "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
+            "description": "Everything else.",
+            "default": "",
             "properties": {
                 "help": {
                     "type": "boolean",
                     "description": "Display help text.",
                     "fa_icon": "fas fa-question-circle",
                     "hidden": true
+                },
+                "disable_ping": {
+                    "type": "boolean",
+                    "description": "Enable to prevent sending a workflow ping."
                 }
             }
         }
     },
     "allOf": [
         {
-            "$ref": "#/definitions/basic_input_output_options"
+            "$ref": "#/definitions/input_options"
         },
         {
-            "$ref": "#/definitions/global_options"
+            "$ref": "#/definitions/output_options"
         },
         {
-            "$ref": "#/definitions/reference_wf_options"
+            "$ref": "#/definitions/sample_options"
+        },
+        {
+            "$ref": "#/definitions/options_for_reference_based_workflow"
         },
         {
             "$ref": "#/definitions/denovo_wf_options"
         },
         {
-            "$ref": "#/definitions/fusion_detection_options"
+            "$ref": "#/definitions/gene_fusion_detection_options"
         },
         {
             "$ref": "#/definitions/differential_expression_options"
         },
         {
-            "$ref": "#/definitions/meta_data"
+            "$ref": "#/definitions/advanced_options"
         },
         {
-            "$ref": "#/definitions/generic_options"
+            "$ref": "#/definitions/miscellaneous_options"
         }
     ],
     "properties": {
+        "version": {
+            "type": "boolean",
+            "description": "Display version and exit.",
+            "hidden": true
+        },
         "aws_image_prefix": {
             "type": "string",
             "hidden": true
@@ -379,6 +357,6 @@
     },
     "docs": {
         "intro": "## Introduction\n\nThis workflow identifies RNA isoforms using either cDNA or direct RNA (dRNA) \nOxford Nanopore reads.\n\n### Preprocesing\ncDNA reads are initially preprocessed by [pychopper](https://github.com/epi2me-labs/pychopper) \nfor the identification of full-length reads, as well as trimming and orientation correction (This step is omitted for \n direct RNA reads).\n\n\n### Transcript assembly\n\n#### Reference-aided transcript assembly approach\n* Full length reads are mapped to a supplied reference genome using [minimap2](https://github.com/lh3/minimap2)\n* Transcripts are assembled by [stringtie](http://ccb.jhu.edu/software/stringtie) \nin long read mode (with or without a guide reference annotation) to generate the GFF annotation.\n* The annotation generated by the pipeline is compared to the reference annotation. \nusing [gffcompare](http://ccb.jhu.edu/software/stringtie/gffcompare.shtml)\n\n#### de novo-based transcript assembly (experimental!)\n* Sequence clusters are generated using [isONclust2](https://github.com/nanoporetech/isONclust2)\n  * If a reference genome is supplied, cluster quality metrics are determined by comparing    \n  with clusters generated from a minimap2 alignment.\n* A consensus sequence for each cluster is generated using [spoa](https://github.com/rvaser/spoa)\n* Three rounds of polishing using racon and minimap2 to give a final polished CDS for each gene.\n* Full-length reads are then mapped to these polished CDS.\n* Transcripts are assembled by stringtie as for the reference-based approach.\n* __Note__: This approach is currently not supported with direct RNA reads.\n\n### Fusion gene detection\nFusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFFA), with the JAFFAL extension for use \nwith ONT long reads. \n\n### Differential expression analysis\n\nDifferential gene expression (DGE) and differential transcript usage (DTU) analyses aim to identify genes and/or transcripts that show statistically altered expression patterns in a studied biological system. The results of the differential analyses are presented in a quantitative format and therefore the degree of change (up or down regulation) between experimental conditions can be calculated for each gene identified.\n\nThese differential analyses work by taking a \u201csnapshot\u201d of mRNA abundance and calculating the relative levels of transcripts and isoforms. In this context, expression corresponds to the number of messenger RNAs (mRNA) measured from each gene isoform within the organism / tissue / culture being investigated. In order to determine expression levels across the whole genome, sequence data specifically targeting the mRNA molecules can be generated.\n\nOxford Nanopore Technologies provides a number of sequencing solutions to allow users to generate the required snapshot of gene expression. This can be achieved by both sequencing the mRNA directly, or via a complementary DNA (cDNA) proxy. In contrast to short read sequencing technologies, entire mRNA transcripts can be captured as single reads. The example data provided with this tutorial is from a study based on the PCR-cDNA kit. This is a robust choice for performing differential transcript usage studies. This kit is suitable for preparation of sequence libraries from low mRNA input quantities. The cDNA population is enriched through PCR with low bias; an important prerequisite for the subsequent statistical analysis.\n\n[Workflow-transcriptomes](https://github.com/epi2me-labs/wf-transcriptomes) includes a subworkflow for DGE and DTU. The first step involves using either a reference alignment or _de novo_ assembly approach to create a set of mRNA sequences per sample. These are merged into a non-redundant transcriptome using [stringtie merge](http://ccb.jhu.edu/software/stringtie). The reads are then aligned to the transcriptome using minimap2 in a splice-aware manner. [Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving per transcript counts and then the following R packages are used for analysis.\n\n### Pre-filtering of quantitative data using DRIMSeq\nDRIMSeq (Nowicka and Robinson (2016)) is used to filter the transcript count data from the salmon analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed and minimum threshold levels for the number of observed reads. The parameters used for filtering are defined in the config.yaml file. The default parameters defined for this analysis include\n* min_samps_gene_expr = 3 - a transcript must be mapped to a gene in at least this minimum number of samples for the gene be included in the analysis\n*\tmin_samps_feature_expr = 1 - a transcript must be mapped to an isoform in at least this this minimum number of samples for the gene isoform to be included in the analysis\n*\tmin_gene_expr = 10 - the minimum number of total mapped sequence reads for a gene to be considered expressed\n*\tmin_feature_expr = 3 - the minimum number of total mapped sequence reads for a gene isoform to be considered\n\n### edgeR based differential expression analysis\n+A statistical analysis is first performed using edgeR (Robinson, McCarthy, and Smyth (2010), McCarthy et al. (2012)) to identify the subset of differentially expressed genes. The filtered list of gene counts is used as input. A normalisation factor is calculated for each sequence library (using the default TMM method - please see McCarthy et al. (2012) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (fdr) using the method of Benjamini & Hochberg (Benjamini and Hochberg (1995))\n\n### Differential transcript usage using DEXSeq\nDifferential transcript usage analysis is performed using the R DEXSeq package (Reyes et al. (2013)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. \n\n### StageR stage-wise analysis of DGE and DTU\nThe final component of this isoform analysis is a stage-wise statistical test using the R software package `stageR` (Van den Berge and Clement (2018)). stageR uses (1) the raw p-values for DTU from the DEXSeq analysis in the previous section and (2) a false-discovery corrected set of p-values from testing whether individual genes contain at least one exon showing DTU. A hierarchical two-stage statistical testing evaluates the set of genes for DTU.\n\n## Running the workflow\nFor the differential expression analysis section you should have at least 3 repeats for each sample. \nYour fastq data will need to be organised in to 6 directories that represent 3 repeats for each condition. You may also need to provide a condition sheet. \n\n\n## Analysis \nDifferential gene expression is sensitive to the input data quantity and quality.  There should be equivalence between samples in the number of sequence reads, mapped reads and quality scores. The sequence and alignment summary plots in the report can be used to assess these metrics. There is also a table that shows the transcript per million(TPM) calculated from the salmon counts. TPM normalizes the data for gene length and then sequencing depth, and makes it easier to compare across samples compared to counts.\n\n### Workflow inputs\n- Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples\n  (in fastq/fastq.gz format)\n- Reference genome in fasta format (required for reference-based assembly).\n- Optional reference annotation in GFF2/3 format (required for differential expression analysis `--de_analysis`).\n- For fusion detection, JAFFAL reference files (see Quickstart) \n",
-        "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [Singularity](https://sylabs.io/singularity/)\n* [conda](https://docs.conda.io/en/latest/miniconda.html)\n* [racon](https://github.com/isovic/racon)\n* [spoa](https://github.com/rvaser/spoa)\n* [inONclust](https://github.com/ksahlin/isONclust)\n* [isONclust2](https://github.com/nanoporetech/isONclust2)"
+        "links": "## Useful links\n\n* [nextflow](https://www.nextflow.io/)\n* [docker](https://www.docker.com/products/docker-desktop)\n* [Singularity](https://sylabs.io/singularity/)\n* [racon](https://github.com/isovic/racon)\n* [spoa](https://github.com/rvaser/spoa)\n* [inONclust](https://github.com/ksahlin/isONclust)\n* [isONclust2](https://github.com/nanoporetech/isONclust2)"
     }
 }

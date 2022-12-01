@@ -511,7 +511,7 @@ def pychopper_plots(report, pychop_report):
     ### Pychopper summary statisitcs
 
     The following plots summarize [pychopper] output
-    (https://github.com/nanoporetech/pychopper)
+    (https://github.com/epi2me-labs/pychopper)
 
     * **Pr.found**: Reads with primers found in correct orientation at
      both ends.
@@ -604,7 +604,7 @@ def transcript_table(report, df_tmaps, max_rows):
     """
     section = report.add_section()
 
-    # Should wße put data from each sample into it's own table or have it
+    # Should we put data from each sample into it's own table or have it
     # all in single table and sample_id column? Currently it's the latter
 
     # drop some columns for the big table and do some filtering
@@ -932,7 +932,9 @@ def main():
             [Path(x) for x in args.gffcompare_dir],
             sample_ids)
 
-        transcript_table(report, df_tmaps, args.isoform_table_nrows)
+        if df_tmaps is not None:
+            # Skip this section. This needs some work
+            transcript_table(report, df_tmaps, args.isoform_table_nrows)
 
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)

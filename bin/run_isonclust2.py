@@ -53,19 +53,19 @@ def build_job_tree():
         for x in batches]
     levels = OrderedDict()
     levels[0] = []
-    for k, bf in sorted(zip(batch_ids, batches), key=lambda x: x[0]):
+    for id_, bf in sorted(zip(batch_ids, batches), key=lambda x: x[0]):
         n = Node(
-            k,
-            "clusters/isONcluster_{}.cer".format(k),
+            id_,
+            "clusters/isONcluster_{}.cer".format(id_),
             None,
             None,
             None,
             0)
         n.Done = True
-        job_tree[k] = n
+        job_tree[id_] = n
         levels[0].append(n)
     level = 0
-    max_id = levels[0][-1].k
+    max_id = levels[0][-1].Id
     while len(levels[level]) != 1:  # Final level will be link
         next_level = level + 1
         levels[next_level] = []
@@ -84,7 +84,7 @@ def build_job_tree():
             levels[next_level].append(new_node)
             job_tree[max_id] = new_node
         level = next_level
-    root = job_tree[len(job_tree) - 1].k
+    root = job_tree[len(job_tree) - 1].Id
     job_tree[root].RightSide = True
 
     return job_tree, levels
@@ -121,7 +121,7 @@ def main():
         sub.call(cmd, shell=True)
     sub.call((
         "ln -s `realpath clusters/isONcluster_{}.cer` "
-        "isONcluster_root.cer".format(n.Id)), shell=True)
+        "isONcluster_ROOT.cer".format(n.Id)), shell=True)
 
 
 if __name__ == '__main__':

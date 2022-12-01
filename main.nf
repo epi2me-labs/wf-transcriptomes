@@ -306,7 +306,6 @@ process makeReport {
     input:
         path versions
         path "params.json"
-        val denovo
         path "pychopper_report/*"
         path"jaffal_csv/*"
         val sample_ids
@@ -322,7 +321,7 @@ process makeReport {
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
         def report_name = "wf-transcriptomes-report.html"
-        def OPT_DENOVO = denovo ? "--denovo" : ''
+        def OPT_DENOVO = params.transcriptome_source == "denovo" ? "--denovo" : ''
     """
     if [ -f "de_report/OPTIONAL_FILE" ]; then
         dereport=""
@@ -432,15 +431,15 @@ workflow pipeline {
             full_len_reads = summariseConcatReads.out.input_reads
             pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
         }
-        if (params.transcriptome_assembly){
+        if (params.transcriptome_source != "precomputed"){
         
-            if (params.denovo){
-                println("Doing de novo assembly")
+            if (params.transcriptome_source == "denovo"){
+                log.info("Doing de novo assembly")
                 assembly = denovo_assembly(full_len_reads, ref_genome)
 
             } else {
                 build_minimap_index(ref_genome)
-                println("Doing reference based transcript analysis")
+                log.info("Doing reference based transcript analysis")
                 assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
             }
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
@@ -455,7 +454,7 @@ workflow pipeline {
 
             run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
 
-            if (params.denovo){
+            if (params.transcriptome_source == "denovo"){
                 // Use the per-sample, de novo-assembled CDS
                 seq_for_transcriptome_build = assembly.cds
             }else {
@@ -463,7 +462,7 @@ workflow pipeline {
                 // So map this reference to all sample_ids
                 seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
             }
-            
+
             get_transcriptome(
                 merge_gff_bundles.out.gff
                 .join(run_gffcompare.out.gffcmp_dir)
@@ -517,7 +516,6 @@ workflow pipeline {
         makeReport(
             software_versions,
             workflow_params,
-            params.denovo,
             pychopper_report,
             jaffal_out,
             summariseConcatReads.out.summary.map{it->it[0]}.collect(),
@@ -541,19 +539,18 @@ workflow pipeline {
 
        }
     
-        if (!use_ref_ann && !params.denovo && params.transcriptome_assembly){
+        if (!use_ref_ann && params.transcriptome_source == "reference-guided"){
             results =  assembly.stats.concat(
                        get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(results)
 
         }
-        if (params.denovo){
+        if (params.transcriptome_source == "denovo"){
             results = assembly.cds.concat(
                        assembly.stats,
                       seq_for_transcriptome_build,
                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls),
-                      merge_gff_bundles.out.gff,
                       assembly.opt_qual_ch.flatMap {
                           it ->
                           l = []
@@ -596,10 +593,12 @@ workflow {
         error = "--fastq: File doesn't exist, check path."
     }
 
-    if (!params.denovo && !params.ref_genome){
-        error = "--ref_genome must be supplied unless doing de novo assembly (--denovo)"
+    if (params.transcriptome_source == "precomputed" && !params.ref_transcriptome){
+        error = "As transcriptome source parameter is precomputed you must include a ref_transcriptome parameter"
     }
-
+    if (params.transcriptome_source == "reference-guided" && !params.ref_genome){
+        error = "As transcriptome source is reference guided you must include a ref_genome parameter"
+    }
     if (params.ref_genome){
         ref_genome = file(params.ref_genome, type: "file")
         if (!ref_genome.exists()) {
@@ -609,7 +608,7 @@ workflow {
         ref_genome = file("$projectDir/data/OPTIONAL_FILE")
     }
 
-    if (params.denovo && params.ref_annotation) {
+    if (params.transcriptome_source == "denovo" && params.ref_annotation) {
         error = "Reference annotation with de denovo assembly is not supported"
     }
 
@@ -648,7 +647,7 @@ workflow {
         condition_sheet = file("$projectDir/data/OPTIONAL_FILE")
     }
     if (error){
-        println(error)
+        throw new Exception(error)
     }else{
         reads = fastq_ingress([
             "input":params.fastq,
