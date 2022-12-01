@@ -170,7 +170,7 @@ process make_batches {
     minimum_batch_size = 2000
     """
     b=0
-    if [ ${params.batch_size} -lt \$b ];
+    if [ ${params.isOnClust2_batch_size} -lt \$b ];
     then
         nr_bases=\$(seqkit stats -T $fastq|cut -f 5| sed '2q;d')
         let batch_size=\$nr_bases/1000/$maxcpus
@@ -179,19 +179,13 @@ process make_batches {
                 batch_size=$minimum_batch_size
         fi
     else
-        batch_size=${params.batch_size}
+        batch_size=${params.isOnClust2_batch_size}
     fi
 
     echo "Batch size:\$batch_size";
     echo "Num bases: \$nr_bases";
 
-    init_cls_options="--batch-size \$batch_size --kmer-size ${params.kmer_size} --window-size ${params.window_size} \
-        --min-shared ${params.min_shared} --min-qual ${params.min_qual} \
-        --mapped-threshold ${params.mapped_threshold} --aligned-threshold ${params.aligned_threshold} \
-        --min-fraction ${params.min_fraction} --min-prob-no-hits ${params.min_prob_no_hits} \
-        -M ${params.batch_max_seq} -P ${params.consensus_period} -g ${params.consensus_minimum} \
-        -c ${params.consensus_maximum} -F ${params.min_left_cls} "
-    mkdir -p sorted; isONclust2 sort \$init_cls_options -v -o sorted $fastq;
+    mkdir -p sorted; isONclust2 sort $params.isOnClust2_sort_options -v -o sorted $fastq;
     """
 
 }

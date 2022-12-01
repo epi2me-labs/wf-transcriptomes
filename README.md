@@ -88,10 +88,9 @@ to run the workflow.
 
 The workflow can currently be run using either
 [Docker](https://www.docker.com/products/docker-desktop),
-[Singularity](https://sylabs.io/singularity/) or
-[conda](https://docs.conda.io/en/latest/miniconda.html) to provide isolation of
+[Singularity](https://sylabs.io/singularity/) to provide isolation of
 the required software. Each method is automated out-of-the-box provided
-either docker, singularity or conda is installed.
+either docker or singularity is installed.
 
 It is not required to clone or download the git repository in order to run the workflow.
 For more information on running EPI2ME Labs workflows [visit out website](https://labs.epi2me.io/wfindex).
@@ -290,7 +289,6 @@ in `${out_dir}/jaffal_output_${sample_id}` you will find:
 * [nextflow](https://www.nextflow.io/)
 * [docker](https://www.docker.com/products/docker-desktop)
 * [Singularity](https://sylabs.io/singularity/)
-* [conda](https://docs.conda.io/en/latest/miniconda.html)
 * [racon](https://github.com/isovic/racon)
 * [spoa](https://github.com/rvaser/spoa)
 * [inONclust](https://github.com/ksahlin/isONclust)
