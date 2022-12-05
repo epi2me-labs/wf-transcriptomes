@@ -2,7 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-transcriptomes",
-    "description": "Transcriptome analysis workflow including gene fusions and differential expression.",
+    "description": "Transcriptome analysis including gene fusions, differential expression as well as assembly and annotation of cDNA and direct RNA sequencing data.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
     "url": "https://github.com/epi2me-labs/wf-transcriptomes",
     "type": "object",
@@ -341,7 +341,7 @@
         },
         "wfversion": {
             "type": "string",
-            "default": "v0.1.7",
+            "default": "v0.1.8",
             "hidden": true
         },
         "monochrome_logs": {
