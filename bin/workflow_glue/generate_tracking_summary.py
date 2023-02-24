@@ -1,21 +1,22 @@
 #!/usr/bin/env python
 """Generate per-transcript class sumarrarry files from gffcompare."""
 
-import argparse
 import os
 import sys
 
 import pandas as pd
 
+from .util import wf_parser  # noqa: ABS101
 
-def parse_args(argv=sys.argv[1:]):
-    """Parse arguments."""
-    description = """Script to run the isoform workflow """
-    parser = argparse.ArgumentParser(description=description)
+
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("generate_tracking_summary")
     parser.add_argument("--tracking", required=True, help="")
     parser.add_argument("--output_dir", required=True, help="")
     parser.add_argument("--annotation", required=False, default=None, help="")
-    return parser.parse_args(argv)
+
+    return parser
 
 
 def generate_tracking_summary(tracking_file, output_dir, annotations=None):
@@ -63,7 +64,3 @@ def main(args):
         os.path.isfile(args.annotation)
     generate_tracking_summary(
         args.tracking, output_dir=args.output_dir, annotations=args.annotation)
-
-
-if __name__ == '__main__':
-    main(parse_args(sys.argv[1:]))

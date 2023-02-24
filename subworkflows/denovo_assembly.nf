@@ -199,7 +199,7 @@ process clustering() {
         tuple val(sample_id), path('isONcluster_ROOT.cer'), emit: root_cluster
     script:
     """
-    run_isonclust2.py $sorted_batches
+    workflow-glue run_isonclust2 $sorted_batches
     """
 }
 
@@ -228,7 +228,7 @@ process cluster_quality() {
         samtools view -q 2 -F 2304 -b - |\
          samtools sort - -o $bam;
     samtools index $bam;
-    compute_cluster_quality.py --sizes $final_clusters_dir/clusters_info.tsv \
+    workflow-glue compute_cluster_quality --sizes $final_clusters_dir/clusters_info.tsv \
         --outfile ${qc_dir}/cluster_quality.csv --ont --clusters $final_clusters_dir/clusters.tsv \
         --classes $bam --report ${qc_dir}/cluster_quality.pdf --raw_data_out $qc_dir_raw
     """

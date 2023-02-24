@@ -3,9 +3,22 @@
 from collections import OrderedDict
 from glob import glob
 from itertools import zip_longest
+import os
 from pathlib import Path
 import re
 import subprocess as sub
+
+from .util import wf_parser  # noqa: ABS101
+
+
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("report")
+    parser.add_argument(
+        "--workdir", help="directory containing batches/ dir [CWD]",
+        default=Path())
+
+    return parser
 
 
 class Node:
@@ -90,8 +103,9 @@ def build_job_tree():
     return job_tree, levels
 
 
-def main():
+def main(args):
     """Entry point."""
+    os.chdir(args.workdir)
     Path('clusters').mkdir(exist_ok=True)
     job_tree, levels = build_job_tree()
 
@@ -122,8 +136,3 @@ def main():
     sub.call((
         "ln -s `realpath clusters/isONcluster_{}.cer` "
         "isONcluster_ROOT.cer".format(n.Id)), shell=True)
-
-
-if __name__ == '__main__':
-    # The cwd should be the process dir that contains 'batches/'
-    main()
