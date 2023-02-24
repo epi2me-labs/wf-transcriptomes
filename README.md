@@ -6,6 +6,10 @@ It has been adapted from two existing Snakemake pipelines:
 * https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
 * https://github.com/nanoporetech/pipeline-nanopore-denovo-isoforms
 
+
+
+
+
 ## Introduction
 
 This workflow identifies RNA isoforms using either cDNA or direct RNA (dRNA) 
@@ -80,6 +84,10 @@ Differential gene expression is sensitive to the input data quantity and quality
 - Reference genome in fasta format (required for reference-based assembly).
 - Optional reference annotation in GFF2/3 format (required for differential expression analysis `--de_analysis`).
 - For fusion detection, JAFFAL reference files (see Quickstart) 
+
+
+
+
 ## Quickstart
 
 The workflow uses [nextflow](https://www.nextflow.io/) to manage compute and 
@@ -284,7 +292,11 @@ in `${out_dir}/jaffal_output_${sample_id}` you will find:
 * Nowicka, Malgorzata, and Mark D. Robinson. 2016. “DRIMSeq: A Dirichlet-Multinomial Framework for Multivariate Count Outcomes in Genomics [Version 2; Referees: 2 Approved].” F1000Research 5 (1356). https://doi.org/10.12688/f1000research.8900.2.
 * Patro, Robert, Geet Duggal, Michael I Love, Rafael A Irizarry, and Carl Kingsford. 2017. “Salmon Provides Fast and Bias-Aware Quantification of Transcript Expression.” Nature Methods 14 (March). https://doi.org/10.1038/nmeth.4197.
 * Robinson, Mark D, Davis J McCarthy, and Gordon K Smyth. 2010. “EdgeR: A Bioconductor Package for Differential Expression Analysis of Digital Gene Expression Data.” Bioinformatics 26 (1): 139–40.
-* Love, Michael I., et al. Swimming Downstream: Statistical Analysis of Differential Transcript Usage Following Salmon Quantification. 7:952, F1000Research, 14 Sept. 2018. f1000research.com, https://f1000research.com/articles/7-952## Useful links
+* Love, Michael I., et al. Swimming Downstream: Statistical Analysis of Differential Transcript Usage Following Salmon Quantification. 7:952, F1000Research, 14 Sept. 2018. f1000research.com, https://f1000research.com/articles/7-952
+
+
+
+## Useful links
 
 * [nextflow](https://www.nextflow.io/)
 * [docker](https://www.docker.com/products/docker-desktop)

@@ -30,6 +30,7 @@ process summariseConcatReads {
         tuple val(meta.sample_id), path('*.stats'), emit: summary
     script:
     """
+
     fastcat -s ${meta.sample_id} -r ${meta.sample_id}.stats -x ${directory} >  ${meta.sample_id}.fastq
     """
 }
@@ -55,7 +56,7 @@ process getVersions {
     stringtie --version | sed 's/^/stringtie,/' >> versions.txt
     gffcompare --version | head -n 1 | sed 's/ /,/' >> versions.txt
     spoa --version | sed 's/^/spoa,/' >> versions.txt
-    isONclust2 version | sed 's/ version: /,/' >> versions.txt
+#     isONclust2 version | sed 's/ version: /,/' >> versions.txt
     """
 }
 
@@ -67,6 +68,8 @@ process getParams {
         path "params.json"
     script:
         def paramsJSON = new JsonBuilder(params).toPrettyString()
+        println('test')
+        println(params.workDir)
     """
     # Output nextflow params object to JSON
     echo '$paramsJSON' > params.json
@@ -91,7 +94,7 @@ process preprocess_reads {
         """
         pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fastq
         mv pychopper.tsv ${sample_id}_pychopper.tsv
-        generate_pychopper_stats.py --data ${sample_id}_pychopper.tsv --output .
+        workflow-glue generate_pychopper_stats --data ${sample_id}_pychopper.tsv --output .
 
         # Add sample id column
         sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${sample_id}/" ${sample_id}_pychopper.tsv > tmp
@@ -242,7 +245,7 @@ process run_gffcompare{
         gffcompare -o ${out_dir}/str_merged -r ${ref_annotation} \
             ${params.gffcompare_opts} ${query_annotation}
 
-        generate_tracking_summary.py --tracking $out_dir/str_merged.tracking \
+        workflow-glue generate_tracking_summary --tracking $out_dir/str_merged.tracking \
             --output_dir ${out_dir} --annotation ${ref_annotation}
 
         mv *.tmap $out_dir
@@ -350,7 +353,7 @@ process makeReport {
     else
         OPT_PC_REPORT="--pychop_report pychopper_report/*"
     fi
-    report.py --report $report_name \
+    workflow-glue report --report $report_name \
     --versions $versions \
     --params params.json \
     \$OPT_ALN \

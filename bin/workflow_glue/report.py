@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Create workflow report."""
 
-import argparse
 from collections import Counter, defaultdict, OrderedDict
 import math
 import os
@@ -19,11 +18,65 @@ from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.palettes import Category10_10
 from bokeh.plotting import figure
 from bokeh.transform import dodge
-import de_plots
 import gffutils
 import numpy as np
 import pandas as pd
 import sigfig
+
+from . import de_plots  # noqa: ABS101
+from .util import wf_parser  # noqa: ABS101
+
+
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("report")
+    parser.add_argument("--report", help="Report output file")
+    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
+    parser.add_argument(
+        "--versions", required=True,
+        help="directory containing CSVs containing name,version.")
+    parser.add_argument(
+        "--params", default=None, required=True,
+        help="A JSON file containing the workflow parameter key/values")
+    parser.add_argument(
+        "--revision", default='unknown',
+        help="git branch/tag of the executed workflow")
+    parser.add_argument(
+        "--commit", default='unknown',
+        help="git commit of the executed workflow")
+    parser.add_argument(
+        "--alignment_stats", required=False, default=None, nargs='*',
+        help="TSV summary file of alignment statistics")
+    parser.add_argument(
+        "--gff_annotation", required=False, nargs='+',
+        help="transcriptome annotation gff file")
+    parser.add_argument(
+        "--gffcompare_dir", required=False, default=None, nargs='*',
+        help="gffcompare outout dir")
+    parser.add_argument(
+        "--pychop_report", required=False, default=None,
+        help="TSV summary file of pychopper statistics")
+    parser.add_argument(
+        "--sample_ids", required=True, nargs='+',
+        help="List of sample ids")
+    parser.add_argument(
+        "--isoform_table_nrows", required=False, type=int, default=5000,
+        help="Maximum rows to display in isoforms table")
+    parser.add_argument(
+        "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
+        help="Directory with various cluster quality csvs")
+    parser.add_argument(
+        "--jaffal_csv", required=False, type=str, default=None,
+        help="Path to JAFFAL results csv")
+    parser.add_argument(
+        "--de_report", required=False, type=str, default=None,
+        help="Differential expression report optional")
+    parser.add_argument(
+        "--de_stats", required=False, type=str, default=None, nargs='*',
+        help="Differential expression report optional")
+    parser.add_argument('--denovo', dest='denovo', action='store_true')
+
+    return parser
 
 
 def _parse_stat_line(sl):
@@ -846,57 +899,8 @@ def de_section(report):
         report=report)
 
 
-def main():
+def main(args):
     """Run the entry point."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--report", help="Report output file")
-    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
-    parser.add_argument(
-        "--versions", required=True,
-        help="directory containing CSVs containing name,version.")
-    parser.add_argument(
-        "--params", default=None, required=True,
-        help="A JSON file containing the workflow parameter key/values")
-    parser.add_argument(
-        "--revision", default='unknown',
-        help="git branch/tag of the executed workflow")
-    parser.add_argument(
-        "--commit", default='unknown',
-        help="git commit of the executed workflow")
-    parser.add_argument(
-        "--alignment_stats", required=False, default=None, nargs='*',
-        help="TSV summary file of alignment statistics")
-    parser.add_argument(
-        "--gff_annotation", required=False, nargs='+',
-        help="transcriptome annotation gff file")
-    parser.add_argument(
-        "--gffcompare_dir", required=False, default=None, nargs='*',
-        help="gffcompare outout dir")
-    parser.add_argument(
-        "--pychop_report", required=False, default=None,
-        help="TSV summary file of pychopper statistics")
-    parser.add_argument(
-        "--sample_ids", required=True, nargs='+',
-        help="List of sample ids")
-    parser.add_argument(
-        "--isoform_table_nrows", required=False, type=int, default=5000,
-        help="Maximum rows to display in isoforms table")
-    parser.add_argument(
-        "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
-        help="Directory with various cluster quality csvs")
-    parser.add_argument(
-        "--jaffal_csv", required=False, type=str, default=None,
-        help="Path to JAFFAL results csv")
-    parser.add_argument(
-        "--de_report", required=False, type=str, default=None,
-        help="Differential expression report optional")
-    parser.add_argument(
-        "--de_stats", required=False, type=str, default=None, nargs='*',
-        help="Differential expression report optional")
-    parser.add_argument('--denovo', dest='denovo', action='store_true')
-
-    args = parser.parse_args()
-
     sample_ids = args.sample_ids
 
     report = WFReport(
@@ -952,7 +956,3 @@ def main():
         section=scomponents.params_table(args.params))
 
     report.write(args.report)
-
-
-if __name__ == "__main__":
-    main()

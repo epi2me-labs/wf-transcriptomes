@@ -3,20 +3,20 @@
 
 # -*- coding: utf-8 -*-
 
-import argparse
 import os
-import sys
 
 import pandas as pd
 
+from .util import wf_parser  # noqa: ABS101
 
-def parse_args(argv=sys.argv[1:]):
-    """Parse arguments."""
-    description = """Script to run the isoform workflow """
-    parser = argparse.ArgumentParser(description=description)
+
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("generate_pychopper_stats")
     parser.add_argument("--data", required=True, help="")
     parser.add_argument("--output_dir", required=True, help="")
-    return parser.parse_args(argv)
+
+    return parser
 
 
 def generate_pychopper_stats(tsv, output):
@@ -37,7 +37,3 @@ def main(args):
     assert os.path.isfile(args.data)
     assert os.path.isdir(args.output_dir)
     generate_pychopper_stats(tsv=args.data, output=args.output_dir)
-
-
-if __name__ == '__main__':
-    main(args=parse_args())

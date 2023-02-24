@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-
 """Generate cluster quality data."""
 
 # Adapted form script by Kristoffer Sahlin for
 # isONclust: https://github.com/ksahlin/isONclust
 
-import argparse
 from collections import defaultdict
 import math
 from pathlib import Path
@@ -19,7 +17,54 @@ import pysam
 from sklearn.metrics.cluster import (
     adjusted_rand_score, completeness_score,
     homogeneity_score, v_measure_score)
+
+from .util import wf_parser  # noqa: ABS101
+
 matplotlib.use('Agg')
+
+
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("compute_cluster_quality")
+    parser.add_argument(
+        '--clusters',
+        type=str,
+        help='Inferred clusters (tsv file)')
+    parser.add_argument(
+        '--classes',
+        type=str,
+        help='A sorted and indexed bam file.')
+    parser.add_argument(
+        '--ctsv',
+        default=None,
+        type=str,
+        help='Write true classes in this TSV file.')
+    parser.add_argument(
+        '--simulated',
+        action="store_true",
+        help='Simulated data, we can simply read correct classes '
+             'from the ref field.')
+    parser.add_argument(
+        '--ont',
+        action="store_true",
+        help='ONT data, parsing accessions differently.')
+    parser.add_argument(
+        '--modified_ont',
+        action="store_true",
+        help='ONT data preprocessed accessions, parsing '
+             'accessions differently.')
+    parser.add_argument('--outfile', type=str, help='Output file with results')
+    parser.add_argument(
+        '--report',
+        type=str,
+        help='Output PDF file with report')
+    parser.add_argument('--sizes', type=str, help='Cluster sizes')
+    parser.add_argument(
+        '--raw_data_out',
+        type=str,
+        help='dir to save raw data for plotting')
+
+    return parser
 
 
 def parse_inferred_clusters_tsv(tsv_file, args):
@@ -602,51 +647,3 @@ def main(args):
     plt.clf()
 
     pages.close()
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Align predicted transcripts to transcripts in ensembl "
-                    "reference data base.")
-    parser.add_argument(
-        '--clusters',
-        type=str,
-        help='Inferred clusters (tsv file)')
-    parser.add_argument(
-        '--classes',
-        type=str,
-        help='A sorted and indexed bam file.')
-    parser.add_argument(
-        '--ctsv',
-        default=None,
-        type=str,
-        help='Write true classes in this TSV file.')
-    parser.add_argument(
-        '--simulated',
-        action="store_true",
-        help='Simulated data, we can simply read correct classes '
-             'from the ref field.')
-    parser.add_argument(
-        '--ont',
-        action="store_true",
-        help='ONT data, parsing accessions differently.')
-    parser.add_argument(
-        '--modified_ont',
-        action="store_true",
-        help='ONT data preprocessed accessions, parsing '
-             'accessions differently.')
-    parser.add_argument('--outfile', type=str, help='Output file with results')
-    parser.add_argument(
-        '--report',
-        type=str,
-        help='Output PDF file with report')
-    parser.add_argument('--sizes', type=str, help='Cluster sizes')
-    parser.add_argument(
-        '--raw_data_out',
-        type=str,
-        help='dir to save raw data for plotting')
-    args = parser.parse_args()
-
-    sys.stdout("------------------------------------------------------------")
-    main(args)
-    sys.stdout("------------------------------------------------------------")

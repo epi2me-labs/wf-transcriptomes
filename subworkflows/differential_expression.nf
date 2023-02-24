@@ -24,7 +24,7 @@ process mergeCounts {
     output:
         path "all_counts.tsv"
     """
-    merge_count_tsvs.py -z -o all_counts.tsv -tsvs ${counts}
+    workflow-glue merge_count_tsvs -z -o all_counts.tsv -tsvs ${counts}
     """
 }
 
@@ -35,7 +35,7 @@ process mergeTPM {
     output:
         path "tpm_counts.tsv"
     """
-    merge_count_tsvs.py -o tpm_counts.tsv -z -tpm True -tsvs $counts 
+    workflow-glue merge_count_tsvs -o tpm_counts.tsv -z -tpm True -tsvs $counts
     """
 }
 
@@ -51,7 +51,7 @@ process deAnalysis {
         path "merged/all_counts_filtered.tsv", emit: flt_counts
         path "merged/all_gene_counts.tsv", emit: gene_counts
         path "de_analysis/results_dge.tsv", emit: dge
-        path  "de_analysis/results_dexseq.tsv", emit: dexseq
+        path "de_analysis/results_dexseq.tsv", emit: dexseq
         path "de_analysis", emit: de_analysis
     
     """

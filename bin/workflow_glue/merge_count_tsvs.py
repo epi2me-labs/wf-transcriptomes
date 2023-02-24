@@ -1,36 +1,40 @@
 #!/usr/bin/env python
 """Merge salmon output count files."""
 
-import argparse
 from functools import reduce
 
 import numpy as np
 import pandas as pd
 
-# Parse command line arguments:
-parser = argparse.ArgumentParser(
-    description="""Merge tab separated files on a given field using pandas.""")
-parser.add_argument(
-    '-j', metavar='join', help="Join type (outer).", default="outer")
-parser.add_argument(
-    '-f', metavar='field',
-    help="Join on this field (Reference).", default="Reference")
-parser.add_argument(
-    '-o', metavar='out_tsv',
-    help="Output tsv (merge_tsvs.tsv).", default="merge_tsvs.tsv")
-parser.add_argument(
-    '-z', action="store_true",
-    help="Fill NA values with zero.", default=False)
-parser.add_argument(
-    '-tpm', type=bool, default=False,
-    help="TPM instead of counts")
-parser.add_argument(
-    '-tsvs', metavar='input_tsvs', nargs='*',
-    help="Input tab separated files.")
+from .util import wf_parser  # noqa: ABS101
 
-if __name__ == '__main__':
 
-    args = parser.parse_args()
+def argparser():
+    """Argument parser for entrypoint."""
+    parser = wf_parser("merge_count_tsvs")
+    parser.add_argument(
+        '-j', metavar='join', help="Join type (outer).", default="outer")
+    parser.add_argument(
+        '-f', metavar='field',
+        help="Join on this field (Reference).", default="Reference")
+    parser.add_argument(
+        '-o', metavar='out_tsv',
+        help="Output tsv (merge_tsvs.tsv).", default="merge_tsvs.tsv")
+    parser.add_argument(
+        '-z', action="store_true",
+        help="Fill NA values with zero.", default=False)
+    parser.add_argument(
+        '-tpm', type=bool, default=False,
+        help="TPM instead of counts")
+    parser.add_argument(
+        '-tsvs', metavar='input_tsvs', nargs='*',
+        help="Input tab separated files.")
+
+    return parser
+
+
+def main(args):
+    """Run entry point."""
     dfs = {x: pd.read_csv(x, sep="\t") for x in args.tsvs}
 
     ndfs = []
