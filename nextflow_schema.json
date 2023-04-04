@@ -219,9 +219,9 @@
                 "condition_sheet": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "TSV file with sample_id, condition",
+                    "description": "CSV file with sample_id, condition",
                     "default": "null",
-                    "help_text": "The condition sheet should be a headed TSV file with two columns sample_id,condition. Should be at least 3 repeats for each condition."
+                    "help_text": "The condition sheet should be a headed CSV file with two columns sample_id,condition. Should be at least 3 repeats for each condition."
                 },
                 "min_gene_expr": {
                     "type": "integer",

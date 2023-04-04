@@ -118,16 +118,16 @@ process map_transcriptome{
     cpus params.threads
 
     input:
-       tuple val(sample_id), path (fastq_reads)
+       tuple val(meta), path (fastq_reads)
        file index
        file transcript_reference
     output:
-       tuple val(sample_id), path("${sample_id}_reads_aln_sorted.bam"), emit: bam
+       tuple val("${meta.alias}"), path("${meta.alias}_reads_aln_sorted.bam"), emit: bam
     """
     minimap2 -t ${task.cpus} -ax splice -uf -p 1.0 "${index}" "${fastq_reads}" \
     | samtools view -Sb > "output.bam"
-    samtools sort -@ ${task.cpus} "output.bam" -o "${sample_id}_reads_aln_sorted.bam"
-    samtools index "${sample_id}_reads_aln_sorted.bam"
+    samtools sort -@ ${task.cpus} "output.bam" -o "${meta.alias}_reads_aln_sorted.bam"
+    samtools index "${meta.alias}_reads_aln_sorted.bam"
     """
 }
 

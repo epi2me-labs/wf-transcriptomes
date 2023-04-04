@@ -16,24 +16,7 @@ include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 
-
-
-process summariseConcatReads {
-    // concatenate fastq and fastq.gz in a dir write stats
-
-    label "isoforms"
-    cpus 1
-    input:
-        tuple path(directory), val(meta)
-    output:
-        tuple val(meta.sample_id), path("${meta.sample_id}.fastq"), emit: input_reads
-        tuple val(meta.sample_id), path('*.stats'), emit: summary
-    script:
-    """
-
-    fastcat -s ${meta.sample_id} -r ${meta.sample_id}.stats -x ${directory} >  ${meta.sample_id}.fastq
-    """
-}
+OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
 process getVersions {
     label "isoforms"
@@ -68,8 +51,6 @@ process getParams {
         path "params.json"
     script:
         def paramsJSON = new JsonBuilder(params).toPrettyString()
-        println('test')
-        println(params.workDir)
     """
     # Output nextflow params object to JSON
     echo '$paramsJSON' > params.json
@@ -86,19 +67,19 @@ process preprocess_reads {
     cpus 4
 
     input:
-        tuple val(sample_id), path(input_reads)
+        tuple val(meta), path(input_reads)
     output:
-         tuple val(sample_id), path("${sample_id}_full_length_reads.fastq"), emit: full_len_reads
+         tuple val("${meta.alias}"), path("${meta.alias}_full_length_reads.fastq"), emit: full_len_reads
          path '*.tsv',  emit: report
     script:
         """
-        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${sample_id}_full_length_reads.fastq
-        mv pychopper.tsv ${sample_id}_pychopper.tsv
-        workflow-glue generate_pychopper_stats --data ${sample_id}_pychopper.tsv --output .
+        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${meta.alias}_full_length_reads.fastq
+        mv pychopper.tsv ${meta.alias}_pychopper.tsv
+        workflow-glue generate_pychopper_stats --data ${meta.alias}_pychopper.tsv --output .
 
         # Add sample id column
-        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${sample_id}/" ${sample_id}_pychopper.tsv > tmp
-        mv tmp ${sample_id}_pychopper.tsv
+        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${meta.alias}/" ${meta.alias}_pychopper.tsv > tmp
+        mv tmp ${meta.alias}_pychopper.tsv
         """
 }
 
@@ -312,7 +293,7 @@ process makeReport {
         path "pychopper_report/*"
         path"jaffal_csv/*"
         val sample_ids
-        path seq_summaries
+        path per_read_stats
         path "aln_stats/*"
         path gffcmp_dir
         path "gff_annotation/*"
@@ -359,7 +340,7 @@ process makeReport {
     \$OPT_ALN \
     \$OPT_PC_REPORT \
     --sample_ids $sids \
-    --summaries $seq_summaries \
+    --stats $per_read_stats \
     \$OPT_GFF \
     --isoform_table_nrows $params.isoform_table_nrows \
     \$OPT_JAFFAL_CSV \
@@ -369,21 +350,55 @@ process makeReport {
     """
 }
 
-// See https://github.com/nextflow-io/nextflow/issues/1636
-// This is the only way to publish files from a workflow whilst
-// decoupling the publish from the process steps.
-process output {
-    // publish inputs to output directory
-    publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
+
+// Creates a new directory named after the sample alias and moves the fastcat results
+// into it.
+process collectFastqIngressResultsInDir {
     label "isoforms"
     input:
-        path fname
+        // both the fastcat seqs as well as stats might be `OPTIONAL_FILE` --> stage in
+        // different sub-directories to avoid name collisions
+        tuple val(meta), path(concat_seqs, stageAs: "seqs/*"), path(fastcat_stats,
+            stageAs: "stats/*")
+    output:
+        // use sub-dir to avoid name clashes (in the unlikely event of a sample alias
+        // being `seq` or `stats`)
+        path "out/*"
+    script:
+    String outdir = "out/${meta["alias"]}"
+    String metaJson = new JsonBuilder(meta).toPrettyString()
+    String concat_seqs = \
+        (concat_seqs.fileName.name == OPTIONAL_FILE.name) ? "" : concat_seqs
+    String fastcat_stats = \
+        (fastcat_stats.fileName.name == OPTIONAL_FILE.name) ? "" : fastcat_stats
+    """
+    mkdir -p $outdir
+    echo '$metaJson' > metamap.json
+    mv metamap.json $concat_seqs $fastcat_stats $outdir
+    """
+}
+
+
+// See https://github.com/nextflow-io/nextflow/issues/1636. This is the only way to
+// publish files from a workflow whilst decoupling the publish from the process steps.
+// The process takes a tuple containing the filename and the name of a sub-directory to
+// put the file into. If the latter is `null`, puts it into the top-level directory.
+process output {
+    // publish inputs to output directory
+    label "isoforms"
+    publishDir (
+        params.out_dir,
+        mode: "copy",
+        saveAs: { dirname ? "$dirname/$fname" : fname }
+    )
+    input:
+        tuple path(fname), val(dirname)
     output:
         path fname
     """
-    echo "Writing output files"
     """
 }
+
 
 // workflow module
 workflow pipeline {
@@ -397,6 +412,10 @@ workflow pipeline {
         condition_sheet
         ref_transcriptome
     main:
+        fastq_ingress_results = reads
+        // replace `null` with path to optional file
+        | map { [ it[0], it[1] ?: OPTIONAL_FILE, it[2] ?: OPTIONAL_FILE ] }
+        | collectFastqIngressResultsInDir
         map_sample_ids_cls = {it ->
         /* Harmonize tuples
         output:
@@ -419,19 +438,23 @@ workflow pipeline {
             return l
         }
 
-        summariseConcatReads(reads)
-        sample_ids = summariseConcatReads.out.summary.flatMap({it -> it[0]})
+        
 
         software_versions = getVersions()
         workflow_params = getParams()
+        input_reads = reads.map{ meta, samples, stats -> [meta, samples]}
+        sample_ids = input_reads.flatMap({meta,samples -> meta.alias})
+        stats = reads.map {
+            it[2] ? it[2].resolve('per-read-stats.tsv') : null
+        }
 
         if (!params.direct_rna){
-            preprocess_reads(summariseConcatReads.out.input_reads)
+            preprocess_reads(input_reads)
             full_len_reads = preprocess_reads.out.full_len_reads
             pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
         }
         else{
-            full_len_reads = summariseConcatReads.out.input_reads
+            full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
             pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
         }
         if (params.transcriptome_source != "precomputed"){
@@ -446,7 +469,7 @@ workflow pipeline {
                 assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
             }
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
-
+     
             split_bam(assembly.bam)
         
             assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
@@ -465,7 +488,6 @@ workflow pipeline {
                 // So map this reference to all sample_ids
                 seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
             }
-
             get_transcriptome(
                 merge_gff_bundles.out.gff
                 .join(run_gffcompare.out.gffcmp_dir)
@@ -505,8 +527,9 @@ workflow pipeline {
             check_condition_sheet = check_match.splitCsv(header: true).map{ row -> tuple(
                 row.sample_id)
             }
-            check_condition_sheet.join(summariseConcatReads.out.input_reads, failOnMismatch: true)
-            de = differential_expression(transcriptome, summariseConcatReads.out.input_reads, condition_sheet, gtf)
+            join_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
+            check_condition_sheet.join(join_reads, failOnMismatch: true)
+            de = differential_expression(transcriptome, input_reads, condition_sheet, gtf)
             de_report = de.all_de
             count_transcripts_file = de.count_transcripts
             dtu_plots = de.dtu_plots
@@ -521,8 +544,8 @@ workflow pipeline {
             workflow_params,
             pychopper_report,
             jaffal_out,
-            summariseConcatReads.out.summary.map{it->it[0]}.collect(),
-            summariseConcatReads.out.summary.map{it->it[1]}.collect(),
+            input_reads.map{ meta, fastq -> meta.alias}.collect(),
+            stats,
             assembly_stats,
             gff_compare,
             merge_gff,
@@ -530,7 +553,7 @@ workflow pipeline {
             count_transcripts_file)
 
         report = makeReport.out.report
-        
+       
         results = results.concat(makeReport.out.report)
        
        if (use_ref_ann){
@@ -575,6 +598,7 @@ workflow pipeline {
             results = results.concat(de.dtu_plots, de_outputs)
         }
 
+        results  = fastq_ingress_results.map { [it, "fastq_ingress_results"] }.concat(results.map{ [it, null]})
     emit:
         results
         telemetry = workflow_params
@@ -652,10 +676,13 @@ workflow {
     if (error){
         throw new Exception(error)
     }else{
-        reads = fastq_ingress([
-            "input":params.fastq,
-            "sample":params.sample,
-            "sample_sheet":params.sample_sheet])
+        reads = samples = fastq_ingress([
+        "input":params.fastq,
+        "sample":params.sample,
+        "sample_sheet":params.sample_sheet,
+        "analyse_unclassified":params.analyse_unclassified,
+        "fastcat_stats": true,
+        "fastcat_extra_args": ""])
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
