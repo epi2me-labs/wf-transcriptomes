@@ -31,7 +31,7 @@ def argparser():
     """Argument parser for entrypoint."""
     parser = wf_parser("report")
     parser.add_argument("--report", help="Report output file")
-    parser.add_argument("--summaries", nargs='+', help="Read summary file.")
+    parser.add_argument("--stats", help="Read stats file.")
     parser.add_argument(
         "--versions", required=True,
         help="directory containing CSVs containing name,version.")
@@ -821,17 +821,16 @@ def load_sample_data(files, sample_ids, read_func=None):
     return df_
 
 
-def seq_stats_tabs(report, sample_ids, stats):
+def seq_stats_tabs(report, stats):
     """Make tabs of sequence summaries by sample."""
     tabs = []
-    for id_, summ in sorted(zip(sample_ids, stats)):
-        df_sum = pd.read_csv(summ, index_col=False, sep='\t')
-        rlp = read_length_plot(df_sum)
-        rqp = read_quality_plot(df_sum)
+    df_all = pd.read_csv(stats, sep="\t")
+    for sample_id, df_sample in df_all.groupby('sample_name'):
+        rlp = read_length_plot(df_sample)
+        rqp = read_quality_plot(df_sample)
         grid = gridplot(
             [rlp, rqp], ncols=2, sizing_mode="stretch_width")
-
-        tabs.append(Panel(child=grid, title=id_))
+        tabs.append(Panel(child=grid, title=sample_id))
     section = report.add_section()
     section.markdown("""
     ### Sequence summaries""")
@@ -908,7 +907,7 @@ def main(args):
         revision=args.revision, commit=args.commit)
 
     # QC
-    seq_stats_tabs(report, args.sample_ids, args.summaries)
+    seq_stats_tabs(report, args.stats)
 
     if args.alignment_stats is not None:
         df_aln_stats = load_sample_data(args.alignment_stats, sample_ids)
