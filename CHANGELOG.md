@@ -4,27 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+### Changed
+- LICENSE to Oxford Nanopore Technologies PLC. Public License Version 1.0.
+
 ## [v0.1.10]
-### Updated
+### Changed
 - Condition sheet parameter description fixed to CSV
 - Update fastqingress
   
 ## [v0.1.9]
-### Updated
+### Changed
 - Simplify JAFFAL docs 
 
 ## [v0.1.8]
 ### Changed
-- Updated description in manifest
+- Description in manifest
 
 ## [v0.1.7]
-### Updated
+### Changed
 - `-profile conda` is no longer supported, users should use `-profile standard` (Docker) or `-profile singularity` instead
 - `nextflow run epi2me-labs/wf-transcriptomes --version` will now print the workflow version number and exit
 - Use parameter `--transcriptome-source` to define precalculated, reference-based or denovo
 
 ## [v0.1.6]
-### Updated
+### Changed
 - Removed sanitize option
 - Reduce size of differential expression data.
 ### Added
