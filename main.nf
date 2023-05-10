@@ -64,7 +64,7 @@ process preprocess_reads {
     */
 
     label "isoforms"
-    cpus 4
+    //cpus 4
 
     input:
         tuple val(meta), path(input_reads)
@@ -291,7 +291,7 @@ process makeReport {
         path versions
         path "params.json"
         path "pychopper_report/*"
-        path"jaffal_csv/*"
+        path "jaffal_csv/*"
         val sample_ids
         path per_read_stats
         path "aln_stats/*"
