@@ -1,21 +1,24 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 ### Changed
 - LICENSE to Oxford Nanopore Technologies PLC. Public License Version 1.0.
 
+### Added
+- Configuration for running demo data in AWS
+
 ## [v0.1.10]
 ### Changed
 - Condition sheet parameter description fixed to CSV
 - Update fastqingress
-  
+
 ## [v0.1.9]
 ### Changed
-- Simplify JAFFAL docs 
+- Simplify JAFFAL docs
 
 ## [v0.1.8]
 ### Changed
@@ -31,14 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Removed sanitize option
 - Reduce size of differential expression data.
+
 ### Added
 - Improved DE explanation in docs
 - Option to turn off transcript assembly steps with param transcript_assembly
+
 ### Fixed
 - Fix JAFFAL terminating workflow when no fusions found.
 - Error if condition sheet and sample sheet don't match.
 - Failed to plot DE graphs when one of data sets is 0 length.
-
 
 ## [v0.1.5]
 ### Added
@@ -47,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.4]
 ### Added
 - JAFFAL fusion detection subworkflow
+
 ### Changed
 - Args parser for fastqingress
 - Set out_dir option type to ensure output is written to correct directory on Windows
@@ -74,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.0]
 ### Added
 - Added the denovo pipeline
+
 ### Changed
 - Updates to the report plots
 
@@ -81,3 +87,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - First release
 - Initial port of Snakemake WF from https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
+
