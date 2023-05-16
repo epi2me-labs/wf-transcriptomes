@@ -4,6 +4,7 @@
     "title": "epi2me-labs/wf-transcriptomes",
     "description": "Transcriptome analysis including gene fusions, differential expression as well as assembly and annotation of cDNA and direct RNA sequencing data.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
+    "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-transcriptomes",
     "type": "object",
     "definitions": {
