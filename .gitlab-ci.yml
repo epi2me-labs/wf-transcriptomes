@@ -11,6 +11,12 @@ variables:
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
               CI_FLAVOUR: "new"
 
+macos-run:
+  # Let's avoid those ARM64 runners for now
+  tags:
+    - macos
+    - x86
+
 docker-run:
 
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
