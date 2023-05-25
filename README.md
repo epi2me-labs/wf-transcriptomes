@@ -1,5 +1,52 @@
 # wf-transcriptomes
 
+This is a repository for my adapted version of `wf-transcriptomes`.
+
+Changes:
+
+1. add SLURM as job scheduler;
+2. modify resource usage to work on Rackham
+3. hardcoded the path to Singularity/Apptainer image in `nextflow.config`, which was pulled manually from docker hub;
+4. 
+
+Usage:
+
+```
+	module load java/OracleJDK_11.0.9
+	module load bioinfo-tools
+	module load Nextflow/22.10.1
+
+	export NXF_HOME="/path/to/nextflow.tmp"
+	export APPTAINERENV_TMPDIR="/path/to/containers"
+	export NXF_SINGULARITY_CACHEDIR="/path/to/containers"
+	export pipelineDir="/path/to/wf-transcriptomes"
+
+	annotdir="/path/to/reference/hg38"
+	fa="${annotdir}/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+	gtf="${annotdir}/Homo_sapiens.GRCh38.109.gtf"
+
+	jaffaldir="/path/to/jaffal_data_dir"
+
+	fastqdir="/path/to/dir_with_fastq"
+
+	nextflow run $pipelineDir/main.nf --fastq $fastqdir --ref_genome $fa \
+	  --ref_annotation $gtf \
+	  --jaffal_refBase $jaffaldir \
+	  --jaffal_genome hg38 \
+	  --jaffal_annotation "genCode22" \
+	  --out_dir pilot_run4_10v2023_barcode0304 -profile singularity,slurm \
+	  --pychopper_opts '-k PCS111 -m edlib'
+```
+
+To use profile `slurm`, a local `nextflow.config` file should be provided with:
+
+```
+params.clustalloc="naiss1234-56-789"
+```
+
+
+## Original readme
+
 This repository contains a [nextflow](https://www.nextflow.io/) workflow
 for assembly and annotation of transcripts from Oxford Nanopore cDNA or direct RNA reads.
 It has been adapted from two existing Snakemake pipelines:
