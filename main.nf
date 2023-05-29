@@ -15,7 +15,7 @@ include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
-include { reference_map_all_genome } from './subworkflows/reference_map_all'
+include { reference_map_all_genome } from './subworkflows/reference_map_all_genome'
 
 
 // added 29 v 2023
@@ -616,7 +616,7 @@ workflow pipeline {
         results  = fastq_ingress_results.map { [it, "fastq_ingress_results"] }.concat(results.map{ [it, null]})
 
         //added (AS 29v2023)
-        map_all_genome = map_reads_all(build_minimap_index.out.index, ref_genome, full_len_reads)
+        map_all_genome = map_reads_all_genome(build_minimap_index.out.index, ref_genome, full_len_reads)
         
 
 
