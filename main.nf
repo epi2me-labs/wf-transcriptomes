@@ -15,7 +15,7 @@ include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
-include { reference_map_all } from './subworkflows/reference_map_all'
+include { reference_map_all_genome } from './subworkflows/reference_map_all'
 
 
 // added 29 v 2023

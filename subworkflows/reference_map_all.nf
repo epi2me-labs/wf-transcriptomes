@@ -51,7 +51,7 @@ process map_reads_all{
 
 
 
-workflow map_reads_all {
+workflow map_reads_all_genome {
     take:
        index
        reference
