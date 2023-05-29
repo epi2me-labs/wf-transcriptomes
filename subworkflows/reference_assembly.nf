@@ -1,3 +1,5 @@
+params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
+
 process map_reads{
     /*
     Map reads to reference using minimap2.

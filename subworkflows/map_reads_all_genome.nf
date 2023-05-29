@@ -1,3 +1,6 @@
+params.mappedAllOut="${params.out_dir}/bam_minimap_genome_all"
+
+
 process map_reads_all{
     /*
     Map reads to reference using minimap2.
@@ -9,7 +12,7 @@ process map_reads_all{
 
 
     //added (AS 29v2023)
-    publishDir mappedAllOut, mode:'copy'
+    publishDir params.mappedAllOut, mode:'copy'
 
 
 
