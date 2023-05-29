@@ -7,6 +7,11 @@ process map_reads{
     label "isoforms"
     cpus params.threads
 
+    //added (AS 29v2023)
+    publishDir params.mappedOut, mode:'copy'
+
+
+
     input:
        path index
        path reference

@@ -15,6 +15,17 @@ include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
+include { reference_map_all } from './subworkflows/reference_map_all'
+
+
+// added 29 v 2023
+// save additional output files
+params.fastqprocOut="${params.out_dir}/fastq_pychopper"
+params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
+params.mappedAllOut="${params.out_dir}/bam_minimap_genome_all"
+params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_all"
+params.salmonOut="${params.out_dir}/salmon"
+
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
@@ -65,6 +76,10 @@ process preprocess_reads {
 
     label "isoforms"
     //cpus 4
+
+    //added (AS 29v2023)
+    publishDir params.fastqprocOut, mode:'copy'
+
 
     input:
         tuple val(meta), path(input_reads)
@@ -599,6 +614,12 @@ workflow pipeline {
         }
 
         results  = fastq_ingress_results.map { [it, "fastq_ingress_results"] }.concat(results.map{ [it, null]})
+
+        //added (AS 29v2023)
+        map_all_genome = map_reads_all(build_minimap_index.out.index, ref_genome, full_len_reads)
+        
+
+
     emit:
         results
         telemetry = workflow_params
