@@ -16,6 +16,7 @@ include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 include { map_reads_all_genome } from './subworkflows/map_reads_all_genome'
+include { map_reads_all_transcriptome } from './subworkflows/map_reads_all_transcriptome'
 
 
 // added 29 v 2023
@@ -112,6 +113,25 @@ process build_minimap_index{
     script:
     """
     minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
+    """
+}
+
+process build_minimap_trx_index{
+    /*
+    Build minimap index from reference transcriptome obtained from ref genome and gtf annotation
+    */
+    label "isoforms"
+    cpus params.threads
+
+    input:
+        path reference
+        path gene_models
+    output:
+        path "transcriptome_ref_index.mmi", emit: index_trx
+    script:
+    """
+    gffread -w transcriptome.gffread.fa -g ${reference} ${gene_models}
+    minimap2 -t ${params.threads} -I 1000G -d transcriptome_ref_index.mmi transcriptome.gffread.fa
     """
 }
 
@@ -618,6 +638,13 @@ workflow pipeline {
         //added (AS 29v2023)
         map_all_genome = map_reads_all_genome(build_minimap_index.out.index, ref_genome, full_len_reads)
         
+        build_minimap_trx_index(ref_genome, ref_annotation)
+        
+        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx, full_len_reads)
+
+
+
+        // end added
 
 
     emit:
