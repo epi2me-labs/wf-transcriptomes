@@ -24,7 +24,7 @@ include { map_reads_all_transcriptome } from './subworkflows/map_reads_all_trans
 params.fastqprocOut="${params.out_dir}/fastq_pychopper"
 params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
 params.mappedAllOut="${params.out_dir}/bam_minimap_genome_all"
-params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_all"
+params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_filt"
 params.salmonOut="${params.out_dir}/salmon"
 
 
@@ -128,6 +128,7 @@ process build_minimap_trx_index{
         path gene_models
     output:
         path "transcriptome_ref_index.mmi", emit: index_trx
+        path "transcriptome.gffread.fa", emit: ref_transcriptome_fa
     script:
     """
     gffread -w transcriptome.gffread.fa -g ${reference} ${gene_models}
@@ -640,7 +641,7 @@ workflow pipeline {
         
         build_minimap_trx_index(ref_genome, ref_annotation)
         
-        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx, full_len_reads)
+        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx,build_minimap_trx_index.out.ref_transcriptome_fa, full_len_reads)
 
 
 
