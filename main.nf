@@ -57,6 +57,47 @@ process getParams {
     """
 }
 
+
+process decompress_ref {
+    label "isoforms"
+    cpus 1
+    input:
+        path compressed_ref
+    output:
+        path "${compressed_ref.baseName}", emit: decompressed_ref
+    """
+    gzip -df ${compressed_ref}
+    """
+}
+
+
+process decompress_annotation {
+    label "isoforms"
+    cpus 1
+    input:
+        path compressed_annotation
+    output:
+        path "${compressed_annotation.baseName}"
+    """
+    gzip -df ${compressed_annotation}
+    """
+}
+
+// Remove empty transcript ID fields
+process preprocess_ref_annotation {
+    label "isoforms"
+    cpus 1
+    input:
+        path ref_annotation
+    output:
+        path "ammended.${ref_annotation}"
+    """
+    sed -i -e 's/transcript_id "";//g' ${ref_annotation}
+    mv ${ref_annotation} "ammended.${ref_annotation}"
+    """
+}
+
+
 process preprocess_reads {
     /*
     Concatenate reads from a sample directory.
@@ -157,12 +198,12 @@ process assemble_transcripts{
     cpus params.threads
 
     input:
-        tuple val(sample_id), path(bam)
-        path ref_annotation
+        tuple val(sample_id), path(bam), path(ref_annotation)
+        val use_ref_ann
     output:
         tuple val(sample_id), path('*.gff'), emit: gff_bundles
     script:
-        def G_FLAG = ref_annotation.name.startsWith('OPTIONAL_FILE') ? '' : "-G ${ref_annotation}"
+        def G_FLAG = use_ref_ann == false ? '' : "-G ${ref_annotation}"
         def prefix =  bam.name.split(/\./)[0]
 
     """
@@ -311,7 +352,7 @@ process makeReport {
         dereport=""
     else
         dereport="--de_report true --de_stats "seqkit/*""
-        mv de_report/*.gtf de_report/stringtie_merged.gtf
+        mv de_report/*.g*f* de_report/stringtie_merged.gtf
     fi
     if [ -f "gff_annotation/OPTIONAL_FILE" ]; then
         OPT_GFF=""
@@ -411,7 +452,24 @@ workflow pipeline {
         jaffal_annotation
         condition_sheet
         ref_transcriptome
+        use_ref_ann
     main:
+        if (params.ref_genome.toLowerCase().endsWith("gz")) {
+            // gzipped ref not supported by some downstream tools
+            // easier to just decompress and pass it around.
+            ref_genome = decompress_ref(ref_genome)
+        }else {
+            ref_genome = Channel.fromPath(ref_genome)
+        }
+        if (params.ref_annotation.toLowerCase().endsWith("gz")) {
+            // gzipped ref not supported by some downstream tools
+            // easier to just decompress and pass it around.
+            decompress_annot= decompress_annotation(ref_annotation)
+            ref_annotation = preprocess_ref_annotation(decompress_annot)
+        }else {
+            ref_annotation = preprocess_ref_annotation(ref_annotation)
+        }
+        
         fastq_ingress_results = reads
         // replace `null` with path to optional file
         | map { [ it[0], it[1] ?: OPTIONAL_FILE, it[2] ?: OPTIONAL_FILE ] }
@@ -471,13 +529,10 @@ workflow pipeline {
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
      
             split_bam(assembly.bam)
-        
-            assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls), ref_annotation)
+
+            assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls).combine(ref_annotation),use_ref_ann)
 
             merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
-
-            use_ref_ann = !ref_annotation.name.startsWith('OPTIONAL_FILE')
-
             run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
 
             if (params.transcriptome_source == "denovo"){
@@ -486,7 +541,7 @@ workflow pipeline {
             }else {
                 // For reference based assembly, there is only one reference
                 // So map this reference to all sample_ids
-                seq_for_transcriptome_build = sample_ids.flatten().combine(Channel.fromPath(params.ref_genome))
+                seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome)
             }
             get_transcriptome(
                 merge_gff_bundles.out.gff
@@ -521,7 +576,7 @@ workflow pipeline {
             }
             else {
                 transcriptome = ref_transcriptome
-                gtf = Channel.fromPath(ref_annotation)
+                gtf = ref_annotation
             }
             check_match = Channel.fromPath(params.condition_sheet)
             check_condition_sheet = check_match.splitCsv(header: true).map{ row -> tuple(
@@ -634,7 +689,6 @@ workflow {
     }else {
         ref_genome = file("$projectDir/data/OPTIONAL_FILE")
     }
-
     if (params.transcriptome_source == "denovo" && params.ref_annotation) {
         error = "Reference annotation with de denovo assembly is not supported"
     }
@@ -645,8 +699,10 @@ workflow {
         if (!ref_annotation.exists()) {
             error = "--ref_annotation: File doesn't exist, check path."
         }
+        use_ref_ann = true
     }else{
-        ref_annotation = file("$projectDir/data/OPTIONAL_FILE")
+        ref_annotation= file("$projectDir/data/OPTIONAL_FILE")
+        use_ref_ann = false
     }
     if (params.jaffal_refBase){
         jaffal_refBase = file(params.jaffal_refBase, type: "dir")
@@ -666,7 +722,6 @@ workflow {
             error = "You must provide a reference annotation."
         }
         if (!params.condition_sheet){
-
             error = "You must provide a condition_sheet or set de_analysis to false."
         }
         condition_sheet = file(params.condition_sheet, type:"file")
@@ -686,7 +741,7 @@ workflow {
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-            condition_sheet, ref_transcriptome)
+            condition_sheet, ref_transcriptome, use_ref_ann)
 
         output(pipeline.out.results)
     }

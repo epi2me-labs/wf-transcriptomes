@@ -16,8 +16,9 @@ coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$conditi
 de_params <- read.csv("de_analysis/de_params.tsv", sep="\t", stringsAsFactors=FALSE)
 
 cat("Loading annotation database.\n")
-#txdb <- makeTxDbFromGFF(de_params$Annotation[[1]])
-txdb <- makeTxDbFromGFF("annotation.gtf")
+
+annotationtype <- de_params$annotation_type[[1]]
+txdb <- makeTxDbFromGFF("annotation.gtf",  format = annotationtype)
 txdf <- select(txdb, keys(txdb,"GENEID"), "TXNAME", "GENEID")
 tab <- table(txdf$GENEID)
 txdf$ntx<- tab[match(txdf$GENEID, names(tab))]
@@ -42,7 +43,7 @@ rownames(txdf) <- NULL
 counts<-data.frame(gene_id=txdf$GENEID, feature_id=txdf$TXNAME, cts)
 
 cat("Filtering counts using DRIMSeq.\n")
-print(coldata)
+
 d <- dmDSdata(counts=counts, samples=coldata)
 trs_cts_unfiltered <- counts(d)
 

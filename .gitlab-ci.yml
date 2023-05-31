@@ -18,6 +18,22 @@ macos-run:
     - x86
 
 docker-run:
+    artifacts:
+        when: always
+        paths:
+            - ${CI_PROJECT_NAME}
+            - .nextflow.log
+        exclude:
+            - ${CI_PROJECT_NAME}/**/*.gtf
+            - ${CI_PROJECT_NAME}/**/*.gtf.gz
+            - ${CI_PROJECT_NAME}/**/*.gff3
+            - ${CI_PROJECT_NAME}/**/*.gff3.gz
+            - ${CI_PROJECT_NAME}/**/*.gff
+            - ${CI_PROJECT_NAME}/**/*.gff.gz
+            - ${CI_PROJECT_NAME}/**/*.fna
+            - ${CI_PROJECT_NAME}/**/*.fasta
+            - ${CI_PROJECT_NAME}/**/*.mmi
+    
 
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
     #   the CI environment, we can use the value of MATRIX_NAME to determine
@@ -27,7 +43,9 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "fusions", "differential_expression", "only_differential_expression", "isoforms"
+                "fusions", "differential_expression", "isoforms",
+                "only_differential_expression", "differential_expression_gff3",
+                "ncbi_gzip"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -40,14 +58,14 @@ docker-run:
               NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf"
-              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
+              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref
         - if: $MATRIX_NAME == "fusions"
           variables:
               NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
                   --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22"
-              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
+              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref
         - if: $MATRIX_NAME == "differential_expression"
           variables:
               NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
@@ -56,7 +74,7 @@ docker-run:
                   --ref_genome differential_expression/hg38_chr20.fa --transcriptome-source reference-guided \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
                 --direct_rna --minimap_index_opts \\-k15"
-              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes
+              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
               NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
@@ -64,10 +82,38 @@ docker-run:
                   --transcriptome-source precomputed \
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
-                --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
+                --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
                 --direct_rna --minimap_index_opts \\-k15 \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
                 --transcriptome_assembly false"
               NF_IGNORE_PROCESSES: >
-                preprocess_reads,merge_transcriptomes,assemble_transcripts,
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
+        - if: $MATRIX_NAME == "differential_expression_gff3"
+          variables:
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
+                  --transcriptome-source precomputed \
+                  --de_analysis \
+                  --ref_genome differential_expression/hg38_chr20.fa \
+                --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff3 \
+                --direct_rna --minimap_index_opts \\-k15 \
+                --ref_transcriptome differential_expression/ref_transcriptome.fasta \
+                --transcriptome_assembly false"
+              NF_IGNORE_PROCESSES: >
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
+                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
+        - if: $MATRIX_NAME == "ncbi_gzip"
+          variables:
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_WORKFLOW_OPTS: "-executor.$$local.memory 16GB \
+--fastq  differential_expression/differential_expression_fastq \
+                  --transcriptome-source precomputed \
+                  --de_analysis \
+                  --ref_genome differential_expression/GRCh38.p14.NCBI_test.fna.gz \
+                --ref_annotation differential_expression/GRCh38.p14_NCBI_test.gtf.gz \
+                --direct_rna --minimap_index_opts \\-w25 \
+               --transcriptome_assembly false"
+              NF_IGNORE_PROCESSES: >
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,
+                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam           
