@@ -305,30 +305,31 @@ def salmon_table(salmon_counts, section):
 
 
 def get_translations(gtf):
-    """Create dic with gene_name and gene_references."""
+    """Create dict with gene_name and gene_references."""
     fn = open(gtf).readlines()
     gene_txid = {}
     gene_geid = {}
+
+    def get_feature(row, feature):
+        return row.split(feature)[1].split(
+            ";")[0].replace('=', '').replace("\"", "").strip()
+
     for i in fn:
         if i.startswith("#"):
             continue
         try:
-            gene_name = i.split("gene_name")[1].split(";")[0]
-        except Exception:
-            gene_name = i.split("gene_id")[1].split(";")[0]
+            gene_name = get_feature(i, 'gene_name')
+        except IndexError:
+            gene_name = get_feature(i, 'gene_id')
         try:
-            gene_reference = i.split("ref_gene_id")[1].split(";")[0]
-        except Exception:
-            gene_reference = i.split("gene_id")[1].split(";")[0]
+            gene_reference = get_feature(i, 'ref_gene_id')
+        except IndexError:
+            gene_reference = get_feature(i, 'gene_id')
         try:
-            transcript_id = i.split("transcript_id")[1].split(";")[0]
-        except Exception:
+            transcript_id = get_feature(i, 'transcript_id')
+        except IndexError:
             transcript_id = "unknown"
-        transcript_id = transcript_id.replace("\"", "").strip()
-        gene_id = i.split("gene_id")[1].split(";")[0]
-        gene_id = gene_id.replace("\"", "").strip()
-        gene_name = gene_name.replace("\"", "").strip()
-        gene_reference = gene_reference.replace("\"", "").strip()
+        gene_id = get_feature(i, 'gene_id')
         gene_txid[transcript_id] = gene_name
         gene_geid[gene_id] = gene_reference
     return gene_txid, gene_geid

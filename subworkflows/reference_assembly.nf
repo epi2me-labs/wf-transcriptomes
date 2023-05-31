@@ -8,9 +8,7 @@ process map_reads{
     cpus params.threads
 
     input:
-       path index
-       path reference
-       tuple val(sample_id), path (fastq_reads)
+       tuple val(sample_id), path (fastq_reads), path(index), path(reference)
 
     output:
        tuple val(sample_id), path("${sample_id}_reads_aln_sorted.bam"), emit: bam
@@ -40,7 +38,7 @@ workflow reference_assembly {
        reference
        fastq_reads
     main:
-        map_reads(index, reference, fastq_reads)
+        map_reads(fastq_reads.combine(index).combine(reference))
     emit:
        bam = map_reads.out.bam
        stats = map_reads.out.stats

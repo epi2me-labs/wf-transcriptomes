@@ -4,15 +4,14 @@ process count_transcripts {
     label "isoforms"
     cpus params.threads
     input:
-        tuple val(sample_id), path(bam)
-        path ref_transcriptome
+        tuple val(meta), path(bam), path(ref_transcriptome)
     output:
         path "*transcript_counts.tsv", emit: counts
         path "*seqkit.stats", emit: seqkit_stats
     """
     salmon quant --noErrorModel -p "${task.cpus}" -t "${ref_transcriptome}" -l SF -a "${bam}" -o counts
-    mv counts/quant.sf "${sample_id}.transcript_counts.tsv"
-    seqkit bam  "${bam}" 2>  "${sample_id}.seqkit.stats"
+    mv counts/quant.sf "${meta.alias}.transcript_counts.tsv"
+    seqkit bam  "${bam}" 2>  "${meta.alias}.seqkit.stats"
     """
 }
 
@@ -42,6 +41,8 @@ process mergeTPM {
 
 process deAnalysis {
     label "isoforms"
+    errorStrategy "retry"
+    maxRetries 1
     input:
         path condition_sheet
         path merged_tsv 
@@ -53,13 +54,18 @@ process deAnalysis {
         path "de_analysis/results_dge.tsv", emit: dge
         path "de_analysis/results_dexseq.tsv", emit: dexseq
         path "de_analysis", emit: de_analysis
-    
+    script:
+    // Just try both annotation file type because a .gff extension may be gff2(gtf) or gff3
+    String annotation_type = "gtf"
+    if (task.attempt == 2){
+        annotation_type = "gff3"
+    }
     """
     cp $annotation annotation.gtf
     echo \$(realpath annotation.gtf)
-    echo Annotation\$'\t'min_samps_gene_expr\$'\t'min_samps_feature_expr\$'\t'min_gene_expr\$'\t'min_feature_expr > params.tsv
+    echo Annotation\$'\t'min_samps_gene_expr\$'\t'min_samps_feature_expr\$'\t'min_gene_expr\$'\t'min_feature_expr\$'\t'annotation_type > params.tsv
     echo \$(realpath $params.ref_annotation)\$'\t'$params.min_samps_gene_expr\$'\t'\
-    $params.min_samps_feature_expr\$'\t'$params.min_gene_expr\$'\t'$params.min_feature_expr >> params.tsv
+    $params.min_samps_feature_expr\$'\t'$params.min_gene_expr\$'\t'$params.min_feature_expr\$'\t'$annotation_type >> params.tsv
     mkdir merged
     mkdir de_analysis
     mv $merged_tsv merged/all_counts.tsv
@@ -99,7 +105,7 @@ process build_minimap_index_transcriptome{
     input:
         path reference
     output:
-        path "genome_index.mmi", emit: index
+        tuple path("genome_index.mmi"), path(reference), emit: index
     script:
     """
     minimap2 -t "${task.cpus}" ${params.minimap_index_opts}  -I 1000G -d "genome_index.mmi" "${reference}"
@@ -118,16 +124,13 @@ process map_transcriptome{
     cpus params.threads
 
     input:
-       tuple val(meta), path (fastq_reads)
-       file index
-       file transcript_reference
+       tuple val(meta), path (fastq_reads), path(index)
     output:
-       tuple val("${meta.alias}"), path("${meta.alias}_reads_aln_sorted.bam"), emit: bam
+       tuple val(meta), path("${meta.alias}_reads_aln_sorted.bam"), emit: bam
     """
     minimap2 -t ${task.cpus} -ax splice -uf -p 1.0 "${index}" "${fastq_reads}" \
     | samtools view -Sb > "output.bam"
     samtools sort -@ ${task.cpus} "output.bam" -o "${meta.alias}_reads_aln_sorted.bam"
-    samtools index "${meta.alias}_reads_aln_sorted.bam"
     """
 }
 
@@ -140,8 +143,8 @@ workflow differential_expression {
        ref_annotation
     main:
         t_index = build_minimap_index_transcriptome(ref_transcriptome)
-        mapped = map_transcriptome(full_len_reads, t_index, ref_transcriptome)
-        count_transcripts(mapped.bam, ref_transcriptome)
+        mapped = map_transcriptome(full_len_reads.combine(t_index))
+        count_transcripts(mapped.bam.combine(t_index.map{ mmi, reference -> reference}))
         merged = mergeCounts(count_transcripts.out.counts.collect())
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
         analysis = deAnalysis(condition_sheet, merged, ref_annotation)
