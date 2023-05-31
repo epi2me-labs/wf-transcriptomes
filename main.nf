@@ -643,8 +643,6 @@ workflow pipeline {
         
         map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx,build_minimap_trx_index.out.ref_transcriptome_fa, full_len_reads)
 
-
-
         // end added
 
 
