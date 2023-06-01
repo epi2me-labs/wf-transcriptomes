@@ -1,0 +1,28 @@
+<style>
+p {
+    font-size: 16px;
+}
+
+a:link {
+  color: #337ab7;
+}
+
+a:visited {
+  color: #FF7F50;
+}
+
+a:active {
+  color: green;
+  background-color: transparent;
+  text-decoration: underline;
+}
+
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+    z-index: 2;
+    color: #fff;
+    background-color: #337ab7;
+    border-color: #337ab7;
+}
+
+</style>
+

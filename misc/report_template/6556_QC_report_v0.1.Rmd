@@ -1,0 +1,331 @@
+---
+title: Analysis Report <br> NBIS Project 6556 <br> Targeting the spliceosome in neuroblastoma <br> Processing QC report
+author: Agata Smialowska
+output:
+  bookdown::html_document2:
+    theme: journal
+    highlight: kate
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+    css: "style.css"
+    fig_width: 5
+    fig_height: 5
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+bibliography: references.bib
+---
+
+
+
+Run by: `r Sys.getenv("USER")` 
+
+
+----------------
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri(file.path("logos", "nbislogo-blue-txt.png")), 
+               alt = 'NBISlogo', 
+               style = 'position:absolute; top:0; right:0; padding:10px; height: 7vw')
+#htmltools::img(src = knitr::image_uri(file.path("logos", "SLLNew.png")), 
+#               alt = 'SLLlogo', 
+#              style = 'position:absolute; top:0; right:0; padding:10px; width: 20vw')
+```
+
+
+
+```{r include=FALSE,cache=FALSE}
+library(knitr)
+library(bookdown)
+
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE)
+
+
+script_pth="./6556_qcreport_v0.1.R"
+knitr::read_chunk(script_pth)
+
+#source("./6577_report_functions.R")
+```
+
+
+
+```{r local_tests, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r libraries, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r annot, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r metadata, include=FALSE,cache=FALSE}
+
+```
+
+
+
+```{r outdirs, include=FALSE,cache=FALSE}
+
+```
+
+
+
+
+
+# Description
+
+
+This document collects descriptive statistics and quality metrics from `wf-transcriptomes` run: **`r proj.name.pref`**.
+
+Samples included in this report are **`r smpls_pths$sample`**.
+
+
+
+<br />
+<br />
+
+# Materials and Methods
+
+
+
+## Annotation
+
+* Genome reference sequence `Homo_sapiens.GRCh38.dna.primary_assembly.fa` was obtained from Ensembl;
+
+* Gene models `Homo_sapiens.GRCh38.109.gtf` were obtained from Ensembl;
+
+* Reference transcriptome sequence was obtained from the above files using `gffread` [@gffread]:
+
+
+```
+/proj/naiss2023-23-205/nobackup/private/nbis6556/software/gffread/gffread -w hg38_transcriptome.gffread.fa -g $fa $gtf
+```
+
+
+## Methods
+
+Pipeline `wf-transcriptomes` [@wftranscriptomes] was used for data processing, after introducing minor changes pertaining to Rackham architecture and software and adding mapping reads to transcriptone and quantification as separate steps. The modified pipeline is available at `https://github.com/agata-sm/wf-transcriptomes`. OBS! Branch `v2023` was used for data procesing workflow used in this report.
+
+
+* Reads were preprocessed using `pychopper` to remove barcodes and orient strandness [@pychopper];
+
+* Processed reads were mapped to reference transcriptome using `minimap` in a splice-aware manner [@minimap2]:
+
+```
+minimap2 -t 10 -ax splice -uf minimap_hg38_transcriptome.mmi ${smpl}_full_length_reads.fastq  | samtools view -q ${params.minimum_mapping_quality} -F 2304 -hbo all_alns.${smpl}.minimap2.bam
+```
+
+where `params.minimum_mapping_quality` was set to `q=40`, which is the default value in  `wf-transcriptomes`;
+
+
+* Transcript abundance was quantified using `salmon` [@salmon]:
+
+```
+salmon quant --noErrorModel -p 5 -t "${ref_transcriptome}" -l SF -a "${bam}" -o $smpl_name_out
+```
+
+* Counts were imported and summarised at the gene level using `tximport` [@tximport]. The transcript-to-gene mappings were retrieved from Bioconductor `AnnotationHub` package; Ensembl v 107 database was used (the most recent available for version of R / Bioconductor used, data stamp 2022-04-25). Gene count data was further processed uisng `DESeq2` [@deseq2]: normalised by scaling to library size and transformed to log2 scale. vst-transformed counts (in mode "blind" agnostic to sample grouping) were used for heatmap plotting and PCA. This workflow is equivalent to one included in Oxford Nanopore processing pipeline `wf-transcriptomes` [@wftranscriptomes] except that no DGE is performed;
+
+* For alignement statistics, reads were mapped to the reference genome using `minimap2` outputting all reads (i.e. mapped and unmapped) and the alignments were filtered and counted using `samtools`. No quality filtering was applied at this step.
+
+
+
+
+<br />
+<br />
+
+# Results
+
+
+
+
+
+## Read Length
+
+
+
+
+```{r read-stats-data, include=FALSE, cache=TRUE, cache.lazy = FALSE}
+```
+
+Read length distribution is presented on the histograms.
+To focus on the plot region with most of data points, the x axis was limted to `r xlim_readlen` .
+
+
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(15, 15), cache=FALSE, fig.cap=figurecapreadlen}
+  cowplot::plot_grid(plotlist=rlen_list,
+    ncol=2, labels=LETTERS[1:n_smpls])
+```
+
+
+<br />
+
+## Read Mapping Statistics
+
+Read mapping statistics are presented in table below. Please note that, unlike in the processing pipeline, in this summary reads were not subject to quality filtering after the alignment step, unless indicated with suffix `filtered`.
+
+
+```{r read-map-stats-data, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r include=TRUE,cache=FALSE, results='asis'}
+rlen_map[cols_tab1] %>% 
+  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+  kable_minimal(full_width = TRUE) %>% 
+  footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")
+```
+
+<br />
+
+
+Read lengths in mapped and unmapped pools are presented in table below.
+
+
+```{r include=TRUE,cache=FALSE, results='asis'}
+rlen_map[cols_tab2] %>% 
+  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
+  kable_minimal(full_width = TRUE)
+```
+
+<br />
+
+
+## Transcript Fusions
+
+
+```{r jaffal-data, include=FALSE,cache=FALSE}
+
+```
+
+
+Transcript fusions statistics are presented in table below. Top 5 fusions, by number of spanning reads are listed in table below.
+
+
+```{r include=TRUE,cache=FALSE, results='asis'}
+fusions_stats %>% 
+  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.3, col.names=newnames.3) %>% 
+  kable_minimal(full_width = TRUE) %>% 
+  footnote(general = "CO 5 - fusions detected with at least 5 spanning reads.")
+```
+
+
+
+<br />
+
+```{r include=TRUE,cache=FALSE, results='asis'}
+top_fusion_genes %>% 
+  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.4, col.names=newnames.4) %>% 
+  kable_minimal(full_width = TRUE)
+```
+
+<br />
+
+Numbers of reads spanning each fusion event are presented on the plots below. 
+To focus on the plot region with most of data points, the x axis was limted to `r xlim_fus_spanning` .
+
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(15, 15), cache=FALSE, fig.cap=figurecapfusions1}
+  cowplot::plot_grid(plotlist=fusions_list,
+    ncol=2, labels=LETTERS[1:n_smpls])
+```
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(15, 15), cache=FALSE, fig.cap=figurecapfusions2}
+fus_spanning_reads_boxplot
+```
+
+
+<br />
+
+## Transcriptome Profiling
+
+### Data Exploration and Summary Statistics
+
+
+```{r salmon-data, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r gene_ids, include=FALSE,cache=FALSE}
+
+```
+
+
+```{r deseq2, include=FALSE,cache=FALSE}
+
+```
+
+
+
+To compare the overall signal and assess the effectiveness of normalisation, counts summarised at the gene level and scaled to library size were plotted for each sample.
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(7, 7), cache=FALSE, fig.cap=figurecapTPM}
+boxplot_gene_counts
+```
+
+<br />
+
+Principal Component Analysis (PCA) was performed to explore relationships between samples. The interpretation of this plot is that samples related to each other tend to group together.
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(7, 7), cache=FALSE, fig.cap=figurecapPCA}
+pca_plot
+```
+
+<br />
+
+
+
+### Gene Expression
+
+
+```{r heatmaps-data, include=FALSE,cache=FALSE}
+
+```
+
+Log count estimates summarised at the gene level were plotted as heatmaps to visualise differences in gene expression.
+Top `r ntop` genes were plotted on each heatmap, selected by (i) highest expression level and (ii) highest variance (they correlate to a great extent because both were calculated based on non-transformed count estimates).
+
+Heatmaps on the left panel show count estimates (after transformation to log2 scale), while the heatmaps on the right panels show the same values after scaling within each row.
+Row Z-Score is a scaling method for visualization in heatmaps that helps enhance clusters of genes with similar trends in expression between samples.
+
+
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.height=8, cache=FALSE, fig.cap=figurecap_hm1}
+draw(hms_exprs, 
+    column_title = "Highest expression", column_title_gp = gpar(fontsize = 16))
+```
+
+```{r, dev='png', echo=FALSE, fig.show='show',fig.height=8, cache=FALSE, fig.cap=figurecap_hm2}
+draw(hms_var, 
+    column_title = "Highest variance", column_title_gp = gpar(fontsize = 16))
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+
+<br />
+
+# References
+
