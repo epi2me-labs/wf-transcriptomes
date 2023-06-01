@@ -40,25 +40,6 @@ library(org.Hs.eg.db)
 
 
 
-#Define theme_report() function
-
-theme_report <- function(base_size = 18){ 
-    theme_bw() %+replace%    #replace elements we want to change
-        theme(
-      
-      #grid elements
-      panel.grid.minor = element_blank(),    #strip minor gridlines
-      
-
-      axis.text.x = element_text(            #format for axis text
-                    margin=margin(5, b = 10), angle = 90, vjust = 0.5, hjust=1)
-      
-      #since the legend often requires manual tweaking 
-      #based on plot content, don't define it here
-    )
-}
-
-
 
 ## ---- annot
 
@@ -125,7 +106,7 @@ for (i in samples ){
     hist_rlen=ggplot(file_stats.i, aes(x=read_length)) + 
       geom_histogram(binwidth=1, color="grey40", fill="grey70") +
       theme_bw(base_size = 18) + 
-      theme_report()+
+      theme(panel.grid.minor = element_blank() )+
       ggtitle(name.i) + 
       theme(aspect.ratio = 1/1.618)
 
@@ -261,7 +242,7 @@ for (i in samples ){
     # histogram
     hist_fus=ggplot(fusions, aes(x=spanning.reads)) + geom_histogram(binwidth=1, color="grey40", fill="grey70") +
       theme_bw(base_size = 18) + 
-      theme_report()+
+      theme(panel.grid.minor = element_blank() )+
       ggtitle(name.i) + 
       theme(aspect.ratio = 1/1.618) + 
       coord_cartesian(xlim=c(0,xlim_fus_spanning) )
@@ -348,7 +329,7 @@ fus_spanning_reads_boxplot =  ggplot(fus.all, aes(x = factor(sample), y = as.num
   geom_boxplot() + 
   scale_y_continuous(trans='log10') +
   theme_bw(base_size = 18) + 
-  theme_report()+
+  theme(panel.grid.minor = element_blank(),axis.text.x = element_text(margin=margin(5, b = 10), angle = 90, vjust = 0.5, hjust=1))+
   scale_fill_viridis_d(alpha=0.6)+
   ggtitle("Number of reads spanning fusions") + 
   xlab("sample") + ylab("spanning reads") + labs(fill = "Sample") +
@@ -425,7 +406,7 @@ pca_plot=ggplot(pca_data, aes(PC1, PC2, color=condition, shape=name)) +
   xlab(paste0("PC1: ",percentVar[1],"% variance")) +
   ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
   theme_bw(base_size = 18) + 
-  theme_report()+
+  theme(panel.grid.minor = element_blank() )+
   scale_color_viridis_d(alpha=0.6)+
   coord_fixed(ratio = 1) + theme(aspect.ratio = 1) 
 
@@ -450,7 +431,7 @@ boxplot_gene_counts=ggplot(fpm.all.long, aes(x =sample, y =fpm, fill = sample)) 
   geom_boxplot() + 
   scale_y_continuous(trans='log10') +
   theme_bw(base_size = 18) + 
-  theme_report()+
+  theme(panel.grid.minor = element_blank(),axis.text.x = element_text(margin=margin(5, b = 10), angle = 90, vjust = 0.5, hjust=1))+
   scale_fill_viridis_d(alpha=0.6)+
   ggtitle("Scaled counts per million") + 
   theme(aspect.ratio = 1/1.618)
