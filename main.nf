@@ -15,6 +15,18 @@ include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
+include { map_reads_all_genome } from './subworkflows/map_reads_all_genome'
+include { map_reads_all_transcriptome } from './subworkflows/map_reads_all_transcriptome'
+
+
+// added 29 v 2023
+// save additional output files
+params.fastqprocOut="${params.out_dir}/fastq_pychopper"
+params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
+params.mappedAllOut="${params.out_dir}/bam_minimap_genome_all"
+params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_filt"
+params.salmonOut="${params.out_dir}/salmon"
+
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
@@ -66,6 +78,10 @@ process preprocess_reads {
     label "isoforms"
     //cpus 4
 
+    //added (AS 29v2023)
+    publishDir params.fastqprocOut, mode:'copy'
+
+
     input:
         tuple val(meta), path(input_reads)
     output:
@@ -97,6 +113,26 @@ process build_minimap_index{
     script:
     """
     minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
+    """
+}
+
+process build_minimap_trx_index{
+    /*
+    Build minimap index from reference transcriptome obtained from ref genome and gtf annotation
+    */
+    label "isoforms"
+    cpus params.threads
+
+    input:
+        path reference
+        path gene_models
+    output:
+        path "transcriptome_ref_index.mmi", emit: index_trx
+        path "transcriptome.gffread.fa", emit: ref_transcriptome_fa
+    script:
+    """
+    gffread -w transcriptome.gffread.fa -g ${reference} ${gene_models}
+    minimap2 -t ${params.threads} -I 1000G -d transcriptome_ref_index.mmi transcriptome.gffread.fa
     """
 }
 
@@ -599,6 +635,17 @@ workflow pipeline {
         }
 
         results  = fastq_ingress_results.map { [it, "fastq_ingress_results"] }.concat(results.map{ [it, null]})
+
+        //added (AS 29v2023)
+        map_all_genome = map_reads_all_genome(build_minimap_index.out.index, ref_genome, full_len_reads)
+        
+        build_minimap_trx_index(ref_genome, ref_annotation)
+        
+        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx,build_minimap_trx_index.out.ref_transcriptome_fa, full_len_reads)
+
+        // end added
+
+
     emit:
         results
         telemetry = workflow_params

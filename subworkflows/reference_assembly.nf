@@ -1,3 +1,5 @@
+params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
+
 process map_reads{
     /*
     Map reads to reference using minimap2.
@@ -6,6 +8,11 @@ process map_reads{
     */
     label "isoforms"
     cpus params.threads
+
+    //added (AS 29v2023)
+    publishDir params.mappedOut, mode:'copy'
+
+
 
     input:
        path index
