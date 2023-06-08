@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+### Changed
+- Enum choices are enumerated in the `--help` output
+- Enum choices are enumerated as part of the error message when a user has selected an invalid choice
+
+### Fixed
+- Replaced `--threads` option in fastqingress with hardcoded values to remove warning about undefined `param.threads`
+
 ## [v0.1.12]
 ### Added
 - Handling for GFF3 reference_annotation file type.
