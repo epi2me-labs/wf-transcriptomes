@@ -72,7 +72,7 @@ Pychopper and minimap2 can take options via `minimap2_opts` and `pychopper_opts`
 - pychopper needs to know which cDNA synthesis kit used
   - SQK-PCS109: use `pychopper_opts = '-k PCS109'` (default)
   - SQK-PCS110: use `pychopper_opts = '-k PCS110'`
-  - SQK-PCS11:  use `pychopper_opts = '-k PCS111'`
+  - SQK-PCS111:  use `pychopper_opts = '-k PCS111'`
 - pychopper can use one of two available backends for identifying primers in the raw reads
   - nhmmscan `pychopper opts = '-m phmm'` 
   - edlib `pychopper opts = '-m edlib'`
