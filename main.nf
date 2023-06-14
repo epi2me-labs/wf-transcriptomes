@@ -255,7 +255,7 @@ process run_gffcompare{
     script:
     def out_dir = "${sample_id}_gffcompare"
 
-    if ( ref_annotation.name.startsWith('OPTIONAL_FILE') ){
+    if (params.transcriptome_source == "denovo"){
         """
         mkdir $out_dir
         """
@@ -454,14 +454,14 @@ workflow pipeline {
         ref_transcriptome
         use_ref_ann
     main:
-        if (params.ref_genome.toLowerCase().endsWith("gz")) {
+        if (params.ref_genome && file(params.ref_genome).extension == "gz") {
             // gzipped ref not supported by some downstream tools
             // easier to just decompress and pass it around.
             ref_genome = decompress_ref(ref_genome)
         }else {
             ref_genome = Channel.fromPath(ref_genome)
         }
-        if (params.ref_annotation.toLowerCase().endsWith("gz")) {
+        if (params.ref_annotation && file(params.ref_annotation).extension == "gz") {
             // gzipped ref not supported by some downstream tools
             // easier to just decompress and pass it around.
             decompress_annot= decompress_annotation(ref_annotation)
@@ -519,6 +519,7 @@ workflow pipeline {
         
             if (params.transcriptome_source == "denovo"){
                 log.info("Doing de novo assembly")
+                log.info("WARNING: The `--transcriptome_source` denovo option may have unexpected results and errors. If possible it is preferable to use the reference-guided pipeline.")
                 assembly = denovo_assembly(full_len_reads, ref_genome)
 
             } else {

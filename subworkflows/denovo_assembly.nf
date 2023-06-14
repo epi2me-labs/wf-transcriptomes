@@ -178,12 +178,13 @@ process make_batches {
             then
                 batch_size=$minimum_batch_size
         fi
+        echo "Num bases: \$nr_bases";
     else
         batch_size=${params.isOnClust2_batch_size}
     fi
 
     echo "Batch size:\$batch_size";
-    echo "Num bases: \$nr_bases";
+    
 
     mkdir -p sorted; isONclust2 sort $params.isOnClust2_sort_options -v -o sorted $fastq;
     """
@@ -199,7 +200,7 @@ process clustering() {
         tuple val(sample_id), path('isONcluster_ROOT.cer'), emit: root_cluster
     script:
     """
-    workflow-glue run_isonclust2 $sorted_batches
+    workflow-glue run_isonclust2 --workdir .
     """
 }
 
@@ -261,8 +262,7 @@ workflow denovo_assembly {
         cds_align(
             merge_cds.out.final_polished_cds
             .join(make_batches.out.sorted_reads_dir))
-
-        if (!reference.name.startsWith('OPTIONAL_FILE')){
+        if (params.ref_genome) {
             cluster_quality(reference, fastq_reads_fl
             .join(dump_clusters.out.final_clusters_dir))
 

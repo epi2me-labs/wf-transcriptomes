@@ -7,7 +7,6 @@
 from collections import defaultdict
 import math
 from pathlib import Path
-import sys
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -18,9 +17,11 @@ from sklearn.metrics.cluster import (
     adjusted_rand_score, completeness_score,
     homogeneity_score, v_measure_score)
 
-from .util import wf_parser  # noqa: ABS101
+from .util import wf_parser, get_named_logger  # noqa: ABS101
 
 matplotlib.use('Agg')
+
+logger = get_named_logger("clustqual")
 
 
 def argparser():
@@ -181,16 +182,15 @@ def compute_v_measure(clusters, classes):
     compl_score = completeness_score(class_list, cluster_list)
     homog_score = homogeneity_score(class_list, cluster_list)
     ari = adjusted_rand_score(class_list, cluster_list)
-
-    sys.stdout("Not included in clustering but aligned:", len(not_clustered))
-    sys.stdout(
+    logger.info("Not included in clustering but aligned:", len(not_clustered))
+    logger.info(
         "v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    sys.stdout(
+    logger.info(
         "Nr reads clustered but unaligned "
         "(i.e., no class and excluded from v-measure): ",
         clustered_but_unaligned)
@@ -231,14 +231,14 @@ def compute_v_measure_non_singleton_classes(clusters, classes):
     homog_score = homogeneity_score(class_list, cluster_list)
     nr_filtered_classes = len(
         [1 for cl_id in classes_dict if len(classes_dict[cl_id]) >= 5])
-    sys.stdout(
+    logger.info(
         "NONTRIvIAL CLASSES: v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    sys.stdout("NUMBER OF CLASSES (FILTERED):", len(
+    logger.info("NUMBER OF CLASSES (FILTERED):", len(
         [1 for cl_id in classes_dict if len(classes_dict[cl_id]) >= 5]))
     return v_score, compl_score, homog_score, nr_filtered_classes
 
@@ -268,20 +268,20 @@ def compute_v_measure_non_singletons(clusters, classes):
             class_list.append(classes[read])
             cluster_list.append(clusters[read])
         else:
-            # sys.stdout("Read was clustered but unaligned:", read)
+            logger.debug("Read was clustered but unaligned:", read)
             clustered_but_unaligned += 1
 
     v_score = v_measure_score(class_list, cluster_list)
     compl_score = completeness_score(class_list, cluster_list)
     homog_score = homogeneity_score(class_list, cluster_list)
-    sys.stdout(
+    logger.info(
         "NONTRIvIAL CLUSTERS: v:",
         v_score,
         "Completeness:",
         compl_score,
         "Homogeneity:",
         homog_score)
-    sys.stdout(
+    logger.info(
         "NONTRIvIAL CLUSTERS: Nr reads clustered but unaligned "
         "(i.e., no class and excluded from v-veasure): ",
         clustered_but_unaligned)
@@ -407,11 +407,11 @@ def get_cluster_information(clusters, classes):
         else:
             clustered_classes[class_id] += 1
 
-    sys.stdout("UNCLUSTERED:", "Tot classes:", len(not_clustered_classes))
-    sys.stdout("CLUSTERED:", "Tot classes:", len(clustered_classes))
-    sys.stdout("MIXED:", "Tot classes containing both:", len(
+    logger.info("UNCLUSTERED:", "Tot classes:", len(not_clustered_classes))
+    logger.info("CLUSTERED:", "Tot classes:", len(clustered_classes))
+    logger.info("MIXED:", "Tot classes containing both:", len(
         set(clustered_classes.keys()) & set(not_clustered_classes.keys())))
-    sys.stdout("Total number of classes (unique gene ID):", total_nr_classes)
+    logger.info("Total number of classes (unique gene ID):", total_nr_classes)
     return (
         total_nr_classes - len(singleton_classes),
         len(singleton_classes),
@@ -507,7 +507,7 @@ def main(args):
 
     non_singleton_clusters = total_nr_clusters - singleton_clusters
 
-    sys.stdout(
+    logger.info(
         "NONTRIVIAL CLUSTERS: ", (total_nr_clusters - singleton_clusters))
 
     outfile.write("CLUSTERS\n")
