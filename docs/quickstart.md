@@ -57,22 +57,27 @@ nextflow run . --fastq test_data/fastq \
   -w ${OUTPUT}/workspace \
   --sample sample_id
 ```
-A full list of options can be seen in nextflow_schema.json. Below are some commonly used ones.
+A full list of options can be seen in nextflow_schema.json. 
+Parameters can be specified either in a config like `parameter = value` or on the command line like `--parameter value`.
+Below are some commonly used parameters in the format used in config files.
 
-- Threshold for including isoforms into interactive table `transcript_table_cov_thresh = 50`
-- Run the denovo pipeline `denovo = true` (default false)
-- To run the workflow with direct RNA reads `--direct_rna` (this just skips the pychopper step).
+Select how the transcriptome used for analysis should be prepared:
 
+- To create a reference transcriptome using an existing reference genome `transcriptome_source = reference-guided` (default)
+- Use a a supplied transcriptome `transcriptome_source = precomputed"`
+- Gnerate transcriptome via the denovo pipeline `transcriptome_source = denovo"` 
+
+
+To run the workflow with direct RNA reads `direct_rna = false` (this just skips the pychopper step).
 
 Pychopper and minimap2 can take options via `minimap2_opts` and `pychopper_opts`, for example:
 
-
 - When using the SIRV synthetic test data  
   - `minimap2_opts = '-uf --splice-flank=no'`
-- pychopper needs to know which cDNA synthesis kit used
-  - SQK-PCS109: use `pychopper_opts = '-k PCS109'` (default)
-  - SQK-PCS110: use `pychopper_opts = '-k PCS110'`
-  - SQK-PCS111:  use `pychopper_opts = '-k PCS111'`
+- pychopper needs to know which cDNA synthesis kit used, which can be specified with
+  - SQK-PCS109: `pychopper_opts = '-k PCS109'` (default)
+  - SQK-PCS110: `pychopper_opts = '-k PCS110'`
+  - SQK-PCS111: `pychopper_opts = '-k PCS111'`
 - pychopper can use one of two available backends for identifying primers in the raw reads
   - nhmmscan `pychopper opts = '-m phmm'` 
   - edlib `pychopper opts = '-m edlib'`
@@ -104,8 +109,8 @@ These should be prepared as described
 The resulting JAFFAL reference files will look something like `hg38_genCode22.fa`. The following options enable JAFFAL to find these
 files:
 
-`--jaffal_genome` optional (default: `hg38`)  
-`--jaffal_annotation` optional (default: `genCode22`) 
+`jaffal_genome = reference_genome_name` optional (default: `hg38`)  
+`jaffal_annotation = jaffal_annotation_prefix` optional (default: `genCode22`) 
 
 
 __Note__: JAFFAL is not currently working on Mac M1 (osx-arm64 architecture).
