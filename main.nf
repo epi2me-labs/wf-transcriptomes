@@ -505,6 +505,8 @@ workflow pipeline {
         stats = reads.map {
             it[2] ? it[2].resolve('per-read-stats.tsv') : null
         }
+        | collectFile ( keepHeader: true )
+        | ifEmpty ( OPTIONAL_FILE )
 
         if (!params.direct_rna){
             preprocess_reads(input_reads)

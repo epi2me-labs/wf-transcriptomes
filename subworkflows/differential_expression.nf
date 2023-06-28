@@ -46,7 +46,7 @@ process deAnalysis {
     input:
         path condition_sheet
         path merged_tsv 
-        path annotation
+        path "annotation.gtf"
     output:
         path "de_analysis/results_dtu_stageR.tsv", emit: stageR
         path "merged/all_counts_filtered.tsv", emit: flt_counts
@@ -61,17 +61,12 @@ process deAnalysis {
         annotation_type = "gff3"
     }
     """
-    cp $annotation annotation.gtf
-    echo \$(realpath annotation.gtf)
-    echo Annotation\$'\t'min_samps_gene_expr\$'\t'min_samps_feature_expr\$'\t'min_gene_expr\$'\t'min_feature_expr\$'\t'annotation_type > params.tsv
-    echo \$(realpath $params.ref_annotation)\$'\t'$params.min_samps_gene_expr\$'\t'\
-    $params.min_samps_feature_expr\$'\t'$params.min_gene_expr\$'\t'$params.min_feature_expr\$'\t'$annotation_type >> params.tsv
     mkdir merged
     mkdir de_analysis
     mv $merged_tsv merged/all_counts.tsv
-    mv params.tsv de_analysis/de_params.tsv
     mv $condition_sheet de_analysis/coldata.tsv
-    de_analysis.R
+    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr $annotation_type
+   
     """
 }
 
