@@ -40,7 +40,6 @@
                 },
                 "ref_transcriptome": {
                     "type": "string",
-                    "default": "null",
                     "format": "file-path",
                     "description": "Transcriptome reference file. Required for precomputed transcriptome calculation and for differential expression analysis.",
                     "help_text": "A reference transcriptome related to the sample under study. Must be supplied when the 'Transcriptome source' parameter has been set to 'precomputed' or to perform differential expression."
