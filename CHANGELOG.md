@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - GitHub issue templates
 
+### Fixed
+- Remove default of null for `--ref_transcriptome`
+
 ## [v0.1.13]
 ### Added
 - Handling for GFF3 reference_annotation file type.
