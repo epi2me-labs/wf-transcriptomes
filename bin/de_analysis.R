@@ -2,6 +2,13 @@
 
 suppressMessages(library("DRIMSeq"))
 suppressMessages(library("GenomicFeatures"))
+args <- commandArgs(trailingOnly=TRUE)
+ref_annotation <- args[1]
+min_samps_gene_expr <- args[2]
+min_samps_feature_expr <- args[3]
+min_gene_expr <- args[4] 
+min_feature_expr <- args[5]
+annotation_type <- args[6]
 
 cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
@@ -13,12 +20,9 @@ coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample_id", sep=",", s
 coldata$sample_id <- rownames(coldata)
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
 
-de_params <- read.csv("de_analysis/de_params.tsv", sep="\t", stringsAsFactors=FALSE)
-
 cat("Loading annotation database.\n")
 
-annotationtype <- de_params$annotation_type[[1]]
-txdb <- makeTxDbFromGFF("annotation.gtf",  format = annotationtype)
+txdb <- makeTxDbFromGFF(ref_annotation,  format = annotation_type)
 txdf <- select(txdb, keys(txdb,"GENEID"), "TXNAME", "GENEID")
 tab <- table(txdf$GENEID)
 txdf$ntx<- tab[match(txdf$GENEID, names(tab))]
@@ -47,8 +51,8 @@ cat("Filtering counts using DRIMSeq.\n")
 d <- dmDSdata(counts=counts, samples=coldata)
 trs_cts_unfiltered <- counts(d)
 
-d <- dmFilter(d, min_samps_gene_expr = de_params$min_samps_gene_expr[[1]], min_samps_feature_expr = de_params$min_samps_feature_expr[[1]],
-        min_gene_expr = de_params$min_gene_expr[[1]], min_feature_expr = de_params$min_feature_expr[[1]])
+d <- dmFilter(d, min_samps_gene_expr = min_samps_gene_expr, min_samps_feature_expr = min_samps_feature_expr,
+        min_gene_expr = min_gene_expr, min_feature_expr = min_feature_expr)
 
 cat("Building model matrix.\n")
 design <- model.matrix(~condition, data=DRIMSeq::samples(d))
