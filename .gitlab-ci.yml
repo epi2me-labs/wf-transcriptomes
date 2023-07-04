@@ -77,7 +77,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa --transcriptome-source reference-guided \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-                --direct_rna --minimap_index_opts \\-k15"
+                --direct_rna --minimap_index_opts '-k 15'"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
@@ -87,7 +87,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
-                --direct_rna --minimap_index_opts \\-k15 \
+                --direct_rna --minimap_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
                 --transcriptome_assembly false"
               NF_IGNORE_PROCESSES: >
@@ -101,7 +101,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff3 \
-                --direct_rna --minimap_index_opts \\-k15 \
+                --direct_rna --minimap_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
                 --transcriptome_assembly false"
               NF_IGNORE_PROCESSES: >
@@ -110,13 +110,13 @@ docker-run:
         - if: $MATRIX_NAME == "ncbi_gzip"
           variables:
               NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
-              NF_WORKFLOW_OPTS: "-executor.$$local.memory 16GB \
+              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
 --fastq  differential_expression/differential_expression_fastq \
                   --transcriptome-source precomputed \
                   --de_analysis \
                   --ref_genome differential_expression/GRCh38.p14.NCBI_test.fna.gz \
                 --ref_annotation differential_expression/GRCh38.p14_NCBI_test.gtf.gz \
-                --direct_rna --minimap_index_opts \\-w25 \
+                --direct_rna --minimap_index_opts '-w 25' \
                --transcriptome_assembly false"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
