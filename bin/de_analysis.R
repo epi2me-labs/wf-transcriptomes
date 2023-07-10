@@ -15,7 +15,7 @@ cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Referenc
 
 # Set up sample data frame:
 #changed this to sample_id
-coldata <- read.csv("de_analysis/coldata.tsv", row.names="sample_id", sep=",", stringsAsFactors=TRUE)
+coldata <- read.csv("de_analysis/coldata.tsv", row.names="alias", sep=",", stringsAsFactors=TRUE)
 
 coldata$sample_id <- rownames(coldata)
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))

@@ -1,3 +1,14 @@
+process checkSampleSheetCondition {
+    label "isoforms"
+    input:
+        path "sample_sheet.csv"
+    """
+    workflow-glue check_sample_sheet_condition "sample_sheet.csv"
+    """
+}
+
+
+
 process count_transcripts {
     // Count transcripts using Salmon.
     // library type is specified as forward stranded (-l SF) as it should have either been through pychopper or come from direct RNA reads.
@@ -44,7 +55,7 @@ process deAnalysis {
     errorStrategy "retry"
     maxRetries 1
     input:
-        path condition_sheet
+        path sample_sheet
         path merged_tsv 
         path "annotation.gtf"
     output:
@@ -64,7 +75,7 @@ process deAnalysis {
     mkdir merged
     mkdir de_analysis
     mv $merged_tsv merged/all_counts.tsv
-    mv $condition_sheet de_analysis/coldata.tsv
+    mv $sample_sheet de_analysis/coldata.tsv
     de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr $annotation_type
    
     """
@@ -76,18 +87,18 @@ process plotResults {
     input:
         path flt_count
         path res_dtu
-        path condition_sheet 
+        path sample_sheet 
         path de_analysis
     output:
         path "de_analysis/dtu_plots.pdf", emit: dtu_plots
-        path "condition_sheet.tsv", emit: condition_sheet_tsv
+        path "sample_sheet.tsv", emit: sample_sheet_csv
         path "de_analysis", emit: stageR
     """
     mkdir merged
-    mv $condition_sheet de_analysis/coldata.tsv
+    mv $sample_sheet de_analysis/coldata.tsv
     mv $flt_count merged/all_counts_filtered.tsv
     plot_dtu_results.R
-    mv de_analysis/coldata.tsv condition_sheet.tsv
+    mv de_analysis/coldata.tsv sample_sheet.tsv
     """
 }
 
@@ -134,18 +145,19 @@ workflow differential_expression {
     take:
        ref_transcriptome
        full_len_reads
-       condition_sheet
+       sample_sheet
        ref_annotation
     main:
+        checkSampleSheetCondition(sample_sheet)
         t_index = build_minimap_index_transcriptome(ref_transcriptome)
         mapped = map_transcriptome(full_len_reads.combine(t_index))
         count_transcripts(mapped.bam.combine(t_index.map{ mmi, reference -> reference}))
         merged = mergeCounts(count_transcripts.out.counts.collect())
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
-        analysis = deAnalysis(condition_sheet, merged, ref_annotation)
-        plotResults(analysis.flt_counts, analysis.stageR, condition_sheet, analysis.de_analysis)
+        analysis = deAnalysis(sample_sheet, merged, ref_annotation)
+        plotResults(analysis.flt_counts, analysis.stageR, sample_sheet, analysis.de_analysis)
         de_report = analysis.flt_counts.combine(analysis.gene_counts).combine(analysis.dge).combine(analysis.dexseq).combine(
-                    analysis.stageR).combine(plotResults.out.condition_sheet_tsv).combine(merged).combine(
+                    analysis.stageR).combine(plotResults.out.sample_sheet_csv).combine(merged).combine(
                     ref_annotation).combine(merged_TPM)
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
 emit:

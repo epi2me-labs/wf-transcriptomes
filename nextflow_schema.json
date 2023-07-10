@@ -90,7 +90,7 @@
                 "sample_sheet": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files.",
+                    "description": "A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files. If you are running the differential expression workflow, there should be an additional column `condition` with any two distinct labels eg. `treated`,`untreated`. There should be at least 3 repeats for each condition.",
                     "help_text": "The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed. A `type` column is required for certain workflows and should have the following values; `test_sample`, `positive_control`, `negative_control`, `no_template_control`."
                 },
                 "sample": {
@@ -216,13 +216,6 @@
                     "type": "boolean",
                     "description": "Run DE anaylsis",
                     "help_text": "Running this requires you to provide at least two replicates for a control and treated sample as well as a condition sheet param."
-                },
-                "condition_sheet": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "CSV file with sample_id, condition",
-                    "default": "null",
-                    "help_text": "The condition sheet should be a headed CSV file with two columns sample_id,condition. Should be at least 3 repeats for each condition."
                 },
                 "min_gene_expr": {
                     "type": "integer",
