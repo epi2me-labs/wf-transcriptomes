@@ -450,7 +450,6 @@ workflow pipeline {
         jaffal_refBase
         jaffal_genome
         jaffal_annotation
-        condition_sheet
         ref_transcriptome
         use_ref_ann
     main:
@@ -571,7 +570,7 @@ workflow pipeline {
 
 
         if (params.de_analysis){
-
+            sample_sheet = file(params.sample_sheet, type:"file")
             if (!params.ref_transcriptome){
                 merge_transcriptomes(run_gffcompare.output.gtf.collect(), ref_annotation, ref_genome)
                 transcriptome = merge_transcriptomes.out.fasta
@@ -581,13 +580,7 @@ workflow pipeline {
                 transcriptome = ref_transcriptome
                 gtf = ref_annotation
             }
-            check_match = Channel.fromPath(params.condition_sheet)
-            check_condition_sheet = check_match.splitCsv(header: true).map{ row -> tuple(
-                row.sample_id)
-            }
-            join_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
-            check_condition_sheet.join(join_reads, failOnMismatch: true)
-            de = differential_expression(transcriptome, input_reads, condition_sheet, gtf)
+            de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
             de_report = de.all_de
             count_transcripts_file = de.count_transcripts
             dtu_plots = de.dtu_plots
@@ -724,12 +717,12 @@ workflow {
         if (!params.ref_annotation){
             error = "You must provide a reference annotation."
         }
-        if (!params.condition_sheet){
-            error = "You must provide a condition_sheet or set de_analysis to false."
+        if (!params.sample_sheet){
+            error = "You must provide a sample_sheet with at least alias and condition columns."
         }
-        condition_sheet = file(params.condition_sheet, type:"file")
-    } else{
-        condition_sheet = file("$projectDir/data/OPTIONAL_FILE")
+        if (params.containsKey("condition_sheet")) {
+        error = "Condition sheets have been deprecated. Please add a 'condition' column to your sample sheet instead. Check the quickstart for more information."
+        }
     }
     if (error){
         throw new Exception(error)
@@ -744,7 +737,7 @@ workflow {
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-            condition_sheet, ref_transcriptome, use_ref_ann)
+            ref_transcriptome, use_ref_ann)
 
         output(pipeline.out.results)
     }

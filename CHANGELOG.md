@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unreleased]
 ### Changed
 - GitHub issue templates
+- Condition sheet is no longer required. The sample sheet is now used to indicate condition instead.
+    - For differential expression, the sample sheet must have a `condition` column to indicate which condition group each sample in the sample sheet belongs to.
+    - Values for the condition may be any two distinct strings, for example: treated/untreated; sample/control etc.
 
 ### Fixed
 - Remove default of null for `--ref_transcriptome`

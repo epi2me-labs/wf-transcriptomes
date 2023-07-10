@@ -1,0 +1,3 @@
+barcode,sample_id,alias,condition
+barcode01,sample01,sample01,untreated
+barcode04,sample04,sample04,treated

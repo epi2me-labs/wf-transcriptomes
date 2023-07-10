@@ -207,26 +207,27 @@ __Note__: JAFFAL is not currently working on Mac M1 (osx-arm64 architecture).
 
 ### Differential Expression
 
-Differential Expression requires at least 2 replicates of each sample to compare. You can see an example condition_sheet.tsv in test_data.  
+Differential Expression requires at least 2 replicates of each sample to compare (but we recommend three). You can see an example sample_sheet.csv below.
 
 **Example workflow for differential expression transcript assembly**
 
-#### Condition sheet
-The condition sheet should be a .tsv with two columns.
-- The sample_id column will need to match the 6 directories in the input fastq directory, if you are additionally using a sample_sheet they will need to correspond to the sample_ids in that.
-- The condition column will need to contain one of two keys to indicate the two samples being compared.
+#### Sample sheet condition column
+The sample sheet should be a comma separated values file (.csv) and include at least three columns named `barcode`, `alias` and `condition`.
+- Each `barcode` should refer to a directory of the same name in the input FASTQ directory (in the example below `barcode01` to `barcode06` reflect the `test_data` directory).
+- The `alias` column allows you to rename each barcode to an alias that will be used in the report and other output files.
+- The condition column will need to contain one of two keys to indicate the two samples being compared. for example: treated/untreated, sample/control etc.
 
-In the default `condition_sheet.tsv` available in the test_data directory we have used the following.
+In the default `sample_sheet.csv` available in the test_data directory we have used the following.
 
-eg. condition_sheet.tsv
+eg. sample_sheet.csv
 ```
-sample_id,condition
-barcode01,untreated
-barcode02,untreated
-barcode03,untreated
-barcode04,treated
-barcode05,treated
-barcode06,treated
+barcode,alias,condition
+barcode01,sample01,untreated
+barcode02,sample02,untreated
+barcode03,sample03,untreated
+barcode04,sample04,treated
+barcode05,sample05,treated
+barcode06,sample06,treated
 ```
 
 You will also need to provide a reference genome and a reference annotation file.
