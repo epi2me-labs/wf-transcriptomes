@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Values for the condition may be any two distinct strings, for example: treated/untreated; sample/control etc.
 
 ### Fixed
-- Remove default of null for `--ref_transcriptome`
+- Remove default of null for `--ref_transcriptome`.
+- Read mapping summary table in the report has correct sample_ids.
 
 ## [v0.1.13]
 ### Added

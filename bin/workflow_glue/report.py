@@ -901,6 +901,7 @@ def de_section(report):
 def main(args):
     """Run the entry point."""
     sample_ids = args.sample_ids
+    sample_ids.sort()
 
     report = WFReport(
         "Transcript isoform report", "wf-transcriptomes",
