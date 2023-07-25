@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Any sample aliases that contain spaces will be replaced with underscores.
 
+### Fixed
+- Documentation parameter examples corrected.
+
 ## [v0.2.0]
 ### Changed
 - GitHub issue templates
