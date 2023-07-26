@@ -173,8 +173,9 @@ def dexseq_section(dexseq_file, section, id_dic):
     section.markdown(dexseq_caption)
     dexseq_results = pd.read_csv(dexseq_file, sep='\t')
     dexseq_results.index.name = "gene_id:trancript_id"
+    # Replace gene id with more useful gene name where possible
     dexseq_results.index = dexseq_results.index.map(
-        lambda x: id_dic[x.split(':')[0]] + ':' + str(x.split(':')[1]))
+        lambda x: str(id_dic.get(x.split(':')[0])) + ':' + str(x.split(':')[1]))
     dexseq_pvals = dexseq_results.sort_values(by='pvalue', ascending=True)
     section.table(dexseq_results.loc[dexseq_pvals.index], index=True)
     section.markdown("""
@@ -220,8 +221,10 @@ thresholds defined are shaded as 'Up-' or 'Down-' regulated.""")
 def dtu_section(dtu_file, section, gt_dic, ge_dic):
     """Plot dtu section."""
     dtu_results = pd.read_csv(dtu_file, sep='\t')
-    dtu_results["gene_name"] = dtu_results["txID"].apply(lambda x: gt_dic[x])
-    dtu_results["geneID"] = dtu_results["geneID"].apply(lambda x: ge_dic[x])
+    dtu_results["gene_name"] = dtu_results["txID"].apply(
+        lambda x: gt_dic.get(x))
+    dtu_results["geneID"] = dtu_results["geneID"].apply(
+        lambda x: ge_dic.get(x))
     dtu_pvals = dtu_results.sort_values(by='gene', ascending=True)
     dtu_caption = '''Table showing gene and transcript identifiers
     and their FDR corrected probabilities
@@ -248,8 +251,8 @@ experimental conditions, the log-scaled counts per million measure of abundance
 and the false discovery corrected p-value (FDR). This table has not been
 filtered for genes that satisfy statistical or magnitudinal thresholds"""
     section.markdown(dge_caption)
-    dge_results.index = dge_results.index.map(lambda x: ids_dic[x])
-    dge_pvals.index = dge_pvals.index.map(lambda x: ids_dic[x])
+    dge_results.index = dge_results.index.map(lambda x: ids_dic.get(x))
+    dge_pvals.index = dge_pvals.index.map(lambda x: ids_dic.get(x))
     section.table(dge_results.loc[dge_pvals.index], index=True)
     dge = pd.read_csv(dge_file, sep="\t")
     section.markdown("""
@@ -317,19 +320,31 @@ def get_translations(gtf):
     for i in fn:
         if i.startswith("#"):
             continue
-        try:
-            gene_name = get_feature(i, 'gene_name')
-        except IndexError:
+        # Different gtf/gff formats contain different attributes
+        # and different formating (eg. gene_name="xyz" or gene_name "xyz")
+        if 'gene_name' in i:
+            gene_name = get_feature(i, "gene_name")
+        elif 'gene_id' in i:
             gene_name = get_feature(i, 'gene_id')
-        try:
+        elif 'gene' in i:
+            gene_name = get_feature(i, "gene")
+        else:
+            continue
+
+        if 'ref_gene_id' in i:
             gene_reference = get_feature(i, 'ref_gene_id')
-        except IndexError:
+        elif 'gene_id' in i:
             gene_reference = get_feature(i, 'gene_id')
-        try:
+        else:
+            gene_reference = gene_name
+        if 'transcript_id' in i:
             transcript_id = get_feature(i, 'transcript_id')
-        except IndexError:
+        else:
             transcript_id = "unknown"
-        gene_id = get_feature(i, 'gene_id')
+        if 'gene_id' in i:
+            gene_id = get_feature(i, 'gene_id')
+        else:
+            gene_id = gene_name
         gene_txid[transcript_id] = gene_name
         gene_geid[gene_id] = gene_reference
     return gene_txid, gene_geid

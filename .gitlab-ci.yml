@@ -45,7 +45,7 @@ docker-run:
             - MATRIX_NAME: [
                 "fusions", "differential_expression", "isoforms",
                 "only_differential_expression", "differential_expression_gff3",
-                "ncbi_gzip", "denovo"
+                "ncbi_gzip", "denovo", "ncbi_no_gene_id", "ensembl_with_versions"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -109,15 +109,41 @@ docker-run:
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
         - if: $MATRIX_NAME == "ncbi_gzip"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz
               NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
---fastq  differential_expression/differential_expression_fastq \
+                  --fastq  differential_expression_ncbi/differential_expression_fastq \
                   --transcriptome-source precomputed \
                   --de_analysis \
-                  --ref_genome differential_expression/GRCh38.p14.NCBI_test.fna.gz \
-                --ref_annotation differential_expression/GRCh38.p14_NCBI_test.gtf.gz \
+                  --ref_genome differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
+                --ref_annotation differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                 --direct_rna --minimap_index_opts '-w 25' \
                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+              NF_IGNORE_PROCESSES: >
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,
+                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam           
+        - if: $MATRIX_NAME == "ncbi_no_gene_id"
+          variables:
+              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz
+              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
+                --fastq differential_expression_ncbi/differential_expression_fastq \
+                --transcriptome-source precomputed --de_analysis \
+                --ref_genome differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
+                --ref_annotation differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
+                --direct_rna --ref_transcriptome differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
+                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+              NF_IGNORE_PROCESSES: >
+                preprocess_reads,merge_transcriptomes,assemble_transcripts,
+                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam           
+        - if: $MATRIX_NAME == "ensembl_with_versions"
+          variables:
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
+                --fastq differential_expression/differential_expression_fastq \
+                --transcriptome-source precomputed --de_analysis \
+                --ref_genome differential_expression/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
+                --ref_annotation differential_expression/Homo_sapiens.GRCh38.109.gtf.gz \
+                --direct_rna --ref_transcriptome differential_expression/Homo_sapiens.GRCh38.cdna.all.fa.gz \
+                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam           
