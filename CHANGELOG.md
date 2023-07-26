@@ -4,12 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [v0.2.1]
 ### Changed
 - Any sample aliases that contain spaces will be replaced with underscores.
+- Updated documentation to explain we only support Ensembl, NCBI and ENCODE annotation file types. 
 
 ### Fixed
 - Documentation parameter examples corrected.
+- Handling for annotation files that use gene as gene_id attribute.
+- Handling for Ensembl annotation files.
 
 ## [v0.2.0]
 ### Changed

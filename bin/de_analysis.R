@@ -9,6 +9,7 @@ min_samps_feature_expr <- args[3]
 min_gene_expr <- args[4] 
 min_feature_expr <- args[5]
 annotation_type <- args[6]
+strip_version <- args[7]
 
 cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
@@ -27,15 +28,10 @@ txdf <- select(txdb, keys(txdb,"GENEID"), "TXNAME", "GENEID")
 tab <- table(txdf$GENEID)
 txdf$ntx<- tab[match(txdf$GENEID, names(tab))]
 
-strip_version<-function(x) {
-    tmp<-data.frame(strsplit(x,".", fixed=TRUE), stringsAsFactors=FALSE)
-    tmp<-as.vector(tmp[1,])
-    colnames(tmp) <- c()
-    rownames(tmp) <- c()
-    return(tmp)
-}
 
-#rownames(cts) <- strip_version(rownames(cts))
+if (strip_version == "true"){
+  rownames(cts) <- lapply(rownames(cts),  sub, pattern = "\\.\\d+$", replacement = "")
+}
 
 cts <- cts[rownames(cts) %in% txdf$TXNAME, ] # FIXME: filter for transcripts which are in the annotation. Why they are not all there? 
 

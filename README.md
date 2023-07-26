@@ -82,7 +82,7 @@ Differential gene expression is sensitive to the input data quantity and quality
 - Directory containing cDNA/direct RNA reads. Or a directory containing subdirectories each with reads from different samples
   (in fastq/fastq.gz format)
 - Reference genome in fasta format (required for reference-based assembly).
-- Optional reference annotation in GFF2/3 format (extensions allowed are .gtf(.gz), .gff(.gz), .gff3(.gz)) (required for differential expression analysis `--de_analysis`).
+- Optional reference annotation in GFF2/3 format (extensions allowed are .gtf(.gz), .gff(.gz), .gff3(.gz)) (required for differential expression analysis `--de_analysis`). Only annotation files from [Encode](https://www.encodeproject.org), [Ensembl](https://www.ensembl.org/index.html) and [NCBI](https://www.ncbi.nlm.nih.gov/) are supported.
 - For fusion detection, JAFFAL reference files (see Quickstart) 
 
 
