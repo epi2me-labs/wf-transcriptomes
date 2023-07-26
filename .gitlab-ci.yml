@@ -89,7 +89,7 @@ docker-run:
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
                 --direct_rna --minimap_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+                --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
@@ -103,7 +103,7 @@ docker-run:
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff3 \
                 --direct_rna --minimap_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+                --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
@@ -117,7 +117,7 @@ docker-run:
                   --ref_genome differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
                 --ref_annotation differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                 --direct_rna --minimap_index_opts '-w 25' \
-               --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+               --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam           
