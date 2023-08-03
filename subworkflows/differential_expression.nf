@@ -162,7 +162,8 @@ workflow differential_expression {
     main:
         checkSampleSheetCondition(sample_sheet)
         t_index = build_minimap_index_transcriptome(ref_transcriptome)
-        mapped = map_transcriptome(full_len_reads.combine(t_index))
+        mapped = map_transcriptome(full_len_reads.combine(t_index)
+        .map{meta, fastq, reference, transcriptome -> tuple(meta, fastq, reference) })
         count_transcripts(mapped.bam.combine(t_index.map{ mmi, reference -> reference}))
         merged = mergeCounts(count_transcripts.out.counts.collect())
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())

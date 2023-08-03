@@ -545,6 +545,7 @@ workflow pipeline {
                 // So map this reference to all sample_ids
                 seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome)
             }
+
             get_transcriptome(
                 merge_gff_bundles.out.gff
                 .join(run_gffcompare.out.gffcmp_dir)
