@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [updated]
 ### Changed 
 - Nextflow minimum required version to 23.04.2
+- `--minimap_index_opts` parameter has been changed to `minimap2_index_opts` for consistency.
 
 ## [v0.2.1]
 ### Changed

@@ -77,7 +77,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa --transcriptome-source reference-guided \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-                --direct_rna --minimap_index_opts '-k 15'  --sample_sheet test_data/sample_sheet.csv"
+                --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
@@ -87,7 +87,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
-                --direct_rna --minimap_index_opts '-k 15' \
+                --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
                 --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
@@ -101,7 +101,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff3 \
-                --direct_rna --minimap_index_opts '-k 15' \
+                --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
                 --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
@@ -116,7 +116,7 @@ docker-run:
                   --de_analysis \
                   --ref_genome differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
                 --ref_annotation differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
-                --direct_rna --minimap_index_opts '-w 25' \
+                --direct_rna --minimap2_index_opts '-w 25' \
                --sample_sheet test_data/sample_sheet.csv"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,

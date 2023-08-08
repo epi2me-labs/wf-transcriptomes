@@ -241,7 +241,7 @@ nextflow run epi2me-labs/wf-transcriptomes \
   --de_analysis \
   --ref_genome differential_expression/hg38_chr20.fa \
   --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-  --direct_rna --minimap_index_opts \
+  --direct_rna --minimap2_index_opts \
   -k15
 ```
 You can also run the differential expression section of the workflow on its own by providing a reference transcriptome and setting the transcriptome assembly parameter to false.
@@ -252,7 +252,7 @@ nextflow run epi2me-labs/wf-transcriptomes \
   --de_analysis \
   --ref_genome differential_expression/hg38_chr20.fa \
   --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-  --direct_rna --minimap_index_opts \
+  --direct_rna --minimap2_index_opts \
   -k15 \
   --ref_transcriptome differential_expression/ref_transcriptome.fasta
 ```

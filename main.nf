@@ -137,7 +137,7 @@ process build_minimap_index{
         path "genome_index.mmi", emit: index
     script:
     """
-    minimap2 -t ${params.threads} ${params.minimap_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
+    minimap2 -t ${params.threads} ${params.minimap2_index_opts} -I 1000G -d "genome_index.mmi" ${reference}
     """
 }
 
@@ -667,6 +667,10 @@ workflow {
     fastq = file(params.fastq, type: "file")
 
     error = null
+
+    if (params.containsKey("minimap_index_opts")) {
+        error = "`--minimap_index_opts` parameter is deprecated. Use parameter `--minimap2_index_opts` instead."
+    }
 
     if (!fastq.exists()) {
         error = "--fastq: File doesn't exist, check path."
