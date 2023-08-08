@@ -126,7 +126,7 @@ process build_minimap_index_transcriptome{
         tuple path("genome_index.mmi"), path(reference), emit: index
     script:
     """
-    minimap2 -t "${task.cpus}" ${params.minimap_index_opts}  -I 1000G -d "genome_index.mmi" "${reference}"
+    minimap2 -t "${task.cpus}" ${params.minimap2_index_opts}  -I 1000G -d "genome_index.mmi" "${reference}"
   
     """
 }
