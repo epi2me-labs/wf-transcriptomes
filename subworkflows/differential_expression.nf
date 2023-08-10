@@ -32,9 +32,9 @@ process mergeCounts {
     input:
         path counts
     output:
-        path "all_counts.tsv"
+        path "de_transcript_counts.tsv"
     """
-    workflow-glue merge_count_tsvs -z -o all_counts.tsv -tsvs ${counts}
+    workflow-glue merge_count_tsvs -z -o de_transcript_counts.tsv -tsvs ${counts}
     """
 }
 
@@ -43,9 +43,9 @@ process mergeTPM {
     input:
         path counts
     output:
-        path "tpm_counts.tsv"
+        path "de_tpm_transcript_counts.tsv"
     """
-    workflow-glue merge_count_tsvs -o tpm_counts.tsv -z -tpm True -tsvs $counts
+    workflow-glue merge_count_tsvs -o de_tpm_transcript_counts.tsv -z -tpm True -tsvs $counts
     """
 }
 
@@ -104,7 +104,7 @@ process plotResults {
     output:
         path "de_analysis/dtu_plots.pdf", emit: dtu_plots
         path "sample_sheet.tsv", emit: sample_sheet_csv
-        path "de_analysis", emit: stageR
+        path "de_analysis/*", emit: stageR
     """
     mkdir merged
     mv $sample_sheet de_analysis/coldata.tsv
@@ -173,9 +173,11 @@ workflow differential_expression {
                     analysis.stageR).combine(plotResults.out.sample_sheet_csv).combine(merged).combine(
                     ref_annotation).combine(merged_TPM)
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
+        all_counts = merged_TPM.concat(merged, analysis.flt_counts, analysis.gene_counts)
 emit:
        all_de = de_report
        count_transcripts = count_transcripts_file
        dtu_plots = plotResults.out.dtu_plots
        de_outputs = plotResults.out.stageR
+       counts = all_counts
 }
