@@ -309,14 +309,14 @@ process merge_transcriptomes {
         path ref_annotation
         path ref_genome
     output:
-        path "non_redundant.fasta", emit: fasta
+        path "final_non_redundant_transcriptome.fasta", emit: fasta
         path "stringtie.gtf", emit: gtf
     """
     stringtie --merge -G $ref_annotation -p ${task.cpus} -o stringtie.gtf query_annotations/*
     seqkit subseq --feature "transcript" --gtf-tag "transcript_id" --gtf stringtie.gtf $ref_genome > temp_transcriptome.fasta
     seqkit rmdup -s < temp_transcriptome.fasta > temp_del_repeats.fasta
     cat temp_del_repeats.fasta | sed 's/>.* />/'  | sed -e 's/_[0-9]* \\[/ \\[/' > temp_rm_empty_seq.fasta
-    awk 'BEGIN {RS = ">" ; FS = "\\n" ; ORS = ""} \$2 {print ">"\$0}' temp_rm_empty_seq.fasta > non_redundant.fasta
+    awk 'BEGIN {RS = ">" ; FS = "\\n" ; ORS = ""} \$2 {print ">"\$0}' temp_rm_empty_seq.fasta > "final_non_redundant_transcriptome.fasta"
     rm temp_transcriptome.fasta
     rm temp_del_repeats.fasta
     rm temp_rm_empty_seq.fasta
@@ -342,6 +342,9 @@ process makeReport {
         path "seqkit/*"
     output:
         path("wf-transcriptomes-*.html"), emit: report
+        // for DE analysis, a `gene_name` column will be added to
+        // `de_report/results_dge.tsv`
+        path "results_dge.tsv", emit: de_analysis, optional: true
     script:
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
@@ -387,7 +390,6 @@ process makeReport {
     \$OPT_JAFFAL_CSV \
     $OPT_DENOVO \
     \$dereport 
-
     """
 }
 
@@ -495,7 +497,7 @@ workflow pipeline {
             return l
         }
 
-        
+     
 
         software_versions = getVersions()
         workflow_params = getParams()
@@ -578,7 +580,7 @@ workflow pipeline {
                 gtf = merge_transcriptomes.out.gtf
             }
             else {
-                transcriptome = ref_transcriptome
+                transcriptome =  Channel.fromPath(ref_transcriptome)
                 gtf = ref_annotation
             }
             de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
@@ -586,6 +588,7 @@ workflow pipeline {
             count_transcripts_file = de.count_transcripts
             dtu_plots = de.dtu_plots
             de_outputs = de.de_outputs
+            counts = de.counts
         } else{
             de_report = file("$projectDir/data/OPTIONAL_FILE")
             count_transcripts_file = file("$projectDir/data/OPTIONAL_FILE")
@@ -605,6 +608,8 @@ workflow pipeline {
             count_transcripts_file)
 
         report = makeReport.out.report
+        
+     
        
         results = results.concat(makeReport.out.report)
        
@@ -645,15 +650,19 @@ workflow pipeline {
                 .concat(gene_fusions.out.results
                 .map {it -> it[1]})
         }
-
+        
+       results = results.map{ [it, null] }.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
+        
         if (params.de_analysis){
-            results = results.concat(de.dtu_plots, de_outputs)
+           de_update = makeReport.out.de_analysis
+           de_results = report.concat(transcriptome, de_outputs.flatten(), counts.flatten(), de_update)
+           results = results.concat(de_results.map{ [it, "de_analysis"] })
         }
 
-        results  = fastq_ingress_results.map { [it, "fastq_ingress_results"] }.concat(results.map{ [it, null]})
+        results.concat(workflow_params.map{ [it, null]})
+       
     emit:
         results
-        telemetry = workflow_params
 }
 
 // entrypoint workflow

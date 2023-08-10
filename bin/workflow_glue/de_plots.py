@@ -237,6 +237,13 @@ def dtu_section(dtu_file, section, gt_dic, ge_dic):
     section.table(dtu_results.loc[dtu_pvals.index])
 
 
+def dge_names(dge_file, geid_gname):
+    """Add gene name column to DGE tsv."""
+    dge_results = pd.read_csv(dge_file, sep='\t')
+    dge_results["gene_name"] = dge_results.index.map(lambda x: geid_gname.get(x))
+    dge_results.to_csv('results_dge.tsv', index=True, index_label="gene_id")
+
+
 def dge_section(dge_file, section, ids_dic):
     """Create DGE table and plot."""
     section.markdown('### Differential gene expression')
@@ -312,6 +319,7 @@ def get_translations(gtf):
     fn = open(gtf).readlines()
     gene_txid = {}
     gene_geid = {}
+    geid_gname = {}
 
     def get_feature(row, feature):
         return row.split(feature)[1].split(
@@ -347,7 +355,8 @@ def get_translations(gtf):
             gene_id = gene_name
         gene_txid[transcript_id] = gene_name
         gene_geid[gene_id] = gene_reference
-    return gene_txid, gene_geid
+        geid_gname[gene_reference] = gene_name
+    return gene_txid, gene_geid, geid_gname
 
 
 def de_section(
@@ -364,6 +373,10 @@ the GTF-format annotation.
 These counts were used to perform a statistical analysis to identify
 the genes and isoforms that show differences in abundance between
 the experimental conditions.
+Any novel genes or transcripts that do not have relevant gene or transcript IDs
+are prefixed with MSTRG for use in differential expression analysis.
+Find the full sequences of any transcripts in the
+`final_non_redundant_transcriptome.fasta` file.
     """)
     section.markdown("### Alignment summary stats")
     alignment_stats = pool_csvs("seqkit")
@@ -371,8 +384,9 @@ the experimental conditions.
     alignment_summary_df = alignment_summary_df.fillna(0).applymap(np.int64)
     section.table(alignment_summary_df, key='alignment-stats', index=True)
     salmon_table(tpm, section)
-    gene_txid, gene_name = get_translations(stringtie)
+    gene_txid, gene_name, geid_gname = get_translations(stringtie)
     dge_section(dge, section, gene_name)
+    dge_names(dge, geid_gname)
     dexseq_section(dexseq, section, gene_name)
     dtu_section(dtu, section, gene_txid, gene_name)
     # missing dtu plots at the moment as too many

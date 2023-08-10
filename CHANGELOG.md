@@ -4,10 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [updated]
-### Changed 
+## [unreleased]
+### Changed
+- Improve differential expression outputs.
+- Include transcript and gene count tables in DE_final folder.
+- If differential expression subworkflow is used a non redundant transcriptome will be output which includes novel transcripts.
+- Added wording to the report about how to identify novel transcripts in the DE tables.
 - Nextflow minimum required version to 23.04.2
 - `--minimap_index_opts` parameter has been changed to `minimap2_index_opts` for consistency.
+
+### Added
+- An additional gene name column to the differential gene expression results. This is especially handy for transcriptomes where the gene ID is not the same as gene name (e.g. Ensembl).
+- Wording to the report about how to identify novel transcripts in the DE tables.
 
 ## [v0.2.1]
 ### Changed

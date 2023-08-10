@@ -888,7 +888,8 @@ def de_section(report):
     dge = os.path.join("de_report", "results_dge.tsv")
     dtu = os.path.join("de_report", "results_dtu_stageR.tsv")
     stringtie = os.path.join("de_report", "stringtie_merged.gtf")
-    tpm = os.path.join("de_report", "tpm_counts.tsv")
+    tpm = os.path.join("de_report", "de_tpm_transcript_counts.tsv")
+    # This will also add a gene name column to the "results_dge.tsv"
     de_plots.de_section(
         stringtie=stringtie,
         dexseq=dexseq,
