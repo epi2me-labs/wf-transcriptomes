@@ -37,7 +37,7 @@ tar -xzvf  test_data.tar.gz
 **Example execution of a workflow for reference-based transcript assembly and fusion detection**
 ```
 OUTPUT=~/output;
-nexflow run epi2me-labs/wf-transcriptomes \
+nextflow run epi2me-labs/wf-transcriptomes \
   --fastq ERR6053095_chr20.fastq \
   --ref_genome chr20/hg38_chr20.fa \
   --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
