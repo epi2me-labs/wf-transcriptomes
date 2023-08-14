@@ -510,7 +510,14 @@ workflow pipeline {
 
         // modified to allow for optional host-filtered reads input (AS 14viii2023)
         // filtered reads directly substitute full_len_reads in all downstream tasks
+
+        if (params.transcriptome_source != "denovo"){
+
+            build_minimap_index(ref_genome)
+        }
+
         if (!params.direct_rna){
+
             if (params.host_filter){
 
                 preprocess_reads(input_reads)
@@ -554,7 +561,7 @@ workflow pipeline {
                 assembly = denovo_assembly(full_len_reads, ref_genome)
 
             } else {
-                build_minimap_index(ref_genome)
+                //build_minimap_index(ref_genome) // already done earlier
                 log.info("Doing reference based transcript analysis")
                 assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
             }
