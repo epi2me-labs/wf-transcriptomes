@@ -47,7 +47,7 @@ process map_reads_unfilt_host{
 
     script:
     """
-    minimap2 -t ${params.threads} -ax splice -uf ${index_host} ${fastq_reads}\
+    minimap2 -t ${params.threads} -ax splice -uf ${index_host} ${full_len_reads_host_graft}\
         | samtools view -hbo -\
         | samtools sort -@ ${params.threads} -o "${sample_id}_all_alns.host.minimap2.bam" - 
 
@@ -72,7 +72,7 @@ process map_reads_unfilt_graft{
 
     script:
     """
-    minimap2 -t ${params.threads} -ax splice -uf ${index} ${fastq_reads}\
+    minimap2 -t ${params.threads} -ax splice -uf ${index} ${full_len_reads_host_graft}\
         | samtools view -hbo -\
         | samtools sort -@ ${params.threads} -o "${sample_id}_all_alns.graft.minimap2.bam" - 
 
@@ -119,12 +119,17 @@ process convert_graft_reads{
 
     output:
     tuple val(sample_id), path(fastq_filtered_graft), emit: fastq_graft
+    path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
 
     //tuple val("${meta.alias}"), path("${meta.alias}_full_length_reads.fastq"), emit: full_len_reads_graft
 
     script:
     """
-    samtools fastq -F 0x4 ${bam_filtered_graf} > ${sample_id}.filtered.graft.fastq
+    samtools fastq -F 0x4 ${bam_filtered_graft} > ${sample_id}.filtered.graft.fastq
+
+    #echo "graft reads" >>${sample_id)}.host_filtering_stats.txt
+	#echo "$(expr $(${sample_id}.filtered.graft.fastq | wc -l) / 4)" >>${sample_id)}.host_filtering_stats.txt
+
     """
 
 }
@@ -147,6 +152,7 @@ workflow filter_host_reads {
 
     emit:
        fastq_graft = convert_graft_reads.out.fastq_graft
+       stats_filt = convert_graft_reads.out.stats_filt
 }
 
 
