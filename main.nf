@@ -797,7 +797,7 @@ workflow {
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-            condition_sheet, ref_transcriptome)
+            condition_sheet, ref_transcriptome,ref_genome_host)
 
         output(pipeline.out.results)
     }
