@@ -47,7 +47,7 @@ process map_reads_unfilt_host{
 
     script:
     """
-    minimap2 -t ${params.threads} -ax splice -uf ${index} ${fastq_reads}\
+    minimap2 -t ${params.threads} -ax splice -uf ${index_host} ${fastq_reads}\
         | samtools view -hbo -\
         | samtools sort -@ ${params.threads} -o "${sample_id}_all_alns.host.minimap2.bam" - 
 
