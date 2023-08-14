@@ -118,7 +118,7 @@ process convert_graft_reads{
 
     output:
     tuple val(sample_id), path(fastq_filtered_graft), emit: fastq_graft
-    path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
+    tuple val(sample_id), path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
 
     script:
     """
