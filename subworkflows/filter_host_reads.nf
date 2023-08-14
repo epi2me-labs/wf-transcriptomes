@@ -111,7 +111,6 @@ process convert_graft_reads{
     label "isoforms"
     cpus params.threads
 
-
     publishDir params.filteredFastqOut, mode:'copy'
 
     input:
@@ -120,8 +119,6 @@ process convert_graft_reads{
     output:
     tuple val(sample_id), path(fastq_filtered_graft), emit: fastq_graft
     path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
-
-    //tuple val("${meta.alias}"), path("${meta.alias}_full_length_reads.fastq"), emit: full_len_reads_graft
 
     script:
     """
