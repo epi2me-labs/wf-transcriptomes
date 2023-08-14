@@ -519,6 +519,7 @@ workflow pipeline {
         if (!params.direct_rna){
 
             if (params.host_filter){
+                log.info("Filtering out host reads.")
 
                 preprocess_reads(input_reads)
                 pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
@@ -532,7 +533,7 @@ workflow pipeline {
                 // convert_graft_reads(filter_host_reads_bam.out.bam_filtered_graft)
                 // full_len_reads = convert_graft_reads.out.full_len_reads_graft
 
-                filter_host_reads( build_minimap_index.out.index, preprocess_reads.out.full_len_reads, params.host_filter)
+                filter_host_reads( build_minimap_index.out.index, preprocess_reads.out.full_len_reads, params.ref_genome_host)
 
                 full_len_reads =  filter_host_reads.out.fastq_graft
 
