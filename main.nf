@@ -5,6 +5,20 @@
 - https://github.com/nanoporetech/pipeline-nanopore-denovo-isoforms
 */
 
+/* Changes for long read xenograft data, processed via SLURM on Rackham / Uppmax
+* support for SLURM
+* resource usage optimised for Rackham
+* using singularity / apptainer (via the provided Docker contanier)
+* more comprehensive output file saving
+* subworkflows added: 
+    * read mapping statistics; 
+    * transcriptome quantification using salmon independent on the DE analysis;
+    * host reads removal
+(Agata Smialowska 2023)
+*/
+
+
+
 import groovy.json.JsonBuilder;
 import nextflow.util.BlankSeparatedList;
 import java.util.ArrayList;
@@ -17,6 +31,7 @@ include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 include { map_reads_all_genome } from './subworkflows/map_reads_all_genome'
 include { map_reads_all_transcriptome } from './subworkflows/map_reads_all_transcriptome'
+include { filter_host_reads } from './subworkflows/filter_host_reads'
 
 
 // added 29 v 2023
@@ -26,6 +41,7 @@ params.mappedOut="${params.out_dir}/bam_minimap_genome_mapped"
 params.mappedAllOut="${params.out_dir}/bam_minimap_genome_all"
 params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_filt"
 params.salmonOut="${params.out_dir}/salmon"
+params.filteredFastqOut="${params.out_dir}/fastq_filtered_graft"
 
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
@@ -447,6 +463,7 @@ workflow pipeline {
         jaffal_annotation
         condition_sheet
         ref_transcriptome
+        ref_genome_host
     main:
         fastq_ingress_results = reads
         // replace `null` with path to optional file
@@ -484,15 +501,52 @@ workflow pipeline {
             it[2] ? it[2].resolve('per-read-stats.tsv') : null
         }
 
+        // original
+        // if (!params.direct_rna){
+        //     preprocess_reads(input_reads)
+        //     full_len_reads = preprocess_reads.out.full_len_reads
+        //     pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+        // }
+
+        // modified to allow for optional host-filtered reads input (AS 14viii2023)
+        // filtered reads directly substitute full_len_reads in all downstream tasks
         if (!params.direct_rna){
-            preprocess_reads(input_reads)
-            full_len_reads = preprocess_reads.out.full_len_reads
-            pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+            if (params.host_filter){
+
+                preprocess_reads(input_reads)
+                pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+
+                // build_minimap_index_host(ref_genome_host)
+
+                // full_len_reads_host_graft = preprocess_reads.out.full_len_reads
+                // map_reads_unfilt_host(build_minimap_index_host.out.index, full_len_reads_host_graft)
+                // map_reads_unfilt_graft(build_minimap_index.out.index, full_len_reads_host_graft)
+                // filter_host_reads_bam(map_reads_unfilt_graft.out.bam_graft, map_reads_unfilt_host.out.bam_host)
+                // convert_graft_reads(filter_host_reads_bam.out.bam_filtered_graft)
+                // full_len_reads = convert_graft_reads.out.full_len_reads_graft
+
+                filter_host_reads( build_minimap_index.out.index, preprocess_reads.out.full_len_reads, params.host_filter)
+
+                full_len_reads =  filter_host_reads.out.fastq_graft
+
+            }
+            // end of modification
+            else{
+                preprocess_reads(input_reads)
+                full_len_reads = preprocess_reads.out.full_len_reads
+                pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+
+            }
+
         }
+
         else{
             full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
             pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
         }
+
+
+
         if (params.transcriptome_source != "precomputed"){
         
             if (params.transcriptome_source == "denovo"){
@@ -641,7 +695,7 @@ workflow pipeline {
         
         build_minimap_trx_index(ref_genome, ref_annotation)
         
-        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx,build_minimap_trx_index.out.ref_transcriptome_fa, full_len_reads)
+        map_all_transcriptome = map_reads_all_transcriptome(build_minimap_trx_index.out.index_trx, build_minimap_trx_index.out.ref_transcriptome_fa, full_len_reads)
 
         // end added
 
@@ -720,6 +774,16 @@ workflow {
     } else{
         condition_sheet = file("$projectDir/data/OPTIONAL_FILE")
     }
+
+    // host read filtering
+    if (params.host_filter){
+        ref_genome_host = file(params.ref_genome_host, type: "file")
+        if (!ref_genome_host.exists()){
+            error = "--ref_genome_host: File doesn't exist, check path."
+        }
+    }
+
+
     if (error){
         throw new Exception(error)
     }else{
