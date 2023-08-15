@@ -94,7 +94,7 @@ process filter_host_reads_bam{
     tuple val(sample_id), path(mapped_host_bam)
 
     output:
-    tuple val(sample_id), path("Filtered_bams/${sample_id}_Filtered.bam"), path("Filtered_bams/${sample_id}_Filtered.bai"), emit: bam_filtered_graft
+    tuple val(sample_id), path("Filtered_bams/${sample_id}_Filtered.bam"), path("Filtered_bams/${sample_id}_Filtered.bam.bai"), emit: bam_filtered_graft
 
     script:
     """
