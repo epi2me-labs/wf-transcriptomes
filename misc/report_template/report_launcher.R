@@ -5,7 +5,7 @@ rm(list=ls())
 library(knitr)
 args <- commandArgs(TRUE)
 
-if (length(args) < 6) stop("Not all args are set; required: projdir proj.name.prefix sample.info ")
+if (length(args) < 3) stop("Not all args are set; required: projdir proj.name.prefix sample.info ")
 
 proj.dir <- args[1]
 proj.name.pref <- args[2]
