@@ -125,9 +125,7 @@ process convert_graft_reads{
     script:
     """
     samtools fastq -F 0x4 ${bam_filtered_graft} > ${sample_id}.filtered.graft.fastq
-
-    echo "graft fastq lines" >>${sample_id)}.host_filtering_stats.txt
-    wc -l  ${sample_id}.filtered.graft.fastq  >>${sample_id)}.host_filtering_stats.txt
+    wc -l  ${sample_id}.filtered.graft.fastq  >${sample_id)}.host_filtering_stats.txt
 
     """
 
