@@ -21,6 +21,11 @@ dir.create(proj.dir, recursive = TRUE)
 wrk.dir=file.path(proj.dir,paste(proj.name.pref,"report",sep="."))
 dir.create(wrk.dir, recursive = TRUE)
 
+print(proj.dir)
+print(proj.name.pref)
+print(sample.info)
+print(wrk.dir)
+
 
 
 rmarkdown::render('6556_QC_report_v0.1.Rmd', output_file = file.path(wrk.dir,paste("QC_report",proj.name.pref,'html', sep=".")))
