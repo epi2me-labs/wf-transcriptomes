@@ -15,9 +15,14 @@ sample.info <- args[3]
 #user.run=Sys.getenv("USER")
 
 #wrk.dir=file.path(proj.dir,"results",data.type,"report")
-wrk.dir=file.path(projdir,paste(proj.name.prefix,"report",sep="."))
+
+dir.create(proj.dir, recursive = TRUE)
+
+wrk.dir=file.path(proj.dir,paste(proj.name.pref,"report",sep="."))
 dir.create(wrk.dir, recursive = TRUE)
 
 
+
 rmarkdown::render('6556_QC_report_v0.1.Rmd', output_file = file.path(wrk.dir,paste("QC_report",proj.name.pref,'html', sep=".")))
+
 
