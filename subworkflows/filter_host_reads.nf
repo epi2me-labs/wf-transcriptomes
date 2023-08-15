@@ -108,25 +108,19 @@ process convert_graft_reads{
     /*
     bam to fastq conversion
     */
+
     label "isoforms"
     cpus params.threads
 
-    publishDir params.filteredFastqOut, mode:'copy'
-
     input:
-    tuple val(sample_id), path(filtered_graft_bam)
+    tuple val(sample_id), path(bam_filtered_graft)
 
     output:
-    tuple val(sample_id), path("${sample_id}.filtered.graft.fastq"), emit: fastq_graft
-    tuple val(sample_id), path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
-
+    tuple val(sample_id), path("${sample_id}_Filtered.bam"), emit: fastq_graft
 
     script:
     """
-    samtools fastq -F 0x4 ${filtered_graft_bam} > ${sample_id}.filtered.graft.fastq
-    echo "graft reads" >>${sample_id)}.host_filtering_stats.txt
-    wc -l  ${sample_id}.filtered.graft.fastq  >>${sample_id)}.host_filtering_stats.txt
-
+    samtools fastq -F 0x4 ${bam_filtered_graft} > ${sample_id}.filtered.graft.fastq
     """
 
 }
