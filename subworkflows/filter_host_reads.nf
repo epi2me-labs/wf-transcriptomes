@@ -119,7 +119,7 @@ process convert_graft_reads{
 
     output:
     tuple val(sample_id), path("${sample_id}.filtered.graft.fastq"), emit: fastq_graft
-    path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
+    tuple val(sample_id), path("${sample_id}_host_filtering_stats.txt"), emit: stats_fastq_filt
 
     script:
     """
@@ -148,7 +148,7 @@ workflow filter_host_reads {
 
     emit:
        fastq_graft = convert_graft_reads.out.fastq_graft
-       stats_filt = convert_graft_reads.out.stats_filt
+       stats_filt = convert_graft_reads.out.stats_fastq_filt
 
 }
 
