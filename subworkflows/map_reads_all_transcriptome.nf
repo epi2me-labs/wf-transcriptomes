@@ -18,7 +18,7 @@ process map_reads_trx_all{
 
     input:
        path index_trx
-       tuple val(sample_id), path(full_len_reads)
+       tuple val(sample_id), path(fastq_reads)
 
     output:
        tuple val(sample_id), path("${sample_id}_filt_alns.transcriptome.minimap2.bam"), emit: bam_trx
