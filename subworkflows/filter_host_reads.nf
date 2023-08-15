@@ -119,11 +119,13 @@ process convert_graft_reads{
 
     output:
     tuple val(sample_id), path("${sample_id}.filtered.graft.fastq"), emit: fastq_graft
+    path("${sample_id)}.host_filtering_stats.txt"), emit: stats_filt
 
 
     script:
     """
     samtools fastq -F 0x4 ${bam_filtered_graft} > ${sample_id}.filtered.graft.fastq
+    wc -l  ${sample_id}.filtered.graft.fastq  >>${sample_id)}.host_filtering_stats.txt
 
     """
 
