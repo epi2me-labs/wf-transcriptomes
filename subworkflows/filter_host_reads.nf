@@ -7,7 +7,7 @@ bam to fastq using samtools
 
 
 params.filteredFastqOut="${params.out_dir}/fastq_filtered_graft"
-
+params.scriptDir="${projectDir}/bin"
 
 
 process build_minimap_index_host{
@@ -98,7 +98,7 @@ process filter_host_reads_bam{
 
     script:
     """
-    Rscript run_xenofilter.R ${sample_id} ${mapped_graft_bam} ${mapped_host_bam}
+    Rscript $params.scriptDir/run_xenofilter.R ${sample_id} ${mapped_graft_bam} ${mapped_host_bam}
     """
 
 }
@@ -111,6 +111,8 @@ process convert_graft_reads{
 
     label "isoforms"
     cpus params.threads
+
+    publishDir params.filteredFastqOut, mode:'copy'
 
     input:
     tuple val(sample_id), path(bam_filtered_graft)
