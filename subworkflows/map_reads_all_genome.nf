@@ -19,7 +19,7 @@ process map_reads_all{
     input:
        path index
        path reference
-       tuple val(sample_id), path (fastq_reads)
+       tuple val(sample_id), path(fastq_reads)
 
     output:
        tuple val(sample_id), path("${sample_id}_all_alns.minimap2.bam"), emit: bam

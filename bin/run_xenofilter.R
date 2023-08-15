@@ -3,7 +3,7 @@
 
 args <- commandArgs(TRUE)
 
-if (length(args) < 4) stop("Not all args are set; required: projdir proj.name.prefix sample.info ")
+if (length(args) < 3) stop("Not all args are set; required: smpl_name bam_graft bam_host ")
 
 smpl_name <- args[1]
 bam_graft <- args[2]
