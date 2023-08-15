@@ -64,6 +64,8 @@ tx2gene.2$TXNAME=tx2gene.2$tx_id
 
 ## ---- metadata
 
+print(sample.info)
+
 smpls_pths=read.table(sample.info ,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
 colnames(smpls_pths)=c("sample","smpl_rootdir")
 
