@@ -94,7 +94,7 @@ process filter_host_reads_bam{
     tuple val(sample_id), path(mapped_host_bam)
 
     output:
-    tuple val(sample_id), path("${sample_id}_Filtered.bam"), emit: bam_filtered_graft
+    tuple val(sample_id), path("Filtered_bams/${sample_id}_Filtered.bam"), path("Filtered_bams/${sample_id}_Filtered.bai"), emit: bam_filtered_graft
 
     script:
     """
@@ -115,10 +115,10 @@ process convert_graft_reads{
     publishDir params.filteredFastqOut, mode:'copy'
 
     input:
-    tuple val(sample_id), path(bam_filtered_graft)
+    tuple val(sample_id), path(bam_filtered_graft), path(bam_filtered_graft_bai)
 
     output:
-    tuple val(sample_id), path("${sample_id}_Filtered.bam"), emit: fastq_graft
+    tuple val(sample_id), path("${sample_id}.filtered.graft.fastq"), emit: fastq_graft
 
     script:
     """
