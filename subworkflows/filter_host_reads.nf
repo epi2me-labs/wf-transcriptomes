@@ -143,7 +143,6 @@ workflow filter_host_reads {
 
     emit:
        fastq_graft = convert_graft_reads.out.fastq_graft
-       stats_filt = convert_graft_reads.out.stats_filt
 
 }
 
