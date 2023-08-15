@@ -26,7 +26,7 @@ print(proj.name.pref)
 print(sample.info)
 print(wrk.dir)
 
-
+print(getwd())
 
 rmarkdown::render('6556_QC_report_v0.1.Rmd', output_file = file.path(wrk.dir,paste("QC_report",proj.name.pref,'html', sep=".")))
 
