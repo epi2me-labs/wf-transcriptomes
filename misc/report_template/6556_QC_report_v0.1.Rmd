@@ -48,7 +48,9 @@ knitr::opts_chunk$set(echo = FALSE,
 script_pth="./6556_qcreport_v0.1.R"
 knitr::read_chunk(script_pth)
 
-#source("./6577_report_functions.R")
+knitr::opts_chunk$set(cache.path = wrk.dir)
+
+#source("./report_functions.R")
 ```
 
 

@@ -6,9 +6,9 @@
 
 
 ## ---- local_tests
-proj.dir="/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/results/pilot_30v2023/"
-proj.name.pref = "nanopore_pilot_30v2023"
-sample.info = "/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/scripts/qc_report/sample_info.txt"
+#proj.dir="/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/results/pilot_30v2023/"
+#proj.name.pref = "nanopore_pilot_30v2023"
+#sample.info = "/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/scripts/qc_report/sample_info.txt"
 
 resdir=file.path(proj.dir,"results")
 
@@ -63,8 +63,6 @@ tx2gene.2$TXNAME=tx2gene.2$tx_id
 
 
 ## ---- metadata
-
-print(sample.info)
 
 smpls_pths=read.table(sample.info ,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
 colnames(smpls_pths)=c("sample","smpl_rootdir")
