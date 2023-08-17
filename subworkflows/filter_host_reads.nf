@@ -1,4 +1,4 @@
-g/*
+/*
 Subworkflow for filtering host reads from xenograft samples
 Map to both genomes separateply (use previously mapped reads for graft - product of subworkflow map_reads_all_genome)
 Filter using XenofileR
