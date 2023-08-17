@@ -1,4 +1,4 @@
-/*
+g/*
 Subworkflow for filtering host reads from xenograft samples
 Map to both genomes separateply (use previously mapped reads for graft - product of subworkflow map_reads_all_genome)
 Filter using XenofileR
@@ -87,7 +87,7 @@ process filter_host_reads_bam{
     */
 
 	label "xenofilter"
-    cpus params.threads
+    cpus 8
 
     input:
     tuple val(sample_id), path(mapped_graft_bam)
