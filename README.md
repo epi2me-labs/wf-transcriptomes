@@ -158,7 +158,7 @@ Select how the transcriptome used for analysis should be prepared:
 - Gnerate transcriptome via the denovo pipeline `--transcriptome_source denovo"` 
 
 
-To run the workflow with direct RNA reads `--direct_rna false` (this just skips the pychopper step).
+To run the workflow with direct RNA reads `--direct_rna true` (this just skips the pychopper step).
 
 Pychopper and minimap2 can take options via `--minimap2_opts` and `--pychopper_opts`, for example:
 
