@@ -233,7 +233,18 @@ These data contain graft read pool.
 ```
 
 
-```{r include=TRUE,cache=FALSE, results='asis'}
+```{r include=TRUE,cache=FALSE,eval=!is.xenofilt, results='asis'}
+rlen_map[cols_tab1] %>% 
+  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+  kable_minimal(full_width = TRUE) %>% 
+  footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")%>% 
+  footnote(general = "Filtering host reads also removed reads unmapped to neither graft nor host references.")
+
+```
+
+
+
+```{r include=TRUE,cache=FALSE,eval=is.xenofilt, results='asis'}
 rlen_map[cols_tab1] %>% 
   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
   kable_minimal(full_width = TRUE) %>% 
