@@ -223,12 +223,12 @@ These data contain graft read pool.
 
 
 
-```{r read-map-stats-data, include=FALSE,cache=FALSE}
+```{r read-map-stats-data, eval=!is.xenofilt,include=FALSE,cache=FALSE}
 
 ```
 
 
-```{r read-map-stats-data-xenofilt, include=FALSE,cache=FALSE}
+```{r read-map-stats-data-xenofilt, eval=is.xenofilt, include=FALSE,cache=FALSE}
 
 ```
 
