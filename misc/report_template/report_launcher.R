@@ -5,12 +5,12 @@ rm(list=ls())
 library(knitr)
 args <- commandArgs(TRUE)
 
-if (length(args) < 3) stop("Not all args are set; required: projdir proj.name.prefix sample.info ")
+if (length(args) < 4) stop("Not all args are set; required: projdir proj.name.prefix sample.info xenofilt")
 
 proj.dir <- args[1]
 proj.name.pref <- args[2]
 sample.info <- args[3]
-
+xenofilt <- args[4] # TRUE or FALSE
 
 #user.run=Sys.getenv("USER")
 

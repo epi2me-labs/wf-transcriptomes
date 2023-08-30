@@ -9,6 +9,7 @@
 #proj.dir="/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/results/pilot_30v2023/"
 #proj.name.pref = "nanopore_pilot_30v2023"
 #sample.info = "/Users/agata.smialowska/NBISproj/6556_isoforms_nanopore/scripts/qc_report/sample_info.txt"
+#xenofilt = "TRUE" ## or FALSE
 
 resdir=file.path(proj.dir,"results")
 
@@ -38,7 +39,7 @@ library(tximport)
 library(matrixStats)
 library(org.Hs.eg.db)
 
-
+is.xenofilt=isTRUE(xenofilt=="TRUE")
 
 
 ## ---- annot
@@ -131,86 +132,221 @@ pdf(outfile_readlen)
 
 dev.off()
 
+## ---- summary-host-filt
 
+#only in XenofilteR processed runs
 
-## ---- read-map-stats-data
+xenofilt_stats=data.frame(sample=as.character(),graft=as.numeric())
 
-rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),mapped=as.numeric(),mapped_filt=as.numeric(),unmapped=as.numeric(),fraction_mapped=as.numeric(),fraction_mapped_filt=as.numeric(),
-  avg_len_mapped=as.numeric(),max_len_mapped=as.numeric(),avg_len_unmapped=as.numeric(),max_len_unmapped=as.numeric() )
+xenofilt_stats_list=list()
 
-for (i in samples ){
+if(xenofilt){
+
+  for (i in samples ){
     rootdir.i=i
     name.i=names(samples)[samples==i]
 
     print(rootdir.i)
     print(name.i)
 
-    read_map_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapped.txt"))
-    read_unmap_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.unmapped.txt"))
-    read_aln_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapstats.txt"))
+    host_filt_stats.i=file.path(rootdir.i,"fastq_filtered_graft",paste0(name.i,".host_filtering_stats.txt"))
 
-    pychopper_stats.i=file.path(rootdir.i,"fastq_pychopper",paste0(name.i,"_pychopper.tsv"))
-    fastq_stats=read.table(pychopper_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
-    reads_preproc=as.numeric(fastq_stats$V3[fastq_stats$V2=="Primers_found"])
+    graft_reads=read.table(host_filt_stats.i,sep=" ", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
 
-    mapeed_filt.i=file.path(rootdir.i,"bam_minimap_genome_mapped",paste0(name.i,"_read_aln_stats.tsv"))
-    mapped_filt_wftrx=read.table(mapeed_filt.i,sep="\t", header=TRUE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
-    reads_mapped_filt=mapped_filt_wftrx$PrimAln[1]
+    graft_read_cnt=graft_reads[1,1]/4
 
 
-    read_map_stats=read.table(read_map_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+    x_stats=c(name.i, graft_read_cnt)
 
-    reads_mapped=as.numeric(read_map_stats$V3[read_map_stats$V2=="reads mapped:"])
-    total_bases_mapped=read_map_stats$V3[read_map_stats$V2=="total length:"]
-    avg_len_mapped=read_map_stats$V3[read_map_stats$V2=="average length:"]
-    max_len_mapped=read_map_stats$V3[read_map_stats$V2=="maximum length:"]
+    xenofilt_stats=rbind(xenofilt_stats,x_stats)
 
-    read_unmap_stats=read.table(read_unmap_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
-    unmapped_reads=as.numeric(read_unmap_stats$V3[read_unmap_stats$V2=="reads unmapped:"])
-    total_bases_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="total length:"]
-    avg_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="average length:"]
-    max_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="maximum length:"]
+    xenofilt_stats_list[[name.i]]=graft_read_cnt
 
-    fraction_mapped=reads_mapped/reads_preproc
-    fraction_mapped_filt=reads_mapped_filt/reads_preproc
+  }
 
-    mapstats.i=c(name.i, reads_preproc, reads_mapped,reads_mapped_filt, unmapped_reads,fraction_mapped,fraction_mapped_filt,avg_len_mapped,max_len_mapped,avg_len_unmapped,max_len_unmapped)
+  colnames(xenofilt_stats)=c("name","graft_reads")
+  # this will be later added to the table in the next chunk
 
-    rlen_map=rbind(rlen_map,mapstats.i)
 
 }
 
-colnames(rlen_map)=c("name", "reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
-tab.title.1="Summary of read mapping statistics."
-tab.title.2="Read length of mapped and unmapped reads."
+
+## ---- read-map-stats-data
+
+#if no host read filtering employed
+
+if(!xenofilt){
+
+  rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),mapped=as.numeric(),mapped_filt=as.numeric(),unmapped=as.numeric(),fraction_mapped=as.numeric(),fraction_mapped_filt=as.numeric(),
+    avg_len_mapped=as.numeric(),max_len_mapped=as.numeric(),avg_len_unmapped=as.numeric(),max_len_unmapped=as.numeric() )
+
+  for (i in samples ){
+      rootdir.i=i
+      name.i=names(samples)[samples==i]
+
+      print(rootdir.i)
+      print(name.i)
+
+      read_map_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapped.txt"))
+      read_unmap_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.unmapped.txt"))
+      read_aln_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapstats.txt"))
+
+      pychopper_stats.i=file.path(rootdir.i,"fastq_pychopper",paste0(name.i,"_pychopper.tsv"))
+      fastq_stats=read.table(pychopper_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      reads_preproc=as.numeric(fastq_stats$V3[fastq_stats$V2=="Primers_found"])
+
+      mapeed_filt.i=file.path(rootdir.i,"bam_minimap_genome_mapped",paste0(name.i,"_read_aln_stats.tsv"))
+      mapped_filt_wftrx=read.table(mapeed_filt.i,sep="\t", header=TRUE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      reads_mapped_filt=mapped_filt_wftrx$PrimAln[1]
 
 
-cols.num=c("reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
-rlen_map[cols.num]=sapply(rlen_map[cols.num],as.numeric)
+      read_map_stats=read.table(read_map_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
 
-cols.bigmark=c("reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
-rlen_map[cols.bigmark]=sapply(rlen_map[cols.bigmark], \(x) format(x,big.mark = ","))
+      reads_mapped=as.numeric(read_map_stats$V3[read_map_stats$V2=="reads mapped:"])
+      total_bases_mapped=read_map_stats$V3[read_map_stats$V2=="total length:"]
+      avg_len_mapped=read_map_stats$V3[read_map_stats$V2=="average length:"]
+      max_len_mapped=read_map_stats$V3[read_map_stats$V2=="maximum length:"]
 
-cols.frac=c("fraction_mapped","fraction_mapped_filt")
-rlen_map[cols.frac]=sapply(rlen_map[cols.frac], \(x) format(x,digits=3))
+      read_unmap_stats=read.table(read_unmap_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      unmapped_reads=as.numeric(read_unmap_stats$V3[read_unmap_stats$V2=="reads unmapped:"])
+      total_bases_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="total length:"]
+      avg_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="average length:"]
+      max_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="maximum length:"]
 
-cols_tab1=c("name", "reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt")
-cols_tab2=c("name","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+      fraction_mapped=reads_mapped/reads_preproc
+      fraction_mapped_filt=reads_mapped_filt/reads_preproc
+
+      mapstats.i=c(name.i, reads_preproc, reads_mapped,reads_mapped_filt, unmapped_reads,fraction_mapped,fraction_mapped_filt,avg_len_mapped,max_len_mapped,avg_len_unmapped,max_len_unmapped)
+
+      rlen_map=rbind(rlen_map,mapstats.i)
+
+  }
+
+  colnames(rlen_map)=c("name", "reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  tab.title.1="Summary of read mapping statistics."
+  tab.title.2="Read length of mapped and unmapped reads."
 
 
-newnames.1=c("sample name", "reads preprocessed", "reads mapped", "reads mapped filtered", "reads unmapped", "fraction mapped","fraction mapped filtered")
-newnames.2=c("sample name","average length, mapped reads","max length, mapped reads","average length, unmapped reads","max length, unmapped reads")
+  cols.num=c("reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  rlen_map[cols.num]=sapply(rlen_map[cols.num],as.numeric)
 
-rlen_map[cols_tab1] %>% 
-  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
-  kable_minimal(full_width = TRUE) %>% 
-  footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")
+  cols.bigmark=c("reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  rlen_map[cols.bigmark]=sapply(rlen_map[cols.bigmark], \(x) format(x,big.mark = ","))
+
+  cols.frac=c("fraction_mapped","fraction_mapped_filt")
+  rlen_map[cols.frac]=sapply(rlen_map[cols.frac], \(x) format(x,digits=3))
+
+  cols_tab1=c("name", "reads_preproc", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt")
+  cols_tab2=c("name","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+
+
+  newnames.1=c("sample name", "reads preprocessed", "reads mapped", "reads mapped filtered", "reads unmapped", "fraction mapped","fraction mapped filtered")
+  newnames.2=c("sample name","average length, mapped reads","max length, mapped reads","average length, unmapped reads","max length, unmapped reads")
+
+  rlen_map[cols_tab1] %>% 
+    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+    kable_minimal(full_width = TRUE) %>% 
+    footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")
 
 
 
-rlen_map[cols_tab2] %>% 
-  kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
-  kable_minimal(full_width = TRUE)
+  rlen_map[cols_tab2] %>% 
+    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
+    kable_minimal(full_width = TRUE)
+
+}
+
+
+
+## ---- read-map-stats-xenofilt
+
+if(xenofilt){
+
+
+  rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),
+    reads_graft=as.numeric(),fraction_graft_filt=as.numeric(),
+    mapped=as.numeric(),mapped_filt=as.numeric(),unmapped=as.numeric(),fraction_mapped=as.numeric(),fraction_mapped_filt=as.numeric(),
+    avg_len_mapped=as.numeric(),max_len_mapped=as.numeric(),avg_len_unmapped=as.numeric(),max_len_unmapped=as.numeric() )
+
+  for (i in samples ){
+      rootdir.i=i
+      name.i=names(samples)[samples==i]
+
+      print(rootdir.i)
+      print(name.i)
+
+      read_map_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapped.txt"))
+      read_unmap_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.unmapped.txt"))
+      read_aln_stats.i=file.path(rootdir.i,"bam_minimap_genome_all",paste0(name.i,"_all_alns.minimap2.mapstats.txt"))
+
+      pychopper_stats.i=file.path(rootdir.i,"fastq_pychopper",paste0(name.i,"_pychopper.tsv"))
+      fastq_stats=read.table(pychopper_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      reads_preproc=as.numeric(fastq_stats$V3[fastq_stats$V2=="Primers_found"])
+
+      mapeed_filt.i=file.path(rootdir.i,"bam_minimap_genome_mapped",paste0(name.i,"_read_aln_stats.tsv"))
+      mapped_filt_wftrx=read.table(mapeed_filt.i,sep="\t", header=TRUE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      reads_mapped_filt=mapped_filt_wftrx$PrimAln[1]
+
+
+      read_map_stats=read.table(read_map_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+
+      reads_mapped=as.numeric(read_map_stats$V3[read_map_stats$V2=="reads mapped:"])
+      total_bases_mapped=read_map_stats$V3[read_map_stats$V2=="total length:"]
+      avg_len_mapped=read_map_stats$V3[read_map_stats$V2=="average length:"]
+      max_len_mapped=read_map_stats$V3[read_map_stats$V2=="maximum length:"]
+
+      read_unmap_stats=read.table(read_unmap_stats.i,sep="\t", header=FALSE, quote = "\"", dec = ".", fill = TRUE, row.names=NULL,blank.lines.skip=TRUE)
+      unmapped_reads=as.numeric(read_unmap_stats$V3[read_unmap_stats$V2=="reads unmapped:"])
+      total_bases_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="total length:"]
+      avg_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="average length:"]
+      max_len_unmapped=read_unmap_stats$V3[read_unmap_stats$V2=="maximum length:"]
+
+      reads_graft=xenofilt_stats_list[[name.i]]
+
+      fraction_graft_filt=reads_graft/reads_preproc
+
+      fraction_mapped=reads_mapped/reads_preproc
+      fraction_mapped_filt=reads_mapped_filt/reads_preproc
+
+      mapstats.i=c(name.i, reads_preproc, reads_graft, fraction_graft_filt,  reads_mapped,reads_mapped_filt, unmapped_reads,fraction_mapped,fraction_mapped_filt,avg_len_mapped,max_len_mapped,avg_len_unmapped,max_len_unmapped)
+
+      rlen_map=rbind(rlen_map,mapstats.i)
+
+  }
+
+  colnames(rlen_map)=c("name", "reads_preproc", "reads_graft", "fraction_graft_filt","reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  tab.title.1="Summary of read mapping statistics."
+  tab.title.2="Read length of mapped and unmapped reads."
+
+
+  cols.num=c("reads_preproc","reads_graft", "fraction_graft_filt", "reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  rlen_map[cols.num]=sapply(rlen_map[cols.num],as.numeric)
+
+  cols.bigmark=c("reads_preproc","reads_graft", "reads_mapped", "reads_mapped_filtered", "reads_unmapped","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+  rlen_map[cols.bigmark]=sapply(rlen_map[cols.bigmark], \(x) format(x,big.mark = ","))
+
+  cols.frac=c("fraction_graft_filt","fraction_mapped","fraction_mapped_filt")
+  rlen_map[cols.frac]=sapply(rlen_map[cols.frac], \(x) format(x,digits=3))
+
+  cols_tab1=c("name", "reads_preproc", "reads_graft", "fraction_graft_filt","reads_mapped", "reads_mapped_filtered", "reads_unmapped", "fraction_mapped","fraction_mapped_filt")
+  cols_tab2=c("name","avg_len_mapped","max_len_mapped","avg_len_unmapped","max_len_unmapped")
+
+
+  newnames.1=c("sample name", "reads preprocessed", "reads graft" , "fraction reads graft" , "reads mapped", "reads mapped filtered", "reads unmapped", "fraction mapped","fraction mapped filtered")
+  newnames.2=c("sample name","average length, mapped reads","max length, mapped reads","average length, unmapped reads","max length, unmapped reads")
+
+  rlen_map[cols_tab1] %>% 
+    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+    kable_minimal(full_width = TRUE) %>% 
+    footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")%>% 
+    footnote(general = "Filtering host reads also removed reads unmapped to neither graft nor host references.")
+
+
+  rlen_map[cols_tab2] %>% 
+    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
+    kable_minimal(full_width = TRUE)
+
+}
 
 
 ## ---- jaffal-data

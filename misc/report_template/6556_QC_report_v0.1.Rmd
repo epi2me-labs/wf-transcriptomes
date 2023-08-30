@@ -92,6 +92,11 @@ This document collects descriptive statistics and quality metrics from `wf-trans
 Samples included in this report are **`r smpls_pths$sample`**.
 
 
+```{asis, echo=is.xenofilt}
+***This report was generated using data processed with pipeline which included host reads filtering.***
+```
+
+
 
 <br />
 <br />
@@ -114,12 +119,23 @@ Samples included in this report are **`r smpls_pths$sample`**.
 ```
 
 
+```{asis, echo=is.xenofilt}
+* Host genome reference sequence for read filtering was `Mus_musculus.GRCm39.dna.primary_assembly.fa` obtained from Ensembl.
+```
+
+* Gene model annotations from **Gencode v 34** were used for Gene fusion detection.
+
+
 ## Methods
 
-Pipeline `wf-transcriptomes` [@wftranscriptomes] was used for data processing, after introducing minor changes pertaining to Rackham architecture and software and adding mapping reads to transcriptone and quantification as separate steps. The modified pipeline is available at `https://github.com/agata-sm/wf-transcriptomes`. OBS! Branch `v2023` was used for data procesing workflow used in this report.
+Pipeline `wf-transcriptomes` [@wftranscriptomes] was used for data processing, after introducing minor changes pertaining to Rackham architecture and software and adding mapping reads to transcriptone and quantification as separate steps. The modified pipeline is available at `https://github.com/agata-sm/wf-transcriptomes`. 
 
 
 * Reads were preprocessed using `pychopper` to remove barcodes and orient strandness [@pychopper];
+
+```{asis, echo=is.xenofilt}
+* Host reads were removed comparing edit distance calculated based on the number of mismatches to the graft and host reference sequences as implemented in `XenofilteR` [@xenofilter].
+```
 
 * Processed reads were mapped to reference transcriptome using `minimap` in a splice-aware manner [@minimap2]:
 
@@ -160,10 +176,13 @@ salmon quant --noErrorModel -p 5 -t "${ref_transcriptome}" -l SF -a "${bam}" -o 
 ```{r read-stats-data, include=FALSE, cache=TRUE, cache.lazy = FALSE}
 ```
 
-Read length distribution is presented on the histograms.
+Read length distribution in `pychopper` output (strand-corrected) is presented on the histograms.
 To focus on the plot region with most of data points, the x axis was limted to `r xlim_readlen` .
 
 
+```{asis, echo=is.xenofilt}
+These data contain both graft and host read pools.
+```
 
 
 ```{r, dev='png', echo=FALSE, fig.show='show',fig.dim=c(15, 15), cache=FALSE, fig.cap=figurecapreadlen}
@@ -171,12 +190,37 @@ To focus on the plot region with most of data points, the x axis was limted to `
     ncol=2, labels=LETTERS[1:n_smpls])
 ```
 
+## Host read removal
+
+
+```{asis, echo=!is.xenofilt}
+Host read filtering was not performed.
+```
+
+
+```{asis, echo=is.xenofilt}
+Summary of reads classified as host and removed is given in table below.
+```
+
+
+
+```{r summary-host-filt, eval=is.xenofilt}
+
+```
+
+
+
 
 <br />
 
 ## Read Mapping Statistics
 
 Read mapping statistics are presented in table below. Please note that, unlike in the processing pipeline, in this summary reads were not subject to quality filtering after the alignment step, unless indicated with suffix `filtered`.
+
+```{asis, echo=xenofilt}
+These data contain graft read pool.
+```
+
 
 
 ```{r read-map-stats-data, include=FALSE,cache=FALSE}
@@ -215,6 +259,11 @@ rlen_map[cols_tab2] %>%
 
 
 Transcript fusions statistics are presented in table below. Top 5 fusions, by number of spanning reads are listed in table below.
+
+
+```{asis, echo=xenofilt}
+These data contain graft read pool.
+```
 
 
 ```{r include=TRUE,cache=FALSE, results='asis'}
@@ -259,6 +308,11 @@ fus_spanning_reads_boxplot
 ### Data Exploration and Summary Statistics
 
 
+```{asis, echo=xenofilt}
+These data contain graft read pool.
+```
+
+
 ```{r salmon-data, include=FALSE,cache=FALSE}
 
 ```
@@ -296,6 +350,11 @@ pca_plot
 
 
 ### Gene Expression
+
+
+```{asis, echo=xenofilt}
+These data contain graft read pool.
+```
 
 
 ```{r heatmaps-data, include=FALSE,cache=FALSE}
