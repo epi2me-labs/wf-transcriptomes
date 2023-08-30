@@ -140,7 +140,7 @@ xenofilt_stats=data.frame(sample=as.character(),graft=as.numeric())
 
 xenofilt_stats_list=list()
 
-if(xenofilt){
+if(is.xenofilt){
 
   for (i in samples ){
     rootdir.i=i
@@ -175,7 +175,7 @@ if(xenofilt){
 
 #if no host read filtering employed
 
-if(!xenofilt){
+if(!is.xenofilt){
 
   rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),mapped=as.numeric(),mapped_filt=as.numeric(),unmapped=as.numeric(),fraction_mapped=as.numeric(),fraction_mapped_filt=as.numeric(),
     avg_len_mapped=as.numeric(),max_len_mapped=as.numeric(),avg_len_unmapped=as.numeric(),max_len_unmapped=as.numeric() )
@@ -260,7 +260,7 @@ if(!xenofilt){
 
 ## ---- read-map-stats-xenofilt
 
-if(xenofilt){
+if(is.xenofilt){
 
 
   rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),

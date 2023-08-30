@@ -217,7 +217,7 @@ Summary of reads classified as host and removed is given in table below.
 
 Read mapping statistics are presented in table below. Please note that, unlike in the processing pipeline, in this summary reads were not subject to quality filtering after the alignment step, unless indicated with suffix `filtered`.
 
-```{asis, echo=xenofilt}
+```{asis, echo=is.xenofilt}
 These data contain graft read pool.
 ```
 
