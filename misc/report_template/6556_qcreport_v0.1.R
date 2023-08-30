@@ -243,24 +243,21 @@ if(!is.xenofilt){
   newnames.1=c("sample name", "reads preprocessed", "reads mapped", "reads mapped filtered", "reads unmapped", "fraction mapped","fraction mapped filtered")
   newnames.2=c("sample name","average length, mapped reads","max length, mapped reads","average length, unmapped reads","max length, unmapped reads")
 
-  rlen_map[cols_tab1] %>% 
-    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
-    kable_minimal(full_width = TRUE) %>% 
-    footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")
+  # rlen_map[cols_tab1] %>% 
+  #   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+  #   kable_minimal(full_width = TRUE) %>% 
+  #   footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")
 
 
 
-  rlen_map[cols_tab2] %>% 
-    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
-    kable_minimal(full_width = TRUE)
+  # rlen_map[cols_tab2] %>% 
+  #   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
+  #   kable_minimal(full_width = TRUE)
 
 }
 
 
-
-## ---- read-map-stats-xenofilt
-
-if(is.xenofilt){
+if(is.xenofilt){  ## ---- read-map-stats-xenofilt
 
 
   rlen_map=data.frame(sample=as.character(),reads_preproc=as.numeric(),
@@ -335,18 +332,19 @@ if(is.xenofilt){
   newnames.1=c("sample name", "reads preprocessed", "reads graft" , "fraction reads graft" , "reads mapped", "reads mapped filtered", "reads unmapped", "fraction mapped","fraction mapped filtered")
   newnames.2=c("sample name","average length, mapped reads","max length, mapped reads","average length, unmapped reads","max length, unmapped reads")
 
-  rlen_map[cols_tab1] %>% 
-    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
-    kable_minimal(full_width = TRUE) %>% 
-    footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")%>% 
-    footnote(general = "Filtering host reads also removed reads unmapped to neither graft nor host references.")
+  # rlen_map[cols_tab1] %>% 
+  #   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.1, col.names=newnames.1) %>% 
+  #   kable_minimal(full_width = TRUE) %>% 
+  #   footnote(general = "Alignments were filtered using MAPQ cutoff 40, where indicated; otherwise no MAPQ filter was applied.")%>% 
+  #   footnote(general = "Filtering host reads also removed reads unmapped to neither graft nor host references.")
 
 
-  rlen_map[cols_tab2] %>% 
-    kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
-    kable_minimal(full_width = TRUE)
+  # rlen_map[cols_tab2] %>% 
+  #   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.2, col.names=newnames.2) %>% 
+  #   kable_minimal(full_width = TRUE)
 
 }
+
 
 
 ## ---- jaffal-data
