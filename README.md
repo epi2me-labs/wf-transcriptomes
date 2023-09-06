@@ -245,12 +245,13 @@ nextflow run epi2me-labs/wf-transcriptomes \
   --ref_transcriptome differential_expression/ref_transcriptome.fasta \
   --sample_sheet test_data/sample_sheet.csv
 ```
-You can also run the differential expression section of the workflow on its own by providing a reference transcriptome and setting the transcriptome assembly parameter to false.
+You can also run the differential expression section of the workflow on its own by providing a reference transcriptome and setting the `--transcriptome_source` to precomputed.
 eg.
 ```
 nextflow run epi2me-labs/wf-transcriptomes \
   --fastq  differential_expression/differential_expression_fastq \
   --de_analysis \
+  --transcriptome_source precomputed \
   --ref_genome differential_expression/hg38_chr20.fa \
   --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
   --direct_rna --minimap2_index_opts '-k 15' \

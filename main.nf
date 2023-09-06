@@ -58,6 +58,7 @@ process getParams {
 }
 
 
+
 process decompress_ref {
     label "isoforms"
     cpus 1
@@ -83,6 +84,21 @@ process decompress_annotation {
     """
 }
 
+
+
+process decompress_transcriptome {
+    label "isoforms"
+    cpus 1
+    input:
+        path "compressed_ref.gz"
+    output:
+        path "compressed_ref", emit: decompressed_ref
+    """
+    gzip -df "compressed_ref.gz"
+    """
+}
+
+
 // Remove empty transcript ID fields
 process preprocess_ref_annotation {
     label "isoforms"
@@ -96,6 +112,21 @@ process preprocess_ref_annotation {
     mv ${ref_annotation} "ammended.${ref_annotation}"
     """
 }
+
+// Just keep transcript ID for each transcriptome fasta
+process preprocess_ref_transcriptome {
+    label "isoforms"
+    cpus 1
+    input:
+        path "ref_transcriptome"
+    output:
+        path "ammended.${ref_transcriptome}"
+    """
+    sed -i -e 's/|.*//' ${ref_transcriptome}
+    mv ${ref_transcriptome} "ammended.${ref_transcriptome}"
+    """
+}
+
 
 
 process preprocess_reads {
@@ -581,6 +612,10 @@ workflow pipeline {
             }
             else {
                 transcriptome =  Channel.fromPath(ref_transcriptome)
+                if (file(params.ref_transcriptome).extension == "gz") {
+                    transcriptome = decompress_transcriptome(ref_transcriptome)
+                }
+                transcriptome = preprocess_ref_transcriptome(transcriptome)
                 gtf = ref_annotation
             }
             de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
