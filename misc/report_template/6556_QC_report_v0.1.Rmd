@@ -156,6 +156,10 @@ salmon quant --noErrorModel -p 5 -t "${ref_transcriptome}" -l SF -a "${bam}" -o 
 
 * For alignement statistics, reads were mapped to the reference genome using `minimap2` outputting all reads (i.e. mapped and unmapped) and the alignments were filtered and counted using `samtools`. No quality filtering was applied at this step.
 
+* Gene  / transcript fusions were detected using `JAFFAL`, implementation of `JAFFA` implemented for long reads. `JAFFA` is a multi-step pipeline that implements a transcript-centric approach to detect gene fusions (takes raw RNA-Seq reads, and searches for transcript fusions using exon annotations). `JAFFA` is based on the idea of comparing a transcriptome (e.g. in a cancer sample) against a reference transcriptome [@jaffal].
+
+
+
 
 
 
@@ -199,12 +203,12 @@ Host read filtering was not performed.
 
 
 ```{asis, echo=is.xenofilt}
-Summary of reads classified as host and removed is given in table below.
+Summary of reads classified as host and removed is given in table in the next section.
 ```
 
 
 
-```{r summary-host-filt, eval=is.xenofilt}
+```{r summary-host-filt, eval=is.xenofilt, echo=FALSE, include=FALSE}
 
 ```
 
@@ -217,8 +221,9 @@ Summary of reads classified as host and removed is given in table below.
 
 Read mapping statistics are presented in table below. Please note that, unlike in the processing pipeline, in this summary reads were not subject to quality filtering after the alignment step, unless indicated with suffix `filtered`.
 
+
 ```{asis, echo=is.xenofilt}
-These data contain graft read pool.
+Host reads were removed from data used in this analysis.
 ```
 
 
@@ -272,16 +277,30 @@ rlen_map[cols_tab2] %>%
 Transcript fusions statistics are presented in table below. Top 5 fusions, by number of spanning reads are listed in table below.
 
 
-```{asis, echo=xenofilt}
-These data contain graft read pool.
+`JAFFAL` classifies detected fusions to four categories:
+
+* **HighConfidence** - aligns to exons and has at least one spanning read and one spanning pair (paired-end data) or multiple spanning reads (single-end data);
+
+* **MediumConfidence** - aligns to exons and has at least two spanning read;
+    
+* **LowConfidence** - does not align to exons but has at least one spanning read and one spanning pair (paired-end data) or multiple spanning reads (single-end data);
+
+* **PotentialTransSplicing** - aligns to exons, has one spanning read and no spanning pairs. These are often seen in healthy samples.
+
+
+
+
+```{asis, echo=is.xenofilt}
+Host reads were removed from data used in this analysis.
 ```
+
 
 
 ```{r include=TRUE,cache=FALSE, results='asis'}
 fusions_stats %>% 
   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.3, col.names=newnames.3) %>% 
   kable_minimal(full_width = TRUE) %>% 
-  footnote(general = "CO 5 - fusions detected with at least 5 spanning reads.")
+  footnote(general = "HighConfidence - fusions classified as High Confidence by JAFFAL.")
 ```
 
 
@@ -319,8 +338,9 @@ fus_spanning_reads_boxplot
 ### Data Exploration and Summary Statistics
 
 
-```{asis, echo=xenofilt}
-These data contain graft read pool.
+
+```{asis, echo=is.xenofilt}
+Host reads were removed from data used in this analysis.
 ```
 
 
@@ -363,9 +383,10 @@ pca_plot
 ### Gene Expression
 
 
-```{asis, echo=xenofilt}
-These data contain graft read pool.
+```{asis, echo=is.xenofilt}
+Host reads were removed from data used in this analysis.
 ```
+
 
 
 ```{r heatmaps-data, include=FALSE,cache=FALSE}

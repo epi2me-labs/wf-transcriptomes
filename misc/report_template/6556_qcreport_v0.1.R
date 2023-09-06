@@ -384,11 +384,24 @@ for (i in samples ){
     # tables
     fusions_list[[name.i]]=hist_fus
 
-    fusions.5=fusions[fusions$spanning.reads>=5,]
+    # count fusions with at least 5 spanning reads
+    # fusions.5=fusions[fusions$spanning.reads>=5,]
 
-    fusions_stats.i=c(name.i,nrow(fusions),nrow(fusions.5),
-        max(fusions$spanning.reads),mean(fusions$spanning.reads),mean(fusions.5$spanning.reads),
-        median(fusions$spanning.reads), median(fusions.5$spanning.reads))
+    # fusions_stats.i=c(name.i,nrow(fusions),nrow(fusions.5),
+    #     max(fusions$spanning.reads),mean(fusions$spanning.reads),mean(fusions.5$spanning.reads),
+    #     median(fusions$spanning.reads), median(fusions.5$spanning.reads))
+
+
+
+    #count HighConfidence fusions
+    fusions.HC=fusions[fusions$classifications=="HighConfidence",]
+
+    fusions_stats.i=c(name.i,nrow(fusions),nrow(fusions.HC),
+        max(fusions$spanning.reads),mean(fusions$spanning.reads),mean(fusions.HC$spanning.reads),
+        median(fusions$spanning.reads), median(fusions.HC$spanning.reads))
+
+
+
 
     fusions_stats=rbind(fusions_stats,fusions_stats.i)
 
@@ -403,16 +416,22 @@ for (i in samples ){
 
 }
 
-colnames(fusions_stats)=c("name", "n_fusions", "n_fusions_CO5", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_CO5","median_spanning_reads", "median_spanning_reads_CO5")
+#colnames(fusions_stats)=c("name", "n_fusions", "n_fusions_CO5", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_CO5","median_spanning_reads", "median_spanning_reads_CO5")
+colnames(fusions_stats)=c("name", "n_fusions", "n_fusions_HighConfidence", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_HighConfidence","median_spanning_reads", "median_spanning_reads_HighConfidence")
+
 tab.title.3="Summary of detected transcript fusions."
 
-cols.num=c("n_fusions", "n_fusions_CO5", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_CO5", "median_spanning_reads", "median_spanning_reads_CO5")
+#cols.num=c("n_fusions", "n_fusions_CO5", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_CO5", "median_spanning_reads", "median_spanning_reads_CO5")
+cols.num=c("n_fusions", "n_fusions_HighConfidence", "max_spanning_reads", "mean_spanning_reads", "mean_spanning_reads_HighConfidence", "median_spanning_reads", "median_spanning_reads_HighConfidence")
+
 fusions_stats[cols.num]=sapply(fusions_stats[cols.num],as.numeric)
 
-cols.frac=c("mean_spanning_reads", "mean_spanning_reads_CO5", "median_spanning_reads", "median_spanning_reads_CO5")
+#cols.frac=c("mean_spanning_reads", "mean_spanning_reads_CO5", "median_spanning_reads", "median_spanning_reads_CO5")
+cols.frac=c("mean_spanning_reads", "mean_spanning_reads_HighConfidence", "median_spanning_reads", "median_spanning_reads_HighConfidence")
+
 fusions_stats[cols.frac]=sapply(fusions_stats[cols.frac], \(x) format(x,digits=3))
 
-newnames.3=c("name", "n fusions", "n fusions, CO 5", "max spanning reads", "mean spanning reads", "mean spanning reads, CO 5", "median spanning reads", "median spanning reads, CO 5")
+newnames.3=c("name", "n fusions", "n fusions, HighConfidence", "max spanning reads", "mean spanning reads", "mean spanning reads, HighConfidence", "median spanning reads", "median spanning reads, HighConfidence")
 
 # fusions_stats %>% 
 #   kable(booktabs = TRUE, row.names = FALSE, caption = tab.title.3, col.names=newnames.3) %>% 
