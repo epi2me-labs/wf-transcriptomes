@@ -156,7 +156,7 @@ salmon quant --noErrorModel -p 5 -t "${ref_transcriptome}" -l SF -a "${bam}" -o 
 
 * For alignement statistics, reads were mapped to the reference genome using `minimap2` outputting all reads (i.e. mapped and unmapped) and the alignments were filtered and counted using `samtools`. No quality filtering was applied at this step.
 
-* Gene  / transcript fusions were detected using `JAFFAL`, version of `JAFFA` implemented for long reads. `JAFFA` is a multi-step pipeline that implements a transcript-centric approach to detect gene fusions (takes raw RNA-Seq reads, and searches for transcript fusions using exon annotations). `JAFFA` is based on the idea of comparing a transcriptome (e.g. in a cancer sample) against a reference transcriptome [@jaffal].
+* Gene  / transcript fusions were detected using `JAFFAL`, version of `JAFFA` implemented for long reads. `JAFFA` is a multi-step pipeline that takes a transcript-centric approach to detect gene fusions (takes raw RNA-Seq reads, and searches for transcript fusions using exon annotations). `JAFFA` is based on the idea of comparing a transcriptome (e.g. in a cancer sample) against a reference transcriptome [@jaffal].
 
 
 
