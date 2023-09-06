@@ -29,6 +29,7 @@
                         "reference-guided",
                         "denovo"
                     ],
+                    "default": "reference-guided",
                     "description": "Select how the transcriptome used for analysis should be prepared.",
                     "help_text": "To analyse only gene fusions and differential expression use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter. To create a transcriptome from your sequencing data select 'denovo'."
                 },
@@ -57,12 +58,14 @@
                 },
                 "direct_rna": {
                     "type": "boolean",
+                    "default": false,
                     "title": "direct RNA",
                     "description": "Set to true for direct RNA sequencing.",
                     "help_text": " Omits the pychopper step."
                 },
                 "analyse_unclassified": {
                     "type": "boolean",
+                    "default": false,
                     "title": "Analyse unclassified",
                     "description": "Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory.",
                     "help_text": "If selected and if the input is a multiplex directory the workflow will also process the unclassified directory."
@@ -113,6 +116,7 @@
             "properties": {
                 "plot_gffcmp_stats": {
                     "type": "boolean",
+                    "default": true,
                     "title": "Plot gffcompare statistics",
                     "description": "Create a PDF of plots from showing gffcompare results",
                     "help_text": "If set to true, a PDF file containing detailed gffcompare reults will be output"
@@ -121,7 +125,7 @@
                     "type": "string",
                     "title": "Plot gffcompare options",
                     "description": "Extra command-line options to give to gffcompare -r",
-                    "default": " -R ",
+                    "default": "-R",
                     "help_text": "For a list of possible options see [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml)."
                 },
                 "minimap2_index_opts": {
@@ -163,7 +167,7 @@
                     "type": "string",
                     "title": "Stringtie options",
                     "description": "Extra command-line options for stringtie transcript assembly.",
-                    "default": " --conservative ",
+                    "default": "--conservative",
                     "help_text": "For additional String tie options see [here](https://github.com/gpertea/stringtie#stringtie-options)."
                 }
             }
@@ -181,9 +185,9 @@
                 },
                 "isOnClust2_sort_options": {
                     "type": "string",
+                    "default": "--batch-size -1 --kmer-size 11 --window-size 15 --min-shared 5 --min-qual 7.0 --mapped-threshold 0.65 --aligned-threshold 0.2 --min-fraction 0.8 --min-prob-no-hits 0.0 -M -1 -P 500 -g 50 -c 150 -F 2",
                     "description": "Additional command-line options for isOnClust2 sort.",
-                    "help_text": "isOnClust2 is used for **de novo** transcript assembly. Options for the sort command can be be supplied like so `-opt1 arg -opt2 arg`. Available arguments can be found at [isOnClust2](https://github.com/nanoporetech/isONclust2). It is recommended not to alter this parameter.",
-                    "default": "--kmer-size 11 --window-size 15 --min-shared 5 --min-qual 7.0 --mapped-threshold 0.65 --aligned-threshold 0.2 --min-fraction 0.8 --min-prob-no-hits 0.0 -M -1 -P 500 -g 50 -c 150 -F 2"
+                    "help_text": "isOnClust2 is used for **de novo** transcript assembly. Options for the sort command can be be supplied like so `-opt1 arg -opt2 arg`. Available arguments can be found at [isOnClust2](https://github.com/nanoporetech/isONclust2). It is recommended not to alter this parameter."
                 }
             }
         },
@@ -230,6 +234,7 @@
             "properties": {
                 "de_analysis": {
                     "type": "boolean",
+                    "default": false,
                     "title": "Differential expression analysis",
                     "description": "Run DE anaylsis",
                     "help_text": "Running this requires you to provide at least two replicates for a control and treated sample as well as a sample sheet param."
@@ -262,11 +267,6 @@
                     "description": "Transcripts expressed in minimum this many samples",
                     "help_text": "A transcript must be mapped in at least this this minimum number of samples to be included in the analysis."
                 }
-            },
-            "dependencies": {
-                "de_analysis": [
-                    "sample_sheet"
-                ]
             }
         },
         "advanced_options": {
@@ -276,7 +276,7 @@
             "properties": {
                 "threads": {
                     "type": "integer",
-                    "default": 2,
+                    "default": 4,
                     "description": "Number of CPU threads.",
                     "help_text": "Only provided to processes including alignment and and assembly that benefit from multiple threads."
                 },
@@ -289,6 +289,7 @@
                 },
                 "bundle_min_reads": {
                     "type": "integer",
+                    "default": 50000,
                     "title": "Bundle minimum reads",
                     "description": "Minimum size of bam bundle for parallel processing."
                 },
@@ -308,13 +309,21 @@
             "properties": {
                 "help": {
                     "type": "boolean",
+                    "default": false,
                     "description": "Display help text.",
                     "fa_icon": "fas fa-question-circle",
                     "hidden": true
                 },
                 "disable_ping": {
                     "type": "boolean",
+                    "default": false,
                     "description": "Enable to prevent sending a workflow ping."
+                },
+                "version": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Display version and exit.",
+                    "hidden": true
                 }
             }
         }
@@ -349,11 +358,6 @@
         }
     ],
     "properties": {
-        "version": {
-            "type": "boolean",
-            "description": "Display version and exit.",
-            "hidden": true
-        },
         "aws_image_prefix": {
             "type": "string",
             "hidden": true
