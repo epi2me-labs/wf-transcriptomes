@@ -50,9 +50,9 @@ nextflow run epi2me-labs/wf-transcriptomes \
 **Example workflow for denovo transcript assembly**
 ```
 OUTPUT=~/output
-nextflow run . --fastq test_data/fastq \
-  --denovo \
-  --ref_genome test_data/SIRV_150601a.fasta \
+nextflow run epi2me-labs/wf-transcriptomes \
+  --fastq test_data/fastq \
+  --transcriptome_source denovo \
   --out_dir ${OUTPUT} \
   -w ${OUTPUT}/workspace \
   --sample sample_id
@@ -145,14 +145,15 @@ Here is an example cmd to run the workflow. First you will need to download the 
 eg.
 ```
 wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
-OUTPUT=~/output;
 nextflow run epi2me-labs/wf-transcriptomes \
   --fastq  differential_expression/differential_expression_fastq \
+  --transcriptome-source precomputed \
   --de_analysis \
   --ref_genome differential_expression/hg38_chr20.fa \
-  --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-  --direct_rna --minimap2_index_opts \
-  -k15
+  --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
+  --direct_rna --minimap2_index_opts '-k 15' \
+  --ref_transcriptome differential_expression/ref_transcriptome.fasta \
+  --sample_sheet test_data/sample_sheet.csv
 ```
 You can also run the differential expression section of the workflow on its own by providing a reference transcriptome and setting the transcriptome assembly parameter to false.
 eg.
@@ -162,9 +163,9 @@ nextflow run epi2me-labs/wf-transcriptomes \
   --de_analysis \
   --ref_genome differential_expression/hg38_chr20.fa \
   --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-  --direct_rna --minimap2_index_opts \
-  -k15 \
-  --ref_transcriptome differential_expression/ref_transcriptome.fasta
+  --direct_rna --minimap2_index_opts '-k 15' \
+  --ref_transcriptome differential_expression/ref_transcriptome.fasta \
+  --sample_sheet test_data/sample_sheet.csv
 ```
 
 ## Workflow outputs
