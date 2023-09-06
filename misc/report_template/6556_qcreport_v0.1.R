@@ -394,13 +394,11 @@ for (i in samples ){
 
 
     #count HighConfidence fusions
-    fusions.HC=fusions[fusions$classifications=="HighConfidence",]
+    fusions.HC=fusions[fusions$classification=="HighConfidence",]
 
     fusions_stats.i=c(name.i,nrow(fusions),nrow(fusions.HC),
         max(fusions$spanning.reads),mean(fusions$spanning.reads),mean(fusions.HC$spanning.reads),
         median(fusions$spanning.reads), median(fusions.HC$spanning.reads))
-
-
 
 
     fusions_stats=rbind(fusions_stats,fusions_stats.i)
