@@ -60,7 +60,7 @@ The final component of this isoform analysis is a stage-wise statistical test us
 
 ## Running the workflow
 For the differential expression analysis section you should have at least 3 repeats for each sample. 
-Your fastq data will need to be organised in to 6 directories that represent 3 repeats for each condition. You may also need to provide a condition sheet. 
+Your FASTQ data will need to be organised in to 6 directories that represent 3 repeats for each condition. 
 
 
 ## Analysis 
