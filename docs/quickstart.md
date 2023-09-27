@@ -47,16 +47,6 @@ nextflow run epi2me-labs/wf-transcriptomes \
   --out_dir outdir -w workspace_dir
 ```
 
-**Example workflow for denovo transcript assembly**
-```
-OUTPUT=~/output
-nextflow run epi2me-labs/wf-transcriptomes \
-  --fastq test_data/fastq \
-  --transcriptome_source denovo \
-  --out_dir ${OUTPUT} \
-  -w ${OUTPUT}/workspace \
-  --sample sample_id
-```
 A full list of options can be seen in nextflow_schema.json. 
 Parameters can be specified either in a config like `parameter = value` or on the command line like `--parameter value`.
 Below are some commonly used parameters in the format used in config files.
@@ -64,8 +54,7 @@ Below are some commonly used parameters in the format used in config files.
 Select how the transcriptome used for analysis should be prepared:
 
 - To create a reference transcriptome using an existing reference genome `--transcriptome_source reference-guided` (default)
-- Use a a supplied transcriptome `--transcriptome_source precomputed"`
-- Gnerate transcriptome via the denovo pipeline `--transcriptome_source denovo"` 
+- Use a supplied transcriptome `--transcriptome_source precomputed"` 
 
 
 To run the workflow with direct RNA reads `--direct_rna true` (this just skips the pychopper step).

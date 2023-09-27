@@ -2,7 +2,6 @@
 
 /* This workflow is a adapted from two previous pipeline written in Snakemake:
 - https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
-- https://github.com/nanoporetech/pipeline-nanopore-denovo-isoforms
 */
 
 import groovy.json.JsonBuilder;
@@ -12,7 +11,6 @@ nextflow.enable.dsl = 2
 
 include { fastq_ingress } from './lib/fastqingress'
 include { reference_assembly } from './subworkflows/reference_assembly'
-include { denovo_assembly } from './subworkflows/denovo_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 
@@ -38,8 +36,6 @@ process getVersions {
     seqkit version | head -n 1 | sed 's/ /,/' >> versions.txt
     stringtie --version | sed 's/^/stringtie,/' >> versions.txt
     gffcompare --version | head -n 1 | sed 's/ /,/' >> versions.txt
-    spoa --version | sed 's/^/spoa,/' >> versions.txt
-#     isONclust2 version | sed 's/ version: /,/' >> versions.txt
     """
 }
 
@@ -285,13 +281,7 @@ process run_gffcompare{
         path ("${sample_id}_annotated.gtf"), emit: gtf, optional: true
     script:
     def out_dir = "${sample_id}_gffcompare"
-
-    if (params.transcriptome_source == "denovo"){
-        """
-        mkdir $out_dir
-        """
-    } else {
-        """
+    """
         mkdir $out_dir
         echo "Doing comparison of reference annotation: ${ref_annotation} and the query annotation"
 
@@ -305,8 +295,8 @@ process run_gffcompare{
         mv *.refmap $out_dir
         cp ${out_dir}/str_merged.annotated.gtf ${sample_id}_annotated.gtf
         """
-    }
 }
+
 
 
 process get_transcriptome{
@@ -380,7 +370,6 @@ process makeReport {
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
         def report_name = "wf-transcriptomes-report.html"
-        def OPT_DENOVO = params.transcriptome_source == "denovo" ? "--denovo" : ''
     """
     if [ -f "de_report/OPTIONAL_FILE" ]; then
         dereport=""
@@ -419,7 +408,6 @@ process makeReport {
     \$OPT_GFF \
     --isoform_table_nrows $params.isoform_table_nrows \
     \$OPT_JAFFAL_CSV \
-    $OPT_DENOVO \
     \$dereport 
     """
 }
@@ -550,17 +538,10 @@ workflow pipeline {
             pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
         }
         if (params.transcriptome_source != "precomputed"){
+            build_minimap_index(ref_genome)
+            log.info("Doing reference based transcript analysis")
+            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
         
-            if (params.transcriptome_source == "denovo"){
-                log.info("Doing de novo assembly")
-                log.info("WARNING: The `--transcriptome_source` denovo option may have unexpected results and errors. If possible it is preferable to use the reference-guided pipeline.")
-                assembly = denovo_assembly(full_len_reads, ref_genome)
-
-            } else {
-                build_minimap_index(ref_genome)
-                log.info("Doing reference based transcript analysis")
-                assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
-            }
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
      
             split_bam(assembly.bam)
@@ -569,15 +550,10 @@ workflow pipeline {
 
             merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
             run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
-
-            if (params.transcriptome_source == "denovo"){
-                // Use the per-sample, de novo-assembled CDS
-                seq_for_transcriptome_build = assembly.cds
-            }else {
-                // For reference based assembly, there is only one reference
-                // So map this reference to all sample_ids
-                seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome)
-            }
+            // For reference based assembly, there is only one reference
+            // So map this reference to all sample_ids
+            seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome)
+            
 
             get_transcriptome(
                 merge_gff_bundles.out.gff
@@ -664,22 +640,6 @@ workflow pipeline {
                       .concat(results)
 
         }
-        if (params.transcriptome_source == "denovo"){
-            results = assembly.cds.concat(
-                       assembly.stats,
-                      seq_for_transcriptome_build,
-                      get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls),
-                      assembly.opt_qual_ch.flatMap {
-                          it ->
-                          l = []
-                          for (x in it[1..-1]){
-                              l.add(tuple(it[0], x))
-                          }
-                        return l
-                      })
-                      .map {it -> it[1]}
-                      .concat(results)
-        }
         if (params.jaffal_refBase){
             results = results
                 .concat(gene_fusions.out.results
@@ -734,8 +694,8 @@ workflow {
     }else {
         ref_genome = file("$projectDir/data/OPTIONAL_FILE")
     }
-    if (params.transcriptome_source == "denovo" && params.ref_annotation) {
-        error = "Reference annotation with de denovo assembly is not supported"
+    if (params.containsValue("denovo")) {
+        error = "Denovo transcriptome source is no longer supported. Please use the reference-guided or precomputed options."
     }
 
     if (params.ref_annotation){
