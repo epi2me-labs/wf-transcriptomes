@@ -45,7 +45,7 @@ docker-run:
             - MATRIX_NAME: [
                 "fusions", "differential_expression", "isoforms",
                 "only_differential_expression", "differential_expression_gff3",
-                "ncbi_gzip", "denovo", "ncbi_no_gene_id", "ensembl_with_versions",
+                "ncbi_gzip", "ncbi_no_gene_id", "ensembl_with_versions",
                 "differential_expression_mouse"
             ]
     rules:
@@ -60,10 +60,6 @@ docker-run:
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "denovo"
-          variables:
-              NF_WORKFLOW_OPTS: "--fastq test_data/fastq/SIRV_E0_PCS109_50.fq.gz --transcriptome_source denovo"
-              NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,build_minimap_index,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "fusions"
           variables:
               NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
