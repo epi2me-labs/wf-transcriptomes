@@ -142,6 +142,7 @@ Pychopper and minimap2 can take options via `--minimap2_opts` and `--pychopper_o
   - SQK-PCS109: `--pychopper_opts '-k PCS109'` (default)
   - SQK-PCS110: `--pychopper_opts '-k PCS110'`
   - SQK-PCS111: `--pychopper_opts '-k PCS111'`
+  - SQK-LSK114: `--pychopper_opts '-k LSK114'`
 - pychopper can use one of two available backends for identifying primers in the raw reads
   - nhmmscan `--pychopper opts '-m phmm'` 
   - edlib `--pychopper opts '-m edlib'`
