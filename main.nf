@@ -9,7 +9,7 @@ import nextflow.util.BlankSeparatedList;
 import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
-include { fastq_ingress } from './lib/fastqingress'
+include { fastq_ingress } from './lib/ingress'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
@@ -355,7 +355,7 @@ process makeReport {
         path "pychopper_report/*"
         path"jaffal_csv/*"
         val sample_ids
-        path per_read_stats
+        path "per_read_stats/?.gz"
         path "aln_stats/*"
         path gffcmp_dir
         path "gff_annotation/*"
@@ -404,7 +404,7 @@ process makeReport {
     \$OPT_ALN \
     \$OPT_PC_REPORT \
     --sample_ids $sids \
-    --stats $per_read_stats \
+    --stats per_read_stats/* \
     \$OPT_GFF \
     --isoform_table_nrows $params.isoform_table_nrows \
     \$OPT_JAFFAL_CSV \
@@ -522,11 +522,7 @@ workflow pipeline {
         workflow_params = getParams()
         input_reads = reads.map{ meta, samples, stats -> [meta, samples]}
         sample_ids = input_reads.flatMap({meta,samples -> meta.alias})
-        stats = reads.map {
-            it[2] ? it[2].resolve('per-read-stats.tsv') : null
-        }
-        | collectFile ( keepHeader: true )
-        | ifEmpty ( OPTIONAL_FILE )
+        per_read_stats = reads.map{ meta, samples, stats -> stats.resolve("per-read-stats.tsv.gz") }.toList()
 
         if (!params.direct_rna){
             preprocess_reads(input_reads)
@@ -611,7 +607,7 @@ workflow pipeline {
             pychopper_report,
             jaffal_out,
             input_reads.map{ meta, fastq -> meta.alias}.collect(),
-            stats,
+            per_read_stats,
             assembly_stats,
             gff_compare,
             merge_gff,
@@ -664,9 +660,7 @@ workflow pipeline {
 WorkflowMain.initialise(workflow, params, log)
 workflow {
 
-    if (params.disable_ping == false) {
-            Pinguscript.ping_post(workflow, "start", "none", params.out_dir, params)
-    }
+    Pinguscript.ping_start(nextflow, workflow, params)
 
     fastq = file(params.fastq, type: "file")
 
@@ -741,7 +735,7 @@ workflow {
         "sample":params.sample,
         "sample_sheet":params.sample_sheet,
         "analyse_unclassified":params.analyse_unclassified,
-        "fastcat_stats": true,
+        "stats": true,
         "fastcat_extra_args": ""])
 
         pipeline(reads, ref_genome, ref_annotation,
@@ -752,11 +746,9 @@ workflow {
     }
 }
 
-if (params.disable_ping == false) {
-    workflow.onComplete {
-        Pinguscript.ping_post(workflow, "end", "none", params.out_dir, params)
-    }
-    workflow.onError {
-        Pinguscript.ping_post(workflow, "error", "$workflow.errorMessage", params.out_dir, params)
-    }
+workflow.onComplete {
+    Pinguscript.ping_complete(nextflow, workflow, params)
+}
+workflow.onError {
+    Pinguscript.ping_error(nextflow, workflow, params)
 }
