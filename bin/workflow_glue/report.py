@@ -31,7 +31,7 @@ def argparser():
     """Argument parser for entrypoint."""
     parser = wf_parser("report")
     parser.add_argument("--report", help="Report output file")
-    parser.add_argument("--stats", help="Read stats file.")
+    parser.add_argument("--stats", help="Read stats files.", nargs='+')
     parser.add_argument(
         "--versions", required=True,
         help="directory containing CSVs containing name,version.")
@@ -816,18 +816,19 @@ def load_sample_data(files, sample_ids, read_func=None):
 
 def seq_stats_tabs(report, stats):
     """Make tabs of sequence summaries by sample."""
-    tabs = []
-    df_all = pd.read_csv(stats, sep="\t")
-    for sample_id, df_sample in df_all.groupby('sample_name'):
+    tabs = {}
+    for summary_fn in stats:
+        df_sample = pd.read_csv(summary_fn, sep="\t")
+        sample_id = df_sample['sample_name'].iloc[0]
         rlp = read_length_plot(df_sample)
         rqp = read_quality_plot(df_sample)
         grid = gridplot(
             [rlp, rqp], ncols=2, sizing_mode="stretch_width")
-        tabs.append(Panel(child=grid, title=sample_id))
+        tabs[sample_id] = Panel(child=grid, title=sample_id)
     section = report.add_section()
     section.markdown("""
     ### Sequence summaries""")
-    section.plot(Tabs(tabs=tabs))
+    section.plot(Tabs(tabs=[tabs.get(x) for x in sorted(tabs)]))
 
 
 def jaffal_table(report, result_csv):
