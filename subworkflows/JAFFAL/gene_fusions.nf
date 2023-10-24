@@ -14,6 +14,7 @@ process jaffal{
     JAFFAOUT=jaffal_output_$sample_id
 
     # JAFFAL exists with status code 1 when there's 0 fusion hits. Prevent this with '||:'
+    # added -p qin=33  to prevent error due to chanhes in phred base encoding: Changed from ASCII-33 to ASCII-64 on input Z: 90 -> 59
     $params.jaffal_dir/tools/bin/bpipe run \
         -n $params.threads \
         -p jaffa_output="\$JAFFAOUT/" \
@@ -21,6 +22,7 @@ process jaffal{
         -p genome=$genome \
         -p annotation=$annotation \
         -p fastqInputFormat="*.fastq" \
+        -p qin=33 \
         $params.jaffal_dir/JAFFAL.groovy \
         $fastq || :
 
