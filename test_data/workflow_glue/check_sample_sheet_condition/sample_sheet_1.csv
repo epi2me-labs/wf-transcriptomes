@@ -1,7 +1,7 @@
 barcode,sample_id,alias,condition
-barcode01,sample01,sample01,untreated
-barcode02,sample02,sample02,untreated
-barcode03,sample03,sample03,untreated
+barcode01,sample01,sample01,control
+barcode02,sample02,sample02,control
+barcode03,sample03,sample03,control
 barcode04,sample04,sample04,treated
 barcode05,sample05,sample05,treated
 barcode06,sample06,sample06,other

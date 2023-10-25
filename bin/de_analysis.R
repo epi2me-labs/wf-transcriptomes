@@ -19,7 +19,11 @@ cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Referenc
 coldata <- read.csv("de_analysis/coldata.tsv", row.names="alias", sep=",", stringsAsFactors=TRUE)
 
 coldata$sample_id <- rownames(coldata)
-coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
+# check if control condition exists, sets as reference 
+if(!"control" %in% coldata$condition)
+  stop("sample_sheet.csv does not contain 'control' 
+       condition - unable to set reference.")
+coldata$condition <- relevel(coldata$condition, ref = "control")
 
 cat("Loading annotation database.\n")
 

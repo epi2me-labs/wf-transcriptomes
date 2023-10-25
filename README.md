@@ -190,16 +190,16 @@ Differential Expression requires at least 2 replicates of each sample to compare
 The sample sheet should be a comma separated values file (.csv) and include at least three columns named `barcode`, `alias` and `condition`.
 - Each `barcode` should refer to a directory of the same name in the input FASTQ directory (in the example below `barcode01` to `barcode06` reflect the `test_data` directory).
 - The `alias` column allows you to rename each barcode to an alias that will be used in the report and other output files.
-- The condition column will need to contain one of two keys to indicate the two samples being compared. for example: treated/untreated, sample/control etc.
+- The condition column will need to contain one of two keys to indicate the two samples being compared. Control must be one of the keys, used to indicate which samples will be used as the reference in the differential expression analysis.
 
 In the default `sample_sheet.csv` available in the test_data directory we have used the following.
 
 eg. sample_sheet.csv
 ```
 barcode,alias,condition
-barcode01,sample01,untreated
-barcode02,sample02,untreated
-barcode03,sample03,untreated
+barcode01,sample01,control
+barcode02,sample02,control
+barcode03,sample03,control
 barcode04,sample04,treated
 barcode05,sample05,treated
 barcode06,sample06,treated

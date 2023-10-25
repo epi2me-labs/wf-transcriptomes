@@ -10,6 +10,7 @@ ERROR_MESSAGES = [
     ("sample_sheet_1.csv", "There must be only two unique conditions in the condition column of the sample sheet."),  # noqa: E501
     ("sample_sheet_2.csv", "Sample sheet has no condition column which is required for the differential expression subworkflow."),  # noqa: E501
     ("sample_sheet_3.csv", "There must be at least 2 repeats for each condition indicated in the sample sheet."),  # noqa: E501
+    ("sample_sheet_4.csv", "One of the condition types must be control, to indicate which samples to use as the reference."),  # noqa: E501
 ]
 
 
