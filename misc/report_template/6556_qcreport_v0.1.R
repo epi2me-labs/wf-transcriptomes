@@ -86,7 +86,7 @@ dir.create(reportdir, recursive = TRUE)
 
 
 rlen_list=list()
-xlim_readlen=5000
+xlim_readlen=2000
 
 figurecapreadlen=paste("Histograms of read length distribution after preprocessing. X axis limited to", xlim_readlen,"to visualise most of data. Please note the Y axes range may differ between plots.",sep=" ")
 
@@ -109,7 +109,8 @@ for (i in samples ){
       theme_bw(base_size = 18) + 
       theme(panel.grid.minor = element_blank() )+
       ggtitle(name.i) + 
-      theme(aspect.ratio = 1/1.618)
+      theme(aspect.ratio = 1/1.618) +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
     hist_rlen2=hist_rlen + 
      coord_cartesian(xlim=c(0,xlim_readlen) )
@@ -552,7 +553,7 @@ dds_vnorm=vst(dds_all,blind = TRUE, fitType = "parametric")
 pca_data=plotPCA(dds_vnorm, intgroup = "condition", ntop = 500, returnData = TRUE)
 percentVar <- round(100 * attr(pca_data, "percentVar"))
 
-pca_plot=ggplot(pca_data, aes(PC1, PC2, color=condition, shape=name)) +
+pca_plot=ggplot(pca_data, aes(PC1, PC2, color=name)) +
   geom_point(size=3) +
   xlab(paste0("PC1: ",percentVar[1],"% variance")) +
   ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
@@ -638,20 +639,20 @@ hm5=pheatmap(dat_hm_var)
 #figurecap3="Heatmap of rlog-transformed and library size-scaled log-counts for top 60 genes, selected by expression."
 #figurecap4="Heatmap of rlog-transformed and library size-scaled log-counts for top 60 genes, selected by variance."
 
-figurecap_hm1="Heatmaps of vst-transformed and library size-scaled log-counts for top 60 genes, selected by expression. A - unscaled log-counts; B - log-counts scaled by row to show deviation from the row average."
-figurecap_hm2="Heatmaps of vst-transformed and library size-scaled log-counts for top 60 genes, selected by variance. A - unscaled log-counts; B - log-counts scaled by row to show deviation from the row average."
+figurecap_hm1="Heatmaps of vst-transformed and library size-scaled log-counts for top 60 genes, selected by expression. A - z-scored log-counts (scaled by row to show deviation from the row average); A - unscaled log-counts."
+figurecap_hm2="Heatmaps of vst-transformed and library size-scaled log-counts for top 60 genes, selected by variance. A - z-scored log-counts (scaled by row to show deviation from the row average); A - unscaled log-counts."
 
 
-hm1=pheatmap(dat_hm_exprs, cluster_rows=TRUE, column_title="A", heatmap_legend_param=list(title="Logcounts"),fontsize_row = 7,color=colorRampPalette(brewer.pal(6,name="PuOr"))(12))
-hm2=pheatmap(dat_hm_exprs, cluster_rows=TRUE,  scale="row",column_title="B", heatmap_legend_param=list(title="Z score"),fontsize_row = 7,color=colorRampPalette(rev(brewer.pal(6,name="PRGn")))(12))
+hm2=pheatmap(dat_hm_exprs, cluster_rows=TRUE, column_title="B", heatmap_legend_param=list(title="Logcounts"),fontsize_row = 7, fontsize_col = 7,color=colorRampPalette(brewer.pal(6,name="PuOr"))(12))
+hm1=pheatmap(dat_hm_exprs, cluster_rows=TRUE,  scale="row",column_title="A", heatmap_legend_param=list(title="Z score"),fontsize_row = 7,fontsize_col = 7,color=colorRampPalette(rev(brewer.pal(6,name="PRGn")))(12))
 
 hms_exprs = hm1 + hm2
 
 draw(hms_exprs, 
     column_title = "Highest expression", column_title_gp = gpar(fontsize = 16))
 
-hm3=pheatmap(dat_hm_var, cluster_rows=TRUE, column_title="A", heatmap_legend_param=list(title="Logcounts"),fontsize_row = 7,color=colorRampPalette(brewer.pal(6,name="PuOr"))(12))
-hm4=pheatmap(dat_hm_var, cluster_rows=TRUE,  scale="row",column_title="B", heatmap_legend_param=list(title="Z score"),fontsize_row = 7,color=colorRampPalette(rev(brewer.pal(6,name="PRGn")))(12))
+hm4=pheatmap(dat_hm_var, cluster_rows=TRUE, column_title="B", heatmap_legend_param=list(title="Logcounts"),fontsize_row = 7, fontsize_col = 7,color=colorRampPalette(brewer.pal(6,name="PuOr"))(12))
+hm3=pheatmap(dat_hm_var, cluster_rows=TRUE,  scale="row",column_title="A", heatmap_legend_param=list(title="Z score"),fontsize_row = 7,fontsize_col = 7,color=colorRampPalette(rev(brewer.pal(6,name="PRGn")))(12))
 
 hms_var = hm3 + hm4
 
