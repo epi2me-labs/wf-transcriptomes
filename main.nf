@@ -789,6 +789,8 @@ workflow {
         if (!ref_genome_host.exists()){
             error = "--ref_genome_host: File doesn't exist, check path."
         }
+    }else{
+        ref_genome_host=null
     }
 
 
