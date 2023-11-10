@@ -799,7 +799,7 @@ workflow {
     if (error){
         throw new Exception(error)
     }else{
-            reads = samples = fastq_ingress([
+        reads = samples = fastq_ingress([
             "input":params.fastq,
             "sample":params.sample,
             "sample_sheet":params.sample_sheet,
@@ -807,13 +807,11 @@ workflow {
             "fastcat_stats": true,
             "fastcat_extra_args": ""])
 
-            pipeline(reads, ref_genome, ref_annotation,
+        pipeline(reads, ref_genome, ref_annotation,
                 jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
                 condition_sheet, ref_transcriptome,ref_genome_host)
 
-            output(pipeline.out.results)
- 
-        }
+        output(pipeline.out.results)
 
     }
 }
