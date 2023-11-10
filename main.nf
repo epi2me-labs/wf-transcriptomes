@@ -643,7 +643,7 @@ workflow pipeline {
             software_versions,
             workflow_params,
             pychopper_report,
-            jaffal_out,
+            //jaffal_out,
             input_reads.map{ meta, fastq -> meta.alias}.collect(),
             stats,
             assembly_stats,
