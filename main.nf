@@ -43,6 +43,8 @@ params.mappedAllTrxOut="${params.out_dir}/bam_minimap_transcriptome_filt"
 params.salmonOut="${params.out_dir}/salmon"
 params.filteredFastqOut="${params.out_dir}/fastq_filtered_graft"
 
+// default for when not filtering
+params.host_filter = null
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
