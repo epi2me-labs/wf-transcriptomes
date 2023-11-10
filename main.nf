@@ -15,8 +15,6 @@
     * transcriptome quantification using salmon independent on the DE analysis;
     * host reads removal
 (Agata Smialowska 2023)
-
-// remove JAFFAL process in this version - due to error with read quality which cannot be fixed by simply passing the required flag to bpipe
 */
 
 
@@ -29,7 +27,7 @@ nextflow.enable.dsl = 2
 include { fastq_ingress } from './lib/fastqingress'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { denovo_assembly } from './subworkflows/denovo_assembly'
-//include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
+include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 include { map_reads_all_genome } from './subworkflows/map_reads_all_genome'
 include { map_reads_all_transcriptome } from './subworkflows/map_reads_all_transcriptome'
@@ -604,12 +602,12 @@ workflow pipeline {
             use_ref_ann = false
             results = Channel.empty()
         }
-        //if (jaffal_refBase){
-        //        gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
-        //        jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
-        //   }else{
-        //        jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
-        //}
+        if (jaffal_refBase){
+                gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
+                jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
+            }else{
+                jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
+        }
 
 
         if (params.de_analysis){
@@ -643,7 +641,7 @@ workflow pipeline {
             software_versions,
             workflow_params,
             pychopper_report,
-            //jaffal_out,
+            jaffal_out,
             input_reads.map{ meta, fastq -> meta.alias}.collect(),
             stats,
             assembly_stats,
@@ -688,11 +686,11 @@ workflow pipeline {
                       .map {it -> it[1]}
                       .concat(results)
         }
-        //if (params.jaffal_refBase){
-        //    results = results
-        //        .concat(gene_fusions.out.results
-        //        .map {it -> it[1]})
-        //}
+        if (params.jaffal_refBase){
+            results = results
+                .concat(gene_fusions.out.results
+                .map {it -> it[1]})
+        }
 
         if (params.de_analysis){
             results = results.concat(de.dtu_plots, de_outputs)
