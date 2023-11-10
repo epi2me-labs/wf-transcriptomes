@@ -795,19 +795,39 @@ workflow {
     if (error){
         throw new Exception(error)
     }else{
-        reads = samples = fastq_ingress([
-        "input":params.fastq,
-        "sample":params.sample,
-        "sample_sheet":params.sample_sheet,
-        "analyse_unclassified":params.analyse_unclassified,
-        "fastcat_stats": true,
-        "fastcat_extra_args": ""])
+        if (params.host_filter){
 
-        pipeline(reads, ref_genome, ref_annotation,
-            jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-            condition_sheet, ref_transcriptome,ref_genome_host)
+            reads = samples = fastq_ingress([
+            "input":params.fastq,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "fastcat_stats": true,
+            "fastcat_extra_args": ""])
 
-        output(pipeline.out.results)
+            pipeline(reads, ref_genome, ref_annotation,
+                jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
+                condition_sheet, ref_transcriptome,ref_genome_host)
+
+            output(pipeline.out.results)
+        }
+        else{
+            reads = samples = fastq_ingress([
+            "input":params.fastq,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "fastcat_stats": true,
+            "fastcat_extra_args": ""])
+
+            pipeline(reads, ref_genome, ref_annotation,
+                jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
+                condition_sheet, ref_transcriptome)
+
+            output(pipeline.out.results)
+ 
+        }
+
     }
 }
 
