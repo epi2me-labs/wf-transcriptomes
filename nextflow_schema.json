@@ -199,7 +199,6 @@
                 },
                 "jaffal_dir": {
                     "type": "string",
-                    "format": "directory-path",
                     "description": "Path to the JAFFAL code directory. If running within EPI2ME-Labs, the default path of /home/epi2melabs/JAFFA within the application container will be used. If using outside of EPI2ME-Labs, the path to the code directory downloaded from github should be supplied.",
                     "default": "/home/epi2melabs/JAFFA",
                     "hidden": true
