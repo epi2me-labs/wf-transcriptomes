@@ -6,6 +6,7 @@ process map_reads{
     */
     label "isoforms"
     cpus params.threads
+    memory "16 GB"
 
     input:
        tuple val(sample_id), path (fastq_reads), path(index), path(reference)

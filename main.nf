@@ -19,6 +19,7 @@ OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 process getVersions {
     label "isoforms"
     cpus 1
+    memory "500MB"
     output:
         path "versions.txt"
     script:
@@ -43,6 +44,7 @@ process getVersions {
 process getParams {
     label "isoforms"
     cpus 1
+    memory "500MB"
     output:
         path "params.json"
     script:
@@ -58,6 +60,7 @@ process getParams {
 process decompress_ref {
     label "isoforms"
     cpus 1
+    memory "500MB"
     input:
         path compressed_ref
     output:
@@ -71,6 +74,7 @@ process decompress_ref {
 process decompress_annotation {
     label "isoforms"
     cpus 1
+    memory "500MB"
     input:
         path compressed_annotation
     output:
@@ -85,6 +89,7 @@ process decompress_annotation {
 process decompress_transcriptome {
     label "isoforms"
     cpus 1
+    memory "500MB"
     input:
         path "compressed_ref.gz"
     output:
@@ -99,6 +104,7 @@ process decompress_transcriptome {
 process preprocess_ref_annotation {
     label "isoforms"
     cpus 1
+    memory "500MB"
     input:
         path ref_annotation
     output:
@@ -113,6 +119,7 @@ process preprocess_ref_annotation {
 process preprocess_ref_transcriptome {
     label "isoforms"
     cpus 1
+    memory "500MB"
     input:
         path "ref_transcriptome"
     output:
@@ -133,7 +140,7 @@ process preprocess_reads {
 
     label "isoforms"
     cpus 4
-
+    memory "2 GB"
     input:
         tuple val(meta), path(input_reads)
     output:
@@ -157,6 +164,7 @@ process build_minimap_index{
     */
     label "isoforms"
     cpus params.threads
+    memory "16 GB"
 
     input:
         path reference
@@ -178,6 +186,7 @@ process split_bam{
 
     label 'isoforms'
     cpus params.threads
+    memory "2 GB"
 
     input:
         tuple val(sample_id), path(bam)
@@ -223,6 +232,7 @@ process assemble_transcripts{
     */
     label 'isoforms'
     cpus params.threads
+    memory "2 GB"
 
     input:
         tuple val(sample_id), path(bam), path(ref_annotation)
@@ -245,6 +255,8 @@ process merge_gff_bundles{
     Merge gff bundles into a single gff file per sample.
     */
     label 'isoforms'
+    cpus params.threads
+    memory "2 GB"
 
     input:
         tuple val(sample_id), path (gff_bundle)
@@ -272,7 +284,8 @@ process run_gffcompare{
     */
 
     label 'isoforms'
-
+    cpus 1
+    memory "2 GB"
     input:
        tuple val(sample_id), path(query_annotation)
        path ref_annotation
@@ -304,7 +317,8 @@ process get_transcriptome{
         Write out a transcriptome file based on the query gff annotations.
         */
         label 'isoforms'
-
+        cpus 1
+        memory "2 GB"
         input:
             tuple val(sample_id), path(transcripts_gff), path(gffcmp_dir), path(reference_seq)
         output:
@@ -325,6 +339,8 @@ process get_transcriptome{
 process merge_transcriptomes {
     // Merge the transcriptomes from all samples
     label 'isoforms'
+    cpus 2
+    memory "4 GB"
     input:
         path "query_annotations/*"
         path ref_annotation
@@ -348,6 +364,8 @@ process merge_transcriptomes {
 process makeReport {
 
     label "isoforms"
+    cpus 2
+    memory "2 GB"
 
     input:
         path versions
@@ -417,6 +435,8 @@ process makeReport {
 // into it.
 process collectFastqIngressResultsInDir {
     label "isoforms"
+    cpus 1
+    memory "2 GB"
     input:
         // both the fastcat seqs as well as stats might be `OPTIONAL_FILE` --> stage in
         // different sub-directories to avoid name collisions
@@ -448,6 +468,8 @@ process collectFastqIngressResultsInDir {
 process output {
     // publish inputs to output directory
     label "isoforms"
+    cpus 1
+    memory "2 GB"
     publishDir (
         params.out_dir,
         mode: "copy",

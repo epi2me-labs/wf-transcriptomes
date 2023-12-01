@@ -1,6 +1,8 @@
 
 process jaffal{
     label "isoforms"
+    cpus 4
+    memory "2 GB"
     input:
         tuple val(sample_id), path(fastq)
         path refBase
