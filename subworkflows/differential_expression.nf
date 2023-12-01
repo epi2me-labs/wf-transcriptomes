@@ -1,5 +1,7 @@
 process checkSampleSheetCondition {
     label "isoforms"
+    cpus 1
+    memory "2 GB"
     input:
         path "sample_sheet.csv"
     """
@@ -14,6 +16,7 @@ process count_transcripts {
     // library type is specified as forward stranded (-l SF) as it should have either been through pychopper or come from direct RNA reads.
     label "isoforms"
     cpus params.threads
+    memory "16 GB"
     input:
         tuple val(meta), path(bam), path(ref_transcriptome)
     output:
@@ -29,6 +32,8 @@ process count_transcripts {
 
 process mergeCounts {
     label "isoforms"
+    cpus 1
+    memory "2 GB"
     input:
         path counts
     output:
@@ -40,6 +45,8 @@ process mergeCounts {
 
 process mergeTPM {
     label "isoforms"
+    cpus 1
+    memory "2 GB"
     input:
         path counts
     output:
@@ -54,6 +61,8 @@ process deAnalysis {
     label "isoforms"
     errorStrategy "retry"
     maxRetries 3
+    cpus 4
+    memory "16 GB"
     input:
         path sample_sheet
         path merged_tsv 
@@ -96,6 +105,8 @@ process deAnalysis {
 
 process plotResults {
     label "isoforms"
+    cpus 2
+    memory "2 GB"
     input:
         path flt_count
         path res_dtu
@@ -120,6 +131,7 @@ process build_minimap_index_transcriptome{
     */
     label "isoforms"
     cpus params.threads
+    memory "16 GB"
     input:
         path reference
     output:
@@ -140,6 +152,7 @@ process map_transcriptome{
     */
     label "isoforms"
     cpus params.threads
+    memory "16 GB"
 
     input:
        tuple val(meta), path (fastq_reads), path(index)
