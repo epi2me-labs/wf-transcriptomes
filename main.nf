@@ -108,10 +108,10 @@ process preprocess_ref_annotation {
     input:
         path ref_annotation
     output:
-        path "ammended.${ref_annotation}"
+        path "amended.${ref_annotation}"
     """
     sed -i -e 's/transcript_id "";//g' ${ref_annotation}
-    mv ${ref_annotation} "ammended.${ref_annotation}"
+    mv ${ref_annotation} "amended.${ref_annotation}"
     """
 }
 
@@ -123,10 +123,10 @@ process preprocess_ref_transcriptome {
     input:
         path "ref_transcriptome"
     output:
-        path "ammended.${ref_transcriptome}"
+        path "amended.${ref_transcriptome}"
     """
     sed -i -e 's/|.*//' ${ref_transcriptome}
-    mv ${ref_transcriptome} "ammended.${ref_transcriptome}"
+    mv ${ref_transcriptome} "amended.${ref_transcriptome}"
     """
 }
 
@@ -147,8 +147,10 @@ process preprocess_reads {
          tuple val("${meta.alias}"), path("${meta.alias}_full_length_reads.fastq"), emit: full_len_reads
          path '*.tsv',  emit: report
     script:
+        def cdna_kit = params.cdna_kit.split("-")[-1]
+	def extra_params = params.pychopper_opts ?: ''    
         """
-        pychopper -t ${params.threads} ${params.pychopper_opts} ${input_reads} ${meta.alias}_full_length_reads.fastq
+        pychopper -t ${params.threads} -k ${cdna_kit} -m ${params.pychopper_backend} ${extra_params} ${input_reads} ${meta.alias}_full_length_reads.fastq
         mv pychopper.tsv ${meta.alias}_pychopper.tsv
         workflow-glue generate_pychopper_stats --data ${meta.alias}_pychopper.tsv --output .
 
