@@ -264,11 +264,34 @@
                     "description": "Number of CPU threads.",
                     "help_text": "Only provided to processes including alignment and and assembly that benefit from multiple threads."
                 },
+                "cdna_kit": {
+                    "type": "string",
+                    "title": "Kit used for cDNA synthesis.",
+                    "enum": [
+                        "SQK-PCS109",
+                        "SQK-PCS110",
+                        "SQK-PCS111",
+                        "SQK-LSK114"
+                    ],
+                    "description": "If cDNA reads are used, select the kit used.",
+                    "default": "SQK-PCS109",
+                    "help_text": "This will be used by pychopper to preprocess the reads for downstream analysis."
+                },
+                "pychopper_backend": {
+                    "type": "string",
+                    "enum": [
+                        "edlib",
+                        "phmm"
+                    ],
+                    "title": "Pychopper backend",
+                    "description": "Pychopper can use one of two available backends for identifying primers in the raw reads",
+                    "default": "edlib",
+                    "help_text": "'edlib' is set by default due to its high performance. However, it may be less sensitive than 'phmm'."
+                },
                 "pychopper_opts": {
                     "type": "string",
                     "title": "Pychopper options",
                     "description": "Extra pychopper opts",
-                    "default": "-m edlib",
                     "help_text": "See available options (here)[https://github.com/epi2me-labs/pychopper#usage]"
                 },
                 "bundle_min_reads": {

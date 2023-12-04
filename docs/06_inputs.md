@@ -56,7 +56,9 @@
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | threads | integer | Number of CPU threads. | Only provided to processes including alignment and and assembly that benefit from multiple threads. | 4 |
-| pychopper_opts | string | Extra pychopper opts | See available options (here)[https://github.com/epi2me-labs/pychopper#usage] | -m edlib |
+| cdna_kit | string | If cDNA reads are used, select the kit used. | This will be used by pychopper to preprocess the reads for downstream analysis. | SQK-PCS109 |
+| pychopper_backend | string | Pychopper can use one of two available backends for identifying primers in the raw reads | 'edlib' is set by default due to its high performance. However, it may be less sensitive than 'phmm'. | edlib |
+| pychopper_opts | string | Extra pychopper opts | See available options (here)[https://github.com/epi2me-labs/pychopper#usage] |  |
 | bundle_min_reads | integer | Minimum size of bam bundle for parallel processing. |  | 50000 |
 | isoform_table_nrows | integer | Maximum rows to dispay in the isoform report table |  | 5000 |
 
