@@ -142,21 +142,32 @@ process preprocess_reads {
     cpus 4
     memory "2 GB"
     input:
-        tuple val(meta), path(input_reads)
+        tuple val(meta), path('seqs.fastq.gz')
     output:
-         tuple val("${meta.alias}"), path("${meta.alias}_full_length_reads.fastq"), emit: full_len_reads
-         path '*.tsv',  emit: report
+        tuple val("${meta.alias}"),
+              path("${meta.alias}_pychopper_output/${meta.alias}_full_length_reads.fastq"),
+              emit: full_len_reads
+        tuple val("${meta.alias}"),
+              path("${meta.alias}_pychopper_output/"),
+              emit: pychopper_output
+        path "${meta.alias}_pychopper_output/${meta.alias}_pychopper.tsv",
+              emit: report
     script:
         def cdna_kit = params.cdna_kit.split("-")[-1]
-	def extra_params = params.pychopper_opts ?: ''    
+	    def extra_params = params.pychopper_opts ?: ''    
         """
-        pychopper -t ${params.threads} -k ${cdna_kit} -m ${params.pychopper_backend} ${extra_params} ${input_reads} ${meta.alias}_full_length_reads.fastq
+        pychopper -t ${params.threads} -k ${cdna_kit} -m ${params.pychopper_backend} ${extra_params} 'seqs.fastq.gz' ${meta.alias}_full_length_reads.fastq
         mv pychopper.tsv ${meta.alias}_pychopper.tsv
         workflow-glue generate_pychopper_stats --data ${meta.alias}_pychopper.tsv --output .
 
-        # Add sample id column
+        # Add sample id colum
         sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${meta.alias}/" ${meta.alias}_pychopper.tsv > tmp
         mv tmp ${meta.alias}_pychopper.tsv
+
+
+        mkdir "${meta.alias}_pychopper_output/"
+        shopt -s extglob  # Allow extended pattern matching so we can exclude files from the mv
+        mv !("${meta.alias}_pychopper_output"|seqs.fastq.gz) "${meta.alias}_pychopper_output/"
         """
 }
 
@@ -541,7 +552,7 @@ workflow pipeline {
         }
 
      
-
+        results = Channel.empty()
         software_versions = getVersions()
         workflow_params = getParams()
         input_reads = reads.map{ meta, samples, stats -> [meta, samples]}
@@ -552,6 +563,8 @@ workflow pipeline {
             preprocess_reads(input_reads)
             full_len_reads = preprocess_reads.out.full_len_reads
             pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
+            pychopper_results_dir = preprocess_reads.out.pychopper_output.map{ it -> it[1]}
+            results = results.concat(pychopper_results_dir)
         }
         else{
             full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
@@ -564,7 +577,7 @@ workflow pipeline {
         
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
      
-            split_bam(assembly.bam)
+            split_bam(assembly.bam.map {sample_id, bam, bai -> [sample_id, bam]})
 
             assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls).combine(ref_annotation),use_ref_ann)
 
@@ -582,14 +595,14 @@ workflow pipeline {
 
             gff_compare = run_gffcompare.out.gffcmp_dir.map{ it -> it[1]}.collect()
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
-            results = Channel.empty()
-        }else
-        {
+            results = results.concat(assembly.bam.map {sample_id, bam, bai -> [bam, bai]}.flatten())
+        }
+        else{
             gff_compare = file("$projectDir/data/OPTIONAL_FILE")
             merge_gff = file("$projectDir/data/OPTIONAL_FILE")
             assembly_stats = file("$projectDir/data/OPTIONAL_FILE")
             use_ref_ann = false
-            results = Channel.empty()
+ 
         }
         if (jaffal_refBase){
                 gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
@@ -638,11 +651,9 @@ workflow pipeline {
             de_report,
             count_transcripts_file)
 
-        report = makeReport.out.report
-        
-     
-       
-        results = results.concat(makeReport.out.report)
+       report = makeReport.out.report
+
+       results = results.concat(makeReport.out.report)
        
        if (use_ref_ann){
             results = run_gffcompare.output.gffcmp_dir.concat(
@@ -675,6 +686,7 @@ workflow pipeline {
         }
 
         results.concat(workflow_params.map{ [it, null]})
+
        
     emit:
         results

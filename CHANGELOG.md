@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 ### Added
+- Published minimap2 and pychopper results to output directory.
 - Two extra pychopper parameters `--cdna_kit` and `--pychopper_backend`. `--pychopper_options` is still available to define any other options.
 
 ## [v0.4.2]
