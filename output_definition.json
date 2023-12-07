@@ -18,7 +18,7 @@
     },
     "read-stats-per-read": {
       "filepath": "fastq_ingress_results/reads/fastcat_stats/per-read-stats.tsv",
-      "title": "Per file read stats",
+      "title": "Read stats",
       "description": "A TSV with per read stats, including all samples.",
       "mime-type": "text/tab-separated-values",
       "optional": false,
@@ -106,7 +106,7 @@
     },
     "dtu-report-pdf": {
       "filepath": "/de_analysis/results_dtu.pdf",
-      "title": "Differential gene expression report",
+      "title": "Differential transcript usage report",
       "description": "Summary report of differential transcript usage results as a PDF.",
       "mime-type": "application/pdf",
       "optional": true,
