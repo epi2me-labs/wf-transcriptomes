@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory requirements for each process.
 ### Changed
 - Documentation.
+### Fixed
+- When Jaffa is run only output one report.
 
 ## [v0.4.2]
 ### Changed
