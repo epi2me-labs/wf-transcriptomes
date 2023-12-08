@@ -606,8 +606,8 @@ workflow pipeline {
         }
         if (jaffal_refBase){
                 gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
-                jaffal_out = gene_fusions.out.results_csv.collectFile(keepHeader: true, name: 'jaffal.csv')
-            }else{
+                jaffal_out = gene_fusions.out.results_csv.map{ alias, csv -> csv}.collectFile(keepHeader: true, name: 'jaffal.csv')
+            } else{
                 jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
         }
 
