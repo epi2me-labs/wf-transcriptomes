@@ -62,7 +62,7 @@ tar -xzvf differential_expression.tar.gz
 ```
 The workflow can be run with the demo data using:
 ```
-nextflow run epi2me-labs/wf-transcriptome \
+nextflow run epi2me-labs/wf-transcriptomes \
 --fastq  differential_expression/differential_expression_fastq \
 --de_analysis --ref_genome differential_expression/hg38_chr20.fa \
 --transcriptome-source reference-guided \
