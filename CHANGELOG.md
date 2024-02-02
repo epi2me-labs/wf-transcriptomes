@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [unreleased]
+### Changed
+- Improve documentation around filtering of transcripts done before DTU analysis.
+- Renamed files:
+  -  `de_analysis/all_counts_filtered.tsv` to `de_analysis/filtered_transcript_counts_with_genes.tsv`
+  -  `de_analysis/de_tpm_transcript_counts.tsv` to `de_analysis/unfiltered_tpm_transcript_counts.tsv`
+### Added
+- Output additional `de_analysis/cpm_gene_counts.tsv` with counts per million gene counts.
+- Output additional `de_analysis/unfiltered_transcript_counts_with_genes.tsv` with unfiltered transcript counts with associated gene IDs.
+- Add gene name column to the de_analysis counts TSV files.
 ### Fixed
 - Mapping stage using a single thread only.
 

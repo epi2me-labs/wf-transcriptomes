@@ -2,6 +2,7 @@
 
 suppressMessages(library("DRIMSeq"))
 suppressMessages(library("GenomicFeatures"))
+suppressMessages(library("edgeR"))
 args <- commandArgs(trailingOnly=TRUE)
 ref_annotation <- args[1]
 min_samps_gene_expr <- args[2]
@@ -12,11 +13,11 @@ annotation_type <- args[6]
 strip_version <- args[7]
 
 cat("Loading counts, conditions and parameters.\n")
-cts <- as.matrix(read.csv("merged/all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
+cts <- as.matrix(read.csv("all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
 
 # Set up sample data frame:
 #changed this to sample_id
-coldata <- read.csv("de_analysis/coldata.tsv", row.names="alias", sep=",", stringsAsFactors=TRUE)
+coldata <- read.csv("sample_sheet.csv", row.names="alias", sep=",", stringsAsFactors=TRUE)
 
 coldata$sample_id <- rownames(coldata)
 # check if control condition exists, sets as reference 
@@ -46,6 +47,9 @@ rownames(txdf) <- NULL
 # Create counts data frame:
 counts<-data.frame(gene_id=txdf$GENEID, feature_id=txdf$TXNAME, cts)
 
+# output unfiltered version of the counts table now we have paired transcripts with gene ids
+write.table(counts, file="de_analysis/unfiltered_transcript_counts_with_genes.tsv", sep="\t", row.names = FALSE, quote=FALSE)
+
 cat("Filtering counts using DRIMSeq.\n")
 
 d <- dmDSdata(counts=counts, samples=coldata)
@@ -64,15 +68,22 @@ suppressMessages(library("dplyr"))
 # Sum transcript counts into gene counts:
 cat("Sum transcript counts into gene counts.\n")
 trs_cts <- counts(d)
-write.table(trs_cts, file="merged/all_counts_filtered.tsv",sep="\t")
+write.table(trs_cts, file="merged/filtered_transcript_counts_with_genes.tsv", sep="\t", row.names = FALSE, quote=FALSE)
 
 gene_cts <- trs_cts_unfiltered %>% dplyr::select(c(1, 3:ncol(trs_cts)))  %>% group_by(gene_id) %>% summarise_all(tibble::lst(sum)) %>% data.frame()
 rownames(gene_cts) <- gene_cts$gene_id
 gene_cts$gene_id <- NULL
-write.table(gene_cts, file="merged/all_gene_counts.tsv",sep="\t")
+write.table(gene_cts, file="merged/all_gene_counts.tsv", sep="\t", quote=FALSE)
+
+# Output count per million of the gene counts using edgeR CPM
+cpm_gene_counts <- cpm(gene_cts)
+# Add gene_id as index column header
+cpm_gene_counts <- cbind(var_name = rownames(cpm_gene_counts), cpm_gene_counts)
+rownames(cpm_gene_counts) <- NULL
+colnames(cpm_gene_counts)[1] <- "gene_id"
+write.table(cpm_gene_counts, file="de_analysis/cpm_gene_counts.tsv", sep="\t", quote=FALSE, row.names = FALSE)
 
 # Differential gene expression using edgeR:
-suppressMessages(library("edgeR"))
 cat("Running differential gene expression analysis using edgeR.\n")
 
 y <- DGEList(gene_cts)

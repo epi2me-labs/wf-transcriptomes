@@ -156,10 +156,10 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | de_analysis | boolean | Run DE anaylsis | Running this requires you to provide at least two replicates for a control and treated sample as well as a sample sheet param. | False |
-| min_gene_expr | integer | Minimum gene counts | The minimum number of total mapped sequence reads for a gene to be considered expressed. | 10 |
-| min_feature_expr | integer | Minimum transcript counts | The minimum number of total mapped sequence reads for a transcript to be considered. | 3 |
-| min_samps_gene_expr | integer | Genes expressed in a minimum of this many samples will be included in the differential expression analysis. | A gene must be mapped to at least this minimum number of samples for the gene be included in the analysis. | 3 |
-| min_samps_feature_expr | integer | Transcripts expressed in minimum this many samples | A transcript must be mapped in at least this this minimum number of samples to be included in the analysis. | 1 |
+| min_gene_expr | integer | The minimum number of total mapped sequence reads required for a gene to be considered in differential transcript usage analysis. | Filtering at the gene level ensures that the observed transcript ratios are calculated with a minimum number of counts per gene. | 10 |
+| min_feature_expr | integer | The minimum number of reads assigned to a transcript for it to be considered in differential transcript usage analysis. | Filter out transcripts that do not have this minimum number of transcript expression, reducing noise. | 3 |
+| min_samps_gene_expr | integer | Set the minimum number of samples in which a gene is expressed to be included in the differential transcript usage analysis. | A gene must be expressed in at least this number of samples for the gene be included in the differential transcript usage analysis. Filtering at the gene level improves the reliability of the observed transcript ratios. | 3 |
+| min_samps_feature_expr | integer | Set the minimum number of samples in which a transcript is expressed to be included in the differential transcript usage analysis. | A transcript must expressed in at least this minimum number of samples to be included in the analysis. Should be equal to the number of replicates per sample you have. | 1 |
 
 
 ### Advanced Options
@@ -201,7 +201,7 @@ Output files may be aggregated including information for all samples or provided
 | Annotated assembled transcriptome | {{ alias }}_merged_transcriptome.fas | Per sample annotated assembled transcriptome. | per-sample |
 | Alignment summary statistics | {{ alias }}_read_aln_stats.tsv | Per sample alignment summary statistics. | per-sample |
 | GFF compare results. | {{ alias }}_gffcompare | All GFF compare output files. | per-sample |
-| Differential gene expression results | /de_analysis/results_dge.tsv | This is a gene-level result file that describes genes and the probability that they show differential expression between experimental conditions . | aggregated |
+| Differential gene expression results | /de_analysis/results_dge.tsv | This is a gene-level result file that describes genes and their probability of showing differential expression between experimental conditions. | aggregated |
 | Differential gene expression report | /de_analysis/results_dge.pdf | Summary report of differential gene expression analysis as a PDF. | aggregated |
 | Differential transcript usage gene TSV | /de_analysis/results_dtu_gene.tsv | This is a gene-level result file from DEXSeq that lists annotated genes and their probabilities of differential expression. | aggregated |
 | Differential transcript usage report | /de_analysis/results_dtu.pdf | Summary report of differential transcript usage results as a PDF. | aggregated |
@@ -209,9 +209,10 @@ Output files may be aggregated including information for all samples or provided
 | Differential transcript usage stageR TSV | /de_analysis/results_dtu_stageR.tsv  | This is the output from StageR and it shows both gene and transcript probabilities of differential expression | aggregated |
 | Differential transcript usage DEXSeq TSV | /de_analysis/results_dexseq.tsv | The complete output from the DEXSeq-analysis, shows both gene and transcript probabilities of differential expression. | aggregated |
 | Gene counts | /de_analysis/all_gene_counts.tsv | Raw gene counts created by the Salmon tool, before filtering. | aggregated |
-| Transcript counts | /de_analysis/all_transcript_counts.tsv | Raw transcript counts created by the Salmon tool, before filtering. | aggregated |
-| Transcript counts filtered | /de_analysis/all_counts_filtered.tsv | Filtered transcript counts, used for DE_analysis. | aggregated |
-| Transcript per million counts | /de_analysis/de_tpm_transcript_counts.tsv | This file shows transcript per million (TPM) of the raw counts to facilitate comparisons across sample. | aggregated |
+| Gene counts per million | /de_analysis/cpm_gene_counts.tsv | This file shows counts per million (CPM) of the raw gene counts to facilitate comparisons across samples. | aggregated |
+| Transcript counts | /de_analysis/unfiltered_transcript_counts_with_genes.tsv | Raw transcript counts created by the Salmon tool, before filtering. Includes reference to the associated gene ID. | aggregated |
+| Transcript per million counts | /de_analysis/unfiltered_tpm_transcript_counts.tsv | This file shows transcripts per million (TPM) of the raw counts to facilitate comparisons across samples. | aggregated |
+| Transcript counts filtered | /de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
 | Final non redundant transcriptome | /de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. | aggregated |
 | Fusion transcript sequences | /jaffal_output_{{ alias }}/jaffa_results.fasta | Fusion transcript sequences output by Jaffa. | per-sample |
 | Fusion transcript sequence summary file | /jaffal_output_{{ alias }}/jaffa_results.csv | Fusion transcript sequences summary file output by Jaffa. | per-sample |
@@ -283,11 +284,11 @@ The reads from all the samples will be aligned with the final non redundant tran
 #### 5.3 Count genes and transcripts
 [Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving gene and transcript counts.
 
-#### 5.4 Pre-filtering of quantitative data using DRIMSeq
-[DRIMSeq](https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html) is used to filter the transcript count data from the Salmon analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed, and minimum threshold levels for the number of observed reads. The parameters used for filtering are `min_samps_gene_expr`, `min_samps_feature_expr`, `min_gene_expr`, and `min_feature_expr`. 
+#### 5.4 edgeR based differential expression analysis
+A statistical analysis is first performed using [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) to identify the subset of differentially expressed genes using the gene counts as input. A normalisation factor is calculated for each sequence library using the default TMM method (see [McCarthy et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3378882/) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (FDR) using the method of Benjamini & Hochberg ([Benjamini and Hochberg (1995)](https://www.jstor.org/stable/2346101))
 
-#### 5.5 edgeR based differential expression analysis
-A statistical analysis is first performed using [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) to identify the subset of differentially expressed genes. The filtered list of gene counts is used as input. A normalisation factor is calculated for each sequence library (using the default TMM method described by [McCarthy et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3378882/) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (fdr) using the method of Benjamini & Hochberg ([Benjamini and Hochberg (1995)](https://www.jstor.org/stable/2346101))
+#### 5.5 Pre-filtering of quantitative data using DRIMSeq
+[DRIMSeq](https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html) is used to filter the transcript count data from the Salmon analysis for differential transcript usage (DTU) analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed, and minimum threshold levels for the number of observed reads. The parameters used for filtering are `min_samps_gene_expr`, `min_samps_feature_expr`, `min_gene_expr`, and `min_feature_expr`. By default, any transcripts with zero expression or one transcript in all samples are filtered out at this stage.
 
 #### 5.6 Differential transcript usage using DEXSeq
 Differential transcript usage analysis is performed using the R [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) package ([Anders et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3460195/)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. 

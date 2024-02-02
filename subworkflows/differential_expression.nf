@@ -37,9 +37,9 @@ process mergeCounts {
     input:
         path counts
     output:
-        path "de_transcript_counts.tsv"
+        path "unfiltered_transcript_counts.tsv"
     """
-    workflow-glue merge_count_tsvs -z -o de_transcript_counts.tsv -tsvs ${counts}
+    workflow-glue merge_count_tsvs -z -o unfiltered_transcript_counts.tsv -tsvs ${counts}
     """
 }
 
@@ -50,9 +50,10 @@ process mergeTPM {
     input:
         path counts
     output:
-        path "de_tpm_transcript_counts.tsv"
+        path "unfiltered_tpm_transcript_counts.tsv"
+    // Use tpm parameter with merge_counts_tsvs.py to out transcript per million file
     """
-    workflow-glue merge_count_tsvs -o de_tpm_transcript_counts.tsv -z -tpm True -tsvs $counts
+    workflow-glue merge_count_tsvs -o unfiltered_tpm_transcript_counts.tsv -z -tpm True -tsvs $counts
     """
 }
 
@@ -64,12 +65,13 @@ process deAnalysis {
     cpus 4
     memory "16 GB"
     input:
-        path sample_sheet
-        path merged_tsv 
+        path "sample_sheet.csv"
+        path "all_counts.tsv" 
         path "annotation.gtf"
     output:
         path "de_analysis/results_dtu_stageR.tsv", emit: stageR
-        path "merged/all_counts_filtered.tsv", emit: flt_counts
+        path "merged/filtered_transcript_counts_with_genes.tsv", emit: flt_counts
+        path "de_analysis/unfiltered_transcript_counts_with_genes.tsv", emit: unflt_counts
         path "merged/all_gene_counts.tsv", emit: gene_counts
         path "de_analysis/results_dge.tsv", emit: dge
         path "de_analysis/results_dexseq.tsv", emit: dexseq
@@ -96,8 +98,6 @@ process deAnalysis {
     """
     mkdir merged
     mkdir de_analysis
-    mv $merged_tsv merged/all_counts.tsv
-    mv $sample_sheet de_analysis/coldata.tsv
     de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr $annotation_type $strip_version
     """
 }
@@ -108,20 +108,16 @@ process plotResults {
     cpus 2
     memory "2 GB"
     input:
-        path flt_count
-        path res_dtu
-        path sample_sheet 
+        path "filtered_transcript_counts_with_genes.tsv"
+        path "results_dtu_stageR.tsv"
+        path "sample_sheet.tsv"
         path de_analysis
     output:
         path "de_analysis/dtu_plots.pdf", emit: dtu_plots
         path "sample_sheet.tsv", emit: sample_sheet_csv
         path "de_analysis/*", emit: stageR
     """
-    mkdir merged
-    mv $sample_sheet de_analysis/coldata.tsv
-    mv $flt_count merged/all_counts_filtered.tsv
     plot_dtu_results.R
-    mv de_analysis/coldata.tsv sample_sheet.tsv
     """
 }
 
@@ -182,11 +178,10 @@ workflow differential_expression {
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
         analysis = deAnalysis(sample_sheet, merged, ref_annotation)
         plotResults(analysis.flt_counts, analysis.stageR, sample_sheet, analysis.de_analysis)
-        de_report = analysis.flt_counts.combine(analysis.gene_counts).combine(analysis.dge).combine(analysis.dexseq).combine(
-                    analysis.stageR).combine(plotResults.out.sample_sheet_csv).combine(merged).combine(
-                    ref_annotation).combine(merged_TPM)
+        de_report = analysis.flt_counts.concat(analysis.gene_counts, analysis.dge, analysis.dexseq,
+        analysis.stageR, plotResults.out.sample_sheet_csv, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
-        all_counts = merged_TPM.concat(merged, analysis.flt_counts, analysis.gene_counts)
+        all_counts = merged_TPM.concat(analysis.flt_counts, analysis.gene_counts)
 emit:
        all_de = de_report
        count_transcripts = count_transcripts_file
