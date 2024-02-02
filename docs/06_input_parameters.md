@@ -45,10 +45,10 @@
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | de_analysis | boolean | Run DE anaylsis | Running this requires you to provide at least two replicates for a control and treated sample as well as a sample sheet param. | False |
-| min_gene_expr | integer | Minimum gene counts | The minimum number of total mapped sequence reads for a gene to be considered expressed. | 10 |
-| min_feature_expr | integer | Minimum transcript counts | The minimum number of total mapped sequence reads for a transcript to be considered. | 3 |
-| min_samps_gene_expr | integer | Genes expressed in a minimum of this many samples will be included in the differential expression analysis. | A gene must be mapped to at least this minimum number of samples for the gene be included in the analysis. | 3 |
-| min_samps_feature_expr | integer | Transcripts expressed in minimum this many samples | A transcript must be mapped in at least this this minimum number of samples to be included in the analysis. | 1 |
+| min_gene_expr | integer | The minimum number of total mapped sequence reads required for a gene to be considered in differential transcript usage analysis. | Filtering at the gene level ensures that the observed transcript ratios are calculated with a minimum number of counts per gene. | 10 |
+| min_feature_expr | integer | The minimum number of reads assigned to a transcript for it to be considered in differential transcript usage analysis. | Filter out transcripts that do not have this minimum number of transcript expression, reducing noise. | 3 |
+| min_samps_gene_expr | integer | Set the minimum number of samples in which a gene is expressed to be included in the differential transcript usage analysis. | A gene must be expressed in at least this number of samples for the gene be included in the differential transcript usage analysis. Filtering at the gene level improves the reliability of the observed transcript ratios. | 3 |
+| min_samps_feature_expr | integer | Set the minimum number of samples in which a transcript is expressed to be included in the differential transcript usage analysis. | A transcript must expressed in at least this minimum number of samples to be included in the analysis. Should be equal to the number of replicates per sample you have. | 1 |
 
 
 ### Advanced Options

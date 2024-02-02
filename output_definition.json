@@ -83,7 +83,7 @@
     "dge-results-tsv": {
       "filepath": "/de_analysis/results_dge.tsv",
       "title": "Differential gene expression results",
-      "description": "This is a gene-level result file that describes genes and the probability that they show differential expression between experimental conditions .",
+      "description": "This is a gene-level result file that describes genes and their probability of showing differential expression between experimental conditions.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"
@@ -144,26 +144,34 @@
       "optional": true,
       "type": "aggregated"
     },
-    "transcipt_counts": {
-      "filepath": "/de_analysis/all_transcript_counts.tsv",
-      "title": "Transcript counts",
-      "description": "Raw transcript counts created by the Salmon tool, before filtering.",
+    "gene_counts_per_million": {
+      "filepath": "/de_analysis/cpm_gene_counts.tsv",
+      "title": "Gene counts per million",
+      "description": "This file shows counts per million (CPM) of the raw gene counts to facilitate comparisons across samples.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"
     },
-    "transcipt_counts_filtered": {
-      "filepath": "/de_analysis/all_counts_filtered.tsv",
-      "title": "Transcript counts filtered",
-      "description": "Filtered transcript counts, used for DE_analysis.",
+    "transcript_counts": {
+      "filepath": "/de_analysis/unfiltered_transcript_counts_with_genes.tsv",
+      "title": "Transcript counts",
+      "description": "Raw transcript counts created by the Salmon tool, before filtering. Includes reference to the associated gene ID.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"
     },
     "tpm_transcript_counts": {
-      "filepath": "/de_analysis/de_tpm_transcript_counts.tsv",
+      "filepath": "/de_analysis/unfiltered_tpm_transcript_counts.tsv",
       "title": "Transcript per million counts",
-      "description": "This file shows transcript per million (TPM) of the raw counts to facilitate comparisons across sample.",
+      "description": "This file shows transcripts per million (TPM) of the raw counts to facilitate comparisons across samples.",
+      "mime-type": "text/tab-separated-values",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "transcipt_counts_filtered": {
+      "filepath": "/de_analysis/filtered_transcript_counts_with_genes.tsv",
+      "title": "Transcript counts filtered",
+      "description": "Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"

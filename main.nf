@@ -378,7 +378,7 @@ process makeReport {
 
     label "isoforms"
     cpus 2
-    memory "2 GB"
+    memory "4 GB"
 
     input:
         path versions

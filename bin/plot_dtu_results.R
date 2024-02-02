@@ -5,18 +5,17 @@ suppressMessages(library(ggplot2))
 suppressMessages(library(tidyr))
 
 # Set up sample data frame:
-coldata <- read.csv("de_analysis/coldata.tsv", row.names="alias", sep=",")
-coldata$sample_id <- rownames(coldata)
+coldata <- read.csv("sample_sheet.tsv", row.names="alias", sep=",")
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
 coldata$type <-NULL
 coldata$patient <-NULL
 
 # Read stageR results:
-stageR <- read.csv("de_analysis/results_dtu_stageR.tsv", sep="\t")
+stageR <- read.csv("results_dtu_stageR.tsv", sep="\t")
 names(stageR) <- c("gene_id", "transcript_id", "p_gene", "p_transcript");
 
 # Read filtered counts:
-counts <- read.csv("merged/all_counts_filtered.tsv", sep="\t");
+counts <- read.csv("filtered_transcript_counts_with_genes.tsv", sep="\t");
 names(counts)[2]<-"transcript_id"
 
 # Join counts and stageR results:
