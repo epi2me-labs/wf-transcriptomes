@@ -52,7 +52,7 @@ docker-run:
                 "fusions", "differential_expression", "isoforms",
                 "only_differential_expression", "differential_expression_gff3",
                 "ncbi_gzip", "ncbi_no_gene_id", "ensembl_with_versions",
-                "differential_expression_mouse"
+                "differential_expression_mouse", "no_ref_annotation"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -66,6 +66,12 @@ docker-run:
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
+        - if: $MATRIX_NAME == "no_ref_annotation"
+          variables:
+              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
+              NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
+                  --ref_genome chr20/hg38_chr20.fa"
+              NF_IGNORE_PROCESSES: run_gffcompare,preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "fusions"
           variables:
               NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz

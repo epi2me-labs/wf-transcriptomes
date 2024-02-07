@@ -323,8 +323,6 @@ process run_gffcompare{
         """
 }
 
-
-
 process get_transcriptome{
         /*
         Write out a transcriptome file based on the query gff annotations.
@@ -340,6 +338,9 @@ process get_transcriptome{
         script:
         def transcriptome = "${sample_id}_transcriptome.fas"
         def merged_transcriptome = "${sample_id}_merged_transcriptome.fas"
+        // if no ref_annotation gffcmp_dir will be optional file
+        // so skip getting transcriptome FASTA from the annotated files.
+        if (params.ref_annotation){
         """
         gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
         if  [ "\$(ls -A $gffcmp_dir)" ];
@@ -347,6 +348,11 @@ process get_transcriptome{
                 gffread -F -g ${reference_seq} -w ${merged_transcriptome} $gffcmp_dir/str_merged.annotated.gtf
         fi
         """
+        } else {
+        """
+        gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
+        """
+        }
 }
 
 process merge_transcriptomes {
@@ -397,11 +403,11 @@ process makeReport {
         // for DE analysis, a `gene_name` column will be added to
         // `de_report/results_dge.tsv`
         path "results_dge.tsv", emit: de_analysis, optional: true
-    script:
+    shell:
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
-        def report_name = "wf-transcriptomes-report.html"
-    """
+        report_name = "wf-transcriptomes-report.html"
+    '''
     if [ -f "de_report/OPTIONAL_FILE" ]; then
         dereport=""
     else
@@ -409,10 +415,14 @@ process makeReport {
         mv de_report/*.g*f* de_report/stringtie_merged.gtf
     fi
     if [ -f "gff_annotation/OPTIONAL_FILE" ]; then
-        OPT_GFF=""
+        OPT_GFF_ANNOTATION=""
     else
-        OPT_GFF="--gffcompare_dir ${gffcmp_dir} --gff_annotation gff_annotation/*"
-        
+        OPT_GFF_ANNOTATION="--gff_annotation gff_annotation/*"
+    fi
+    if [ -f "OPTIONAL_FILE" ]; then
+        OPT_GFFCMP_DIR=""
+    else
+        OPT_GFFCMP_DIR="--gffcompare_dir !{gffcmp_dir}"  
     fi
     if [ -f "jaffal_csv/OPTIONAL_FILE" ]; then
         OPT_JAFFAL_CSV=""
@@ -429,18 +439,19 @@ process makeReport {
     else
         OPT_PC_REPORT="--pychop_report pychopper_report/*"
     fi
-    workflow-glue report --report $report_name \
-    --versions $versions \
+    workflow-glue report --report !{report_name} \
+    --versions !{versions} \
     --params params.json \
-    \$OPT_ALN \
-    \$OPT_PC_REPORT \
-    --sample_ids $sids \
+    ${OPT_ALN} \
+    ${OPT_PC_REPORT} \
+    --sample_ids !{sids} \
     --stats per_read_stats/* \
-    \$OPT_GFF \
-    --isoform_table_nrows $params.isoform_table_nrows \
-    \$OPT_JAFFAL_CSV \
-    \$dereport 
-    """
+    ${OPT_GFF_ANNOTATION} \
+    ${OPT_GFFCMP_DIR} \
+    --isoform_table_nrows !{params.isoform_table_nrows} \
+    ${OPT_JAFFAL_CSV} \
+    ${dereport} 
+    '''
 }
 
 
@@ -582,18 +593,28 @@ workflow pipeline {
             assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls).combine(ref_annotation),use_ref_ann)
 
             merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
-            run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
+            // only run gffcompare if ref annotation provided. Otherwise create optional files and channels
+            if (params.ref_annotation){
+                run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
+                gff_compare_dir = run_gffcompare.out.gffcmp_dir
+                gff_compare = run_gffcompare.out.gffcmp_dir.map{ it -> it[1]}.collect()
+                // create per sample gff tuples with gff compare directories
+                gff_tuple = merge_gff_bundles.out.gff
+                .join(gff_compare_dir)
+            } else {
+                // create per sample gff tuples with optional files as no ref_annotation
+                optional_channel = Channel.fromPath("$projectDir/data/OPTIONAL_FILE")
+                gff_tuple = merge_gff_bundles.out.gff.combine(optional_channel)
+                gff_compare = OPTIONAL_FILE
+            }
             // For reference based assembly, there is only one reference
             // So map this reference to all sample_ids
             seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome)
-            
-
             get_transcriptome(
-                merge_gff_bundles.out.gff
-                .join(run_gffcompare.out.gffcmp_dir)
+                gff_tuple
                 .join(seq_for_transcriptome_build))
 
-            gff_compare = run_gffcompare.out.gffcmp_dir.map{ it -> it[1]}.collect()
+            
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
             results = results.concat(assembly.bam.map {sample_id, bam, bai -> [bam, bai]}.flatten())
         }
@@ -754,13 +775,17 @@ workflow {
     }
     if (params.de_analysis){
         if (!params.ref_annotation){
-            error = "You must provide a reference annotation."
+            error = "When running in --de_analysis mode you must provide a reference annotation."
         }
         if (!params.sample_sheet){
             error = "You must provide a sample_sheet with at least alias and condition columns."
         }
         if (params.containsKey("condition_sheet")) {
         error = "Condition sheets have been deprecated. Please add a 'condition' column to your sample sheet instead. Check the quickstart for more information."
+        }
+    } else{
+        if (!params.ref_annotation){
+            log.info("Warning: As no --ref_annotation was provided, the output transcripts will not be annotated.")
         }
     }
     if (error){
