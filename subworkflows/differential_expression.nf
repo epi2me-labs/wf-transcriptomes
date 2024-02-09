@@ -76,6 +76,7 @@ process deAnalysis {
         path "de_analysis/results_dge.tsv", emit: dge
         path "de_analysis/results_dexseq.tsv", emit: dexseq
         path "de_analysis", emit: de_analysis
+        path "de_analysis/cpm_gene_counts.tsv", emit: cpm
     script:
     // Just try both annotation file type because a .gff extension may be gff2(gtf) or gff3
     String annotation_type = "gtf"
@@ -115,7 +116,15 @@ process plotResults {
     output:
         path "de_analysis/dtu_plots.pdf", emit: dtu_plots
         path "sample_sheet.tsv", emit: sample_sheet_csv
+        // Output all DE files for use in report process
         path "de_analysis/*", emit: stageR
+        // Output selected DE files to be output in out_dir
+        path "de_analysis/results_dge.pdf", emit: dge_pdf
+        path "de_analysis/results_dge.tsv", emit: dge_tsv
+        path "de_analysis/results_dtu_gene.tsv", emit: dtu_gene
+        path "de_analysis/results_dtu_transcript.tsv", emit: dtu_transcript
+        path "de_analysis/results_dtu_stageR.tsv", emit: dtu_stageR
+        path "de_analysis/results_dtu.pdf", emit: dtu_pdf
     """
     plot_dtu_results.R
     """
@@ -178,14 +187,18 @@ workflow differential_expression {
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
         analysis = deAnalysis(sample_sheet, merged, ref_annotation)
         plotResults(analysis.flt_counts, analysis.stageR, sample_sheet, analysis.de_analysis)
+        // Concat files required for making the report
         de_report = analysis.flt_counts.concat(analysis.gene_counts, analysis.dge, analysis.dexseq,
         analysis.stageR, plotResults.out.sample_sheet_csv, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
+        // Concat files required to be output to user
+        de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, plotResults.out.dge_pdf, plotResults.out.dge_tsv,
+        plotResults.out.dtu_gene, plotResults.out.dtu_transcript, plotResults.out.dtu_stageR, plotResults.out.dtu_pdf).collect()
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
         all_counts = merged_TPM.concat(analysis.flt_counts, analysis.gene_counts)
 emit:
        all_de = de_report
        count_transcripts = count_transcripts_file
        dtu_plots = plotResults.out.dtu_plots
-       de_outputs = plotResults.out.stageR
+       de_outputs = de_outputs_concat
        counts = all_counts
 }
