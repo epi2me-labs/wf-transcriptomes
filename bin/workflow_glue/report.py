@@ -60,6 +60,9 @@ def argparser():
         "--sample_ids", required=True, nargs='+',
         help="List of sample ids")
     parser.add_argument(
+        "--isoform_table", required=False, type=Path,
+        help="Path to directory of TSV files with isoform summaries")
+    parser.add_argument(
         "--isoform_table_nrows", required=False, type=int, default=5000,
         help="Maximum rows to display in isoforms table")
     parser.add_argument(
@@ -549,8 +552,6 @@ def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
     cover_panel = Tabs(tabs=tabs)
     section.plot(cover_panel)
 
-    return df_tmap
-
 
 def pychopper_plots(report, pychop_report):
     """Make plots from pychopper output.
@@ -648,11 +649,10 @@ def cluster_quality(cluster_qc_dir, report, sample_ids):
     section.plot(cover_panel)
 
 
-def transcript_table(report, df_tmaps, max_rows):
+def transcript_table(report, isoform_table, max_rows):
     """Create searchable table of transcripts.
 
-    :param df_tmaps: pd.DataFrame of all gffcomapre `.tmap` files from all
-        samples
+    :param isoform_table: path to folder of isoform table files
     """
     section = report.add_section()
 
@@ -668,24 +668,11 @@ def transcript_table(report, df_tmaps, max_rows):
     `isoform_table_nrows`. It is currently set to `{}`
     '''.format(max_rows))
 
-    df = df_tmaps.drop(
-        columns=[
-            'FPKM', 'qry_gene_id', 'major_iso_id', 'ref_match_len', 'TPM'])
-
-    if len(df) == 0:
-        sys.stderr("No transcripts found")
-        section.markdown("No transcripts found")
-        return
-
-    # Make a column of number of isoforms in parent gene
-    gb = df.groupby(['ref_gene_id', 'sample_id']).count()
-    # gb = gb.set_index(['ref_gene_id', 'sample_id'])
-    gb.rename(columns={'ref_id': 'num_isoforms'}, inplace=True)
-
-    df['parent gene iso num'] = df.apply(
-        lambda x: gb.loc[(x.ref_gene_id, x.sample_id), 'num_isoforms'], axis=1)
-    # Uncalssified transcritps should not be lumped togetehr
-    df.loc[df.class_code == 'u', 'parent gene iso num'] = None
+    dfs = []
+    for file_ in Path(isoform_table).iterdir():
+        d = pd.read_csv(file_, sep='\t')
+        dfs.append(d)
+    df = pd.concat(dfs)
 
     # Keep top n rows with most coverage
     df.sort_values('cov', ascending=False, inplace=True)
@@ -934,14 +921,13 @@ def main(args):
             report, args.gff_annotation, sample_ids)
 
     if args.gffcompare_dir is not None:
-        df_tmaps = gff_compare_plots(
+        gff_compare_plots(
             report,
             [Path(x) for x in args.gffcompare_dir],
             sample_ids)
 
-        if df_tmaps is not None:
-            # Skip this section. This needs some work
-            transcript_table(report, df_tmaps, args.isoform_table_nrows)
+    if args.isoform_table is not None:
+        transcript_table(report, args.isoform_table, args.isoform_table_nrows)
 
     if args.cluster_qc_dirs is not None:
         cluster_quality(args.cluster_qc_dirs, report, sample_ids)

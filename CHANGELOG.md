@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   -  `de_analysis/all_counts_filtered.tsv` to `de_analysis/filtered_transcript_counts_with_genes.tsv`
   -  `de_analysis/de_tpm_transcript_counts.tsv` to `de_analysis/unfiltered_tpm_transcript_counts.tsv`
 ### Added
+- Published isoforms table to output directory.
 - Output additional `de_analysis/cpm_gene_counts.tsv` with counts per million gene counts.
 - Output additional `de_analysis/unfiltered_transcript_counts_with_genes.tsv` with unfiltered transcript counts with associated gene IDs.
 - Add gene name column to the de_analysis counts TSV files.
