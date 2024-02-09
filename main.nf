@@ -303,8 +303,11 @@ process run_gffcompare{
        tuple val(sample_id), path(query_annotation)
        path ref_annotation
     output:
-        tuple val(sample_id), path("${sample_id}_gffcompare"), emit: gffcmp_dir
-        path ("${sample_id}_annotated.gtf"), emit: gtf, optional: true
+        tuple val(sample_id), path("${sample_id}_gffcompare"),
+            emit: gffcmp_dir
+        path ("${sample_id}_annotated.gtf"), emit: gtf
+        tuple val(sample_id), path("${sample_id}_transcripts_table.tsv"),
+            emit: isoforms_table
     script:
     def out_dir = "${sample_id}_gffcompare"
     """
@@ -320,6 +323,11 @@ process run_gffcompare{
         mv *.tmap $out_dir
         mv *.refmap $out_dir
         cp ${out_dir}/str_merged.annotated.gtf ${sample_id}_annotated.gtf
+
+        # Make an isoform table for report and user output.
+        workflow-glue make_isoform_table \
+            --sample_id $sample_id \
+            --gffcompare_dir "${sample_id}_gffcompare"
         """
 }
 
@@ -379,7 +387,6 @@ process merge_transcriptomes {
     """
 }
 
-
 process makeReport {
 
     label "isoforms"
@@ -398,6 +405,7 @@ process makeReport {
         path "gff_annotation/*"
         path "de_report/*"
         path "seqkit/*"
+        path "isoforms_table/*"
     output:
         path("wf-transcriptomes-*.html"), emit: report
         // for DE analysis, a `gene_name` column will be added to
@@ -439,6 +447,11 @@ process makeReport {
     else
         OPT_PC_REPORT="--pychop_report pychopper_report/*"
     fi
+    if [ -f "isoforms_table/OPTIONAL_FILE" ]; then
+        OPT_ISO_TABLE=""
+    else
+        OPT_ISO_TABLE="--isoform_table isoforms_table"
+    fi
     workflow-glue report --report !{report_name} \
     --versions !{versions} \
     --params params.json \
@@ -447,10 +460,11 @@ process makeReport {
     --sample_ids !{sids} \
     --stats per_read_stats/* \
     ${OPT_GFF_ANNOTATION} \
+    ${OPT_ISO_TABLE} \
     ${OPT_GFFCMP_DIR} \
     --isoform_table_nrows !{params.isoform_table_nrows} \
     ${OPT_JAFFAL_CSV} \
-    ${dereport} 
+    ${dereport}
     '''
 }
 
@@ -598,6 +612,7 @@ workflow pipeline {
                 run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
                 gff_compare_dir = run_gffcompare.out.gffcmp_dir
                 gff_compare = run_gffcompare.out.gffcmp_dir.map{ it -> it[1]}.collect()
+                isoforms_table = run_gffcompare.out.isoforms_table.map{ it -> it[1]}.collect()
                 // create per sample gff tuples with gff compare directories
                 gff_tuple = merge_gff_bundles.out.gff
                 .join(gff_compare_dir)
@@ -606,6 +621,7 @@ workflow pipeline {
                 optional_channel = Channel.fromPath("$projectDir/data/OPTIONAL_FILE")
                 gff_tuple = merge_gff_bundles.out.gff.combine(optional_channel)
                 gff_compare = OPTIONAL_FILE
+                isoforms_table = file("$projectDir/data/OPTIONAL_FILE")
             }
             // For reference based assembly, there is only one reference
             // So map this reference to all sample_ids
@@ -614,12 +630,13 @@ workflow pipeline {
                 gff_tuple
                 .join(seq_for_transcriptome_build))
 
-            
+
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
             results = results.concat(assembly.bam.map {sample_id, bam, bai -> [bam, bai]}.flatten())
         }
         else{
             gff_compare = file("$projectDir/data/OPTIONAL_FILE")
+            isoforms_table = file("$projectDir/data/OPTIONAL_FILE")
             merge_gff = file("$projectDir/data/OPTIONAL_FILE")
             assembly_stats = file("$projectDir/data/OPTIONAL_FILE")
             use_ref_ann = false
@@ -631,7 +648,6 @@ workflow pipeline {
             } else{
                 jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
         }
-
 
         if (params.de_analysis){
             sample_sheet = file(params.sample_sheet, type:"file")
@@ -670,7 +686,8 @@ workflow pipeline {
             gff_compare,
             merge_gff,
             de_report,
-            count_transcripts_file)
+            count_transcripts_file,
+            isoforms_table)
 
        report = makeReport.out.report
 
@@ -679,6 +696,7 @@ workflow pipeline {
        if (use_ref_ann){
             results = run_gffcompare.output.gffcmp_dir.concat(
                       assembly.stats,
+                      run_gffcompare.out.isoforms_table,
                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
                       .map {it -> it[1]}
                       .concat(results)

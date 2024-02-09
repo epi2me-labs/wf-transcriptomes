@@ -81,7 +81,7 @@
       "type": "per-sample"
     },
     "dge-results-tsv": {
-      "filepath": "/de_analysis/results_dge.tsv",
+      "filepath": "de_analysis/results_dge.tsv",
       "title": "Differential gene expression results",
       "description": "This is a gene-level result file that describes genes and their probability of showing differential expression between experimental conditions.",
       "mime-type": "text/tab-separated-values",
@@ -89,7 +89,7 @@
       "type": "aggregated"
     },
     "dge-report-pdf": {
-      "filepath": "/de_analysis/results_dge.pdf",
+      "filepath": "de_analysis/results_dge.pdf",
       "title": "Differential gene expression report",
       "description": "Summary report of differential gene expression analysis as a PDF.",
       "mime-type": "application/pdf",
@@ -97,7 +97,7 @@
       "type": "aggregated"
     },
     "dtu-gene-tsv": {
-      "filepath": "/de_analysis/results_dtu_gene.tsv",
+      "filepath": "de_analysis/results_dtu_gene.tsv",
       "title": "Differential transcript usage gene TSV",
       "description": "This is a gene-level result file from DEXSeq that lists annotated genes and their probabilities of differential expression.",
       "mime-type": "text/tab-separated-values",
@@ -105,7 +105,7 @@
       "type": "aggregated"
     },
     "dtu-report-pdf": {
-      "filepath": "/de_analysis/results_dtu.pdf",
+      "filepath": "de_analysis/results_dtu.pdf",
       "title": "Differential transcript usage report",
       "description": "Summary report of differential transcript usage results as a PDF.",
       "mime-type": "application/pdf",
@@ -113,7 +113,7 @@
       "type": "aggregated"
     },
     "dtu-transcript": {
-      "filepath": "/de_analysis/results_dtu_transcript.tsv",
+      "filepath": "de_analysis/results_dtu_transcript.tsv",
       "title": "Differential transcript usage TSV",
       "description": "This is a transcript-level result file from DEXSeq that lists annotated genes and their probabilities of differential expression.",
       "mime-type": "text/tab-separated-values",
@@ -121,7 +121,7 @@
       "type": "aggregated"
     },
     "dtu-stageR": {
-      "filepath": "/de_analysis/results_dtu_stageR.tsv ",
+      "filepath": "de_analysis/results_dtu_stageR.tsv ",
       "title": "Differential transcript usage stageR TSV",
       "description": "This is the output from StageR and it shows both gene and transcript probabilities of differential expression",
       "mime-type": "text/tab-separated-values",
@@ -129,7 +129,7 @@
       "type": "aggregated"
     },
     "dexseq": {
-      "filepath": "/de_analysis/results_dexseq.tsv",
+      "filepath": "de_analysis/results_dexseq.tsv",
       "title": "Differential transcript usage DEXSeq TSV",
       "description": "The complete output from the DEXSeq-analysis, shows both gene and transcript probabilities of differential expression.",
       "mime-type": "text/tab-separated-values",
@@ -137,7 +137,7 @@
       "type": "aggregated"
     },
     "gene_counts": {
-      "filepath": "/de_analysis/all_gene_counts.tsv",
+      "filepath": "de_analysis/all_gene_counts.tsv",
       "title": "Gene counts",
       "description": "Raw gene counts created by the Salmon tool, before filtering.",
       "mime-type": "text/tab-separated-values",
@@ -145,7 +145,7 @@
       "type": "aggregated"
     },
     "gene_counts_per_million": {
-      "filepath": "/de_analysis/cpm_gene_counts.tsv",
+      "filepath": "de_analysis/cpm_gene_counts.tsv",
       "title": "Gene counts per million",
       "description": "This file shows counts per million (CPM) of the raw gene counts to facilitate comparisons across samples.",
       "mime-type": "text/tab-separated-values",
@@ -153,7 +153,7 @@
       "type": "aggregated"
     },
     "transcript_counts": {
-      "filepath": "/de_analysis/unfiltered_transcript_counts_with_genes.tsv",
+      "filepath": "de_analysis/unfiltered_transcript_counts_with_genes.tsv",
       "title": "Transcript counts",
       "description": "Raw transcript counts created by the Salmon tool, before filtering. Includes reference to the associated gene ID.",
       "mime-type": "text/tab-separated-values",
@@ -161,7 +161,7 @@
       "type": "aggregated"
     },
     "tpm_transcript_counts": {
-      "filepath": "/de_analysis/unfiltered_tpm_transcript_counts.tsv",
+      "filepath": "de_analysis/unfiltered_tpm_transcript_counts.tsv",
       "title": "Transcript per million counts",
       "description": "This file shows transcripts per million (TPM) of the raw counts to facilitate comparisons across samples.",
       "mime-type": "text/tab-separated-values",
@@ -169,15 +169,23 @@
       "type": "aggregated"
     },
     "transcipt_counts_filtered": {
-      "filepath": "/de_analysis/filtered_transcript_counts_with_genes.tsv",
+      "filepath": "de_analysis/filtered_transcript_counts_with_genes.tsv",
       "title": "Transcript counts filtered",
       "description": "Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"
     },
+    "transcripts_table": {
+      "filepath": "{{ alias }}_transcripts_table.tsv",
+      "title": "Transcript info table",
+      "description": "This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml)",
+      "mime-type": "text/tab-separated-values",
+      "optional": true,
+      "type": "per-sample"
+    },
     "final_non_redundant_transcriptome": {
-      "filepath": "/de_analysis/final_non_redundant_transcriptome.fasta",
+      "filepath": "de_analysis/final_non_redundant_transcriptome.fasta",
       "title": "Final non redundant transcriptome",
       "description": "Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis.",
       "mime-type": "text/x-fasta",
@@ -185,7 +193,7 @@
       "type": "aggregated"
     },
     "jaffa_fasta": {
-      "filepath": "/jaffal_output_{{ alias }}/jaffa_results.fasta",
+      "filepath": "jaffal_output_{{ alias }}/jaffa_results.fasta",
       "title": "Fusion transcript sequences",
       "description": "Fusion transcript sequences output by Jaffa.",
       "mime-type": "text/x-fasta",
@@ -193,7 +201,7 @@
       "type": "per-sample"
     },
     "jaffa_results": {
-      "filepath": "/jaffal_output_{{ alias }}/jaffa_results.csv",
+      "filepath": "jaffal_output_{{ alias }}/jaffa_results.csv",
       "title": "Fusion transcript sequence summary file",
       "description": "Fusion transcript sequences summary file output by Jaffa.",
       "mime-type": "text/csv",
