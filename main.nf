@@ -407,10 +407,13 @@ process makeReport {
         path "seqkit/*"
         path "isoforms_table/*"
     output:
-        path("wf-transcriptomes-*.html"), emit: report
-        // for DE analysis, a `gene_name` column will be added to
-        // `de_report/results_dge.tsv`
-        path "results_dge.tsv", emit: de_analysis, optional: true
+        path ("wf-transcriptomes-*.html"), emit: report
+        // If de analysis has been run output the counts files with gene name added.
+        path ("results_dge.tsv"), emit: results_dge, optional: true
+        path ("unfiltered_tpm_transcript_counts.tsv"), emit: tpm, optional: true
+        path ("unfiltered_transcript_counts_with_genes.tsv"), emit: unfiltered, optional: true
+        path ("filtered_transcript_counts_with_genes.tsv"), emit: filtered, optional: true
+        path ("all_gene_counts.tsv"), emit: gene_counts, optional: true
     shell:
         // Convert the sample_id arrayList.
         sids = new BlankSeparatedList(sample_ids)
@@ -691,7 +694,7 @@ workflow pipeline {
 
        report = makeReport.out.report
 
-       results = results.concat(makeReport.out.report)
+       results = results.concat(report)
        
        if (use_ref_ann){
             results = run_gffcompare.output.gffcmp_dir.concat(
@@ -719,9 +722,13 @@ workflow pipeline {
        results = results.map{ [it, null] }.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
         
         if (params.de_analysis){
-           de_update = makeReport.out.de_analysis
-           de_results = report.concat(transcriptome, de_outputs.flatten(), counts.flatten(), de_update)
-           results = results.concat(de_results.map{ [it, "de_analysis"] })
+           de_results = report.concat(
+            transcriptome, de_outputs.flatten(), counts.flatten(),
+            makeReport.out.results_dge,  makeReport.out.tpm, 
+            makeReport.out.filtered,  makeReport.out.unfiltered, 
+            makeReport.out.gene_counts)
+            // Output de_analysis results in the dedicated directory.
+            results = results.concat(de_results.map{ [it, "de_analysis"] })
         }
 
         results.concat(workflow_params.map{ [it, null]})
