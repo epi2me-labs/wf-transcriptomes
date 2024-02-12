@@ -834,7 +834,7 @@ def jaffal_table(report, result_csv):
         This section summarizes putative fusion transcripts identified
         by [JAFFAL](https://github.com/Oshlack/JAFFA/).
 
-        No fusion transcripts detected for current sample.
+        No fusion transcripts were detected for any of the samples.
         """)
     else:
         sid_col = df.pop('sample_id')
