@@ -4,13 +4,14 @@ include:
       file: "wf-containers.yaml"
 
 variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
               --de_analysis --ref_genome differential_expression/hg38_chr20.fa \
               --transcriptome-source reference-guided \
               --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
               --direct_rna --minimap2_index_opts '-k 15' --sample_sheet differential_expression/sample_sheet.csv \
-              --jaffal_refBase differential_expression/chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22"
+              --jaffal_refBase differential_expression/chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22 \
+              -c demo.nextflow.config"
               CI_FLAVOUR: "new"
 
 macos-run:
@@ -62,35 +63,39 @@ docker-run:
           when: never
         - if: $MATRIX_NAME == "isoforms"
           variables:
-              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
+              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
-                  --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm"
+                  --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm \
+                  -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "no_ref_annotation"
           variables:
-              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
+              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
-                  --ref_genome chr20/hg38_chr20.fa"
+                  --ref_genome chr20/hg38_chr20.fa \
+                  -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: run_gffcompare,preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "fusions"
           variables:
-              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz
+              NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
-                  --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22"
+                  --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22 \
+                  -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
                   --de_analysis \
                   --ref_genome differential_expression/hg38_chr20.fa --transcriptome-source reference-guided \
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gtf \
-                --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet differential_expression/sample_sheet.csv"
+                --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet differential_expression/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: preprocess_reads,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
                   --transcriptome-source precomputed \
                   --de_analysis \
@@ -98,13 +103,14 @@ docker-run:
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff \
                 --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
-                --sample_sheet test_data/sample_sheet.csv"
+                --sample_sheet test_data/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression_gff3"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "--fastq  differential_expression/differential_expression_fastq \
                   --transcriptome-source precomputed \
                   --de_analysis \
@@ -112,13 +118,14 @@ docker-run:
                 --ref_annotation differential_expression/gencode.v22.annotation.chr20.gff3 \
                 --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome differential_expression/ref_transcriptome.fasta \
-                --sample_sheet test_data/sample_sheet.csv"
+                --sample_sheet test_data/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "ncbi_gzip"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
                   --fastq  differential_expression_ncbi/differential_expression_fastq \
                   --transcriptome-source precomputed \
@@ -126,46 +133,50 @@ docker-run:
                   --ref_genome differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
                 --ref_annotation differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                 --direct_rna --minimap2_index_opts '-w 25' \
-               --sample_sheet test_data/sample_sheet.csv"
+               --sample_sheet test_data/sample_sheet.csv \
+               -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
         - if: $MATRIX_NAME == "ncbi_no_gene_id"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf differential_expression_ncbi.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
                 --fastq differential_expression_ncbi/differential_expression_fastq \
                 --transcriptome-source precomputed --de_analysis \
                 --ref_genome differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
                 --ref_annotation differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
                 --direct_rna --ref_transcriptome differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome      
         - if: $MATRIX_NAME == "ensembl_with_versions"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf differential_expression.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
                 --fastq differential_expression/differential_expression_fastq \
                 --transcriptome-source precomputed --de_analysis \
                 --ref_genome differential_expression/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
                 --ref_annotation differential_expression/Homo_sapiens.GRCh38.109.gtf.gz \
                 --direct_rna --ref_transcriptome differential_expression/Homo_sapiens.GRCh38.cdna.all.fa.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression_mouse"
           variables:
-              NF_BEFORE_SCRIPT: wget -O differential_expression_mouse.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_mouse.tar.gz && tar -xzvf differential_expression_mouse.tar.gz
+              NF_BEFORE_SCRIPT: wget -O differential_expression_mouse.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_mouse.tar.gz && tar -xzvf differential_expression_mouse.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
               NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB \
                 --fastq differential_expression_mouse/differential_expression_fastq \
                 --transcriptome-source precomputed --de_analysis \
                 --ref_genome differential_expression_mouse/GRCm39.genome.fa.gz \
                 --ref_annotation differential_expression_mouse/gencode.vM33.annotation.gtf \
                 --direct_rna --ref_transcriptome differential_expression_mouse/gencode.vM33.transcripts.fa.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv"
+                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam    

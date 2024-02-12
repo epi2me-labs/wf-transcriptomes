@@ -19,7 +19,7 @@ OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 process getVersions {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     output:
         path "versions.txt"
     script:
@@ -44,7 +44,7 @@ process getVersions {
 process getParams {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     output:
         path "params.json"
     script:
@@ -60,7 +60,7 @@ process getParams {
 process decompress_ref {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     input:
         path compressed_ref
     output:
@@ -74,7 +74,7 @@ process decompress_ref {
 process decompress_annotation {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     input:
         path compressed_annotation
     output:
@@ -89,7 +89,7 @@ process decompress_annotation {
 process decompress_transcriptome {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     input:
         path "compressed_ref.gz"
     output:
@@ -104,7 +104,7 @@ process decompress_transcriptome {
 process preprocess_ref_annotation {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     input:
         path ref_annotation
     output:
@@ -119,7 +119,7 @@ process preprocess_ref_annotation {
 process preprocess_ref_transcriptome {
     label "isoforms"
     cpus 1
-    memory "500MB"
+    memory "2 GB"
     input:
         path "ref_transcriptome"
     output:
@@ -177,7 +177,7 @@ process build_minimap_index{
     */
     label "isoforms"
     cpus params.threads
-    memory "16 GB"
+    memory "31 GB"
 
     input:
         path reference
@@ -367,7 +367,7 @@ process merge_transcriptomes {
     // Merge the transcriptomes from all samples
     label 'isoforms'
     cpus 2
-    memory "4 GB"
+    memory "2 GB"
     input:
         path "query_annotations/*"
         path ref_annotation

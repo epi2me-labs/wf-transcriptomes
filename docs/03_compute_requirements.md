@@ -6,7 +6,7 @@ Recommended requirements:
 Minimum requirements:
 
 + CPUs = 8
-+ Memory = 16GB
++ Memory = 32GB
 
 Approximate run time: 15 minutes per sample, with 1 million reads and recommended resources.
 
