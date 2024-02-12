@@ -78,7 +78,7 @@ docker-run:
         - if: $MATRIX_NAME == "fusions"
           variables:
               NF_BEFORE_SCRIPT: wget -O test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  test_data.tar.gz &&  wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config
-              NF_WORKFLOW_OPTS: "--fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
+              NF_WORKFLOW_OPTS: "-executor.\\$$local.memory 16GB --fastq  ERR6053095_chr20.fastq --transcriptome-source reference-guided \
                   --ref_genome chr20/hg38_chr20.fa --ref_annotation chr20/gencode.v22.annotation.chr20.gtf \
                   --jaffal_refBase chr20/ --jaffal_genome hg38_chr20 --jaffal_annotation genCode22 \
                   -c demo.nextflow.config"

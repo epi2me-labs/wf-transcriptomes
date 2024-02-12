@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add gene name column to the de_analysis counts TSV files.
 ### Fixed
 - Mapping stage using a single thread only.
+### Changed
+- More memory assigned to the fusion detection process.
 - When no `--ref_annotation` is provided the workflow will still run but the output transcripts will not be annotated. However `--de_analysis` mode still requires a `--ref_annotation`.
 
 ## [v1.0.0]

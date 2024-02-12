@@ -1,8 +1,8 @@
 
 process jaffal{
     label "isoforms"
-    cpus 4
-    memory "2 GB"
+    cpus params.threads
+    memory "31 GB"
     input:
         tuple val(sample_id), path(fastq)
         path refBase
@@ -46,6 +46,7 @@ process jaffal{
     fi
     """
 }
+
 
 // workflow module
 workflow gene_fusions {
