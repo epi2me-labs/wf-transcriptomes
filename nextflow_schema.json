@@ -388,7 +388,7 @@
         },
         "minimum": {
             "cpus": 8,
-            "memory": "16GB"
+            "memory": "32GB"
         },
         "run_time": "15 minutes per sample, with 1 million reads and recommended resources.",
         "arm_support": false
