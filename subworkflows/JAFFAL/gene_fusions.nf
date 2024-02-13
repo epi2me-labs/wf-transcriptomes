@@ -17,7 +17,7 @@ process jaffal{
 
     # JAFFAL exists with status code 1 when there's 0 fusion hits. Prevent this with '||:'
     $params.jaffal_dir/tools/bin/bpipe run \
-        -n $params.threads \
+        -n "${task.cpus}" \
         -p jaffa_output="\$JAFFAOUT/" \
         -p refBase=$refBase \
         -p genome=$genome \

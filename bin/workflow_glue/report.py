@@ -51,23 +51,17 @@ def argparser():
         "--gff_annotation", required=False, nargs='+',
         help="transcriptome annotation gff file")
     parser.add_argument(
-        "--gffcompare_dir", required=False, default=None, nargs='*',
+        "--gffcompare_dir", required=False, default=None,
         help="gffcompare outout dir")
     parser.add_argument(
         "--pychop_report", required=False, default=None,
         help="TSV summary file of pychopper statistics")
-    parser.add_argument(
-        "--sample_ids", required=True, nargs='+',
-        help="List of sample ids")
     parser.add_argument(
         "--isoform_table", required=False, type=Path,
         help="Path to directory of TSV files with isoform summaries")
     parser.add_argument(
         "--isoform_table_nrows", required=False, type=int, default=5000,
         help="Maximum rows to display in isoforms table")
-    parser.add_argument(
-        "--cluster_qc_dirs", required=False, type=str, default=None, nargs='*',
-        help="Directory with various cluster quality csvs")
     parser.add_argument(
         "--jaffal_csv", required=False, type=str, default=None,
         help="Path to JAFFAL results csv")
@@ -345,7 +339,7 @@ def grouped_bar(df, title="", tilted_xlabs=False):
     return p
 
 
-def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
+def gff_compare_plots(report, gffcompare_outdirs):
     """Create various sections and plots in a WfReport.
 
     :param report: aplanat WFReport
@@ -383,7 +377,10 @@ def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
 
     tabs = []
     gff_fails = False
-    for id_, dir_ in zip(sample_ids, gffcompare_outdirs):
+    sample_ids = []
+    for dir_ in gffcompare_outdirs:
+        sample_id = dir_.name
+        sample_ids.append(sample_id)  # Get sample ids fromt the folder name
         stats, _, miss, novel, total = \
             parse_gffcmp_stats(dir_ / 'str_merged.stats')
 
@@ -396,7 +393,7 @@ def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
             tabs.append(Panel(
                 child=gridplot(
                     [bar_totals, bar_performance, bar_missed, bar_novel],
-                    ncols=2, width=350, height=260), title=id_))
+                    ncols=2, width=350, height=260), title=sample_id))
         else:
             gff_fails = True
 
@@ -445,7 +442,7 @@ def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
 
     track_files = [x / 'str_merged.tracking' for x in gffcompare_outdirs]
 
-    df_tracking = load_sample_data(
+    df_tracking = load_data_add_sample_id(
         track_files, sample_ids,
         read_func=lambda x: pd.read_csv(
             x, sep="\t", header=None,
@@ -531,7 +528,7 @@ def gff_compare_plots(report, gffcompare_outdirs, sample_ids):
         sys.stderr("Cannot find .tmap files in {}".format(gffcompare_outdirs))
         return
 
-    df_tmap = load_sample_data(tmap_files, sample_ids)
+    df_tmap = load_data_add_sample_id(tmap_files, sample_ids)
 
     for id_, df in df_tmap.groupby('sample_id'):
 
@@ -596,59 +593,6 @@ def pychopper_plots(report, pychop_report):
     section.plot(grid)
 
 
-def cluster_quality(cluster_qc_dir, report, sample_ids):
-    """Make cluster quality section."""
-    section = report.add_section()
-    section.markdown('''
-    ### De novo clustering quality
-
-    This section shows plots relating to the clustering quality performed
-    by isONclust2. The full length reads are mapped to a reference genome
-    to create a ground truth of reads mapped to clusters. This is then compared
-    to the de novo-generated clusters, and the following statistics are
-    generated.
-
-    * [Homogeneity](https://scikit-learn.org/stable/modules/generated/
-    sklearn.metrics.homogeneity_score.html): Penalises over-clustering.
-
-    * [Completeness](https://scikit-learn.org/stable/modules/generated/
-    sklearn.metrics.completeness_score.html): Penalises under-clustering.
-
-    * [V-measure](https://clusteringjl.readthedocs.io/en/latest/vmeasure.html):
-    The harmonic mean of the homogeneity and completeness
-
-    * [Adjusted Rand Index](https://scikit-learn.org/stable/modules/generated/
-    sklearn.metrics.adjusted_rand_score.html): Intuitively,  measures the
-    percentage of read pairs correctly clustered, normalized so that a perfect
-    clustering = 1 and a random cluster assignment achieves = 0
-
-    * NonSingleton: Clusters with multiple reads
-    * Singleton: Clusters consisting of a single read (These do not contribute
-    to the final transcript calling - I need to check this!)
-
-    ''')
-
-    tabs = []
-    for id_, cluster_dir in zip(sample_ids, cluster_qc_dir):
-        plots = []
-        for fn in ['v_ari_com_hom.csv', 'sing_nonsing.csv']:
-            # Skip the next two plots for now
-            # 'class_sizes1.csv', 'class_sizes2.csv']:
-            df = pd.read_csv(Path(cluster_dir) / fn)
-            bar = bars.simple_bar(
-                df.Statistic.values.tolist(), df.Value.values.tolist(),
-                colors=Colors.cerulean
-            )
-            bar.xaxis.major_label_orientation = math.pi / 2.8
-            plots.append(bar)
-        tabs.append(Panel(
-            child=gridplot(plots, ncols=4,
-                    width=300, height=300), title=id_))
-
-    cover_panel = Tabs(tabs=tabs)
-    section.plot(cover_panel)
-
-
 def transcript_table(report, isoform_table, max_rows):
     """Create searchable table of transcripts.
 
@@ -685,7 +629,7 @@ def transcript_table(report, isoform_table, max_rows):
     section.table(df, index=False)
 
 
-def transcriptome_summary(report, gffs, sample_ids):
+def transcriptome_summary(report, gffs):
     """
     Plot transcriptome summaries.
 
@@ -694,7 +638,6 @@ def transcriptome_summary(report, gffs, sample_ids):
 
     :param report: aplanat WFReport
     :param gffs: list of paths to gff transcriptome annotations
-    :param sample_ids: list of sample ids
     """
     # test.db gets written to the git repo.
     section = report.add_section()
@@ -703,7 +646,8 @@ def transcriptome_summary(report, gffs, sample_ids):
     ''')
 
     tabs = []
-    for id_, gff in zip(sample_ids, gffs):
+    for gff in gffs:
+        sample_id = Path(gff).name
 
         plots = []
 
@@ -747,7 +691,7 @@ def transcriptome_summary(report, gffs, sample_ids):
         plots.append(bar_isos)
 
         box = bars.boxplot_series(
-            [id_] * len(transcript_lens), transcript_lens,
+            [sample_id] * len(transcript_lens), transcript_lens,
             width=70, ylim=(min(transcript_lens), max(transcript_lens)),
             title='transcript lengths')
         plots.append(box)
@@ -780,14 +724,14 @@ def transcriptome_summary(report, gffs, sample_ids):
 
         tabs.append(Panel(
             child=gridplot(plots, ncols=4,
-                           width=300, height=300), title=id_))
+                           width=300, height=300), title=sample_id))
 
     cover_panel = Tabs(tabs=tabs)
     section.plot(cover_panel)
 
 
-def load_sample_data(files, sample_ids, read_func=None):
-    """Load CSVs into dataframe, and assign sample_id column."""
+def load_data_add_sample_id(files, sample_ids, read_func=None):
+    """Load CSVs and concat into single into dataframe, and assign sample_id column."""
     df_ = pd.DataFrame()
     if not files:
         return None
@@ -890,18 +834,18 @@ def de_section(report):
 
 def main(args):
     """Run the entry point."""
-    sample_ids = args.sample_ids
-    sample_ids.sort()
-
     report = WFReport(
         "Transcript isoform report", "wf-transcriptomes",
         revision=args.revision, commit=args.commit)
 
-    # QC
     seq_stats_tabs(report, args.stats)
 
     if args.alignment_stats is not None:
-        df_aln_stats = load_sample_data(args.alignment_stats, sample_ids)
+        stats_dfs = []
+        for stats_file in args.alignment_stats:
+            df = pd.read_csv(stats_file, sep='\t+')
+            stats_dfs.append(df)
+        aln_stats_df = pd.concat(stats_dfs)
         section = report.add_section()
         section.markdown('''
           ### Read mapping summary
@@ -910,27 +854,22 @@ def main(args):
           [seqkit](https://bioinf.shenwei.me/seqkit/)
           `seqkit bam -s`''')
 
-        section.table(df_aln_stats)
+        section.table(aln_stats_df)
 
     if args.pychop_report is not None:
         pychopper_plots(report, args.pychop_report)
 
     # Results
     if args.gff_annotation is not None:
-        transcriptome_summary(
-            report, args.gff_annotation, sample_ids)
+        transcriptome_summary(report, args.gff_annotation)
 
     if args.gffcompare_dir is not None:
         gff_compare_plots(
             report,
-            [Path(x) for x in args.gffcompare_dir],
-            sample_ids)
+            [x for x in Path(args.gffcompare_dir).iterdir()])
 
     if args.isoform_table is not None:
         transcript_table(report, args.isoform_table, args.isoform_table_nrows)
-
-    if args.cluster_qc_dirs is not None:
-        cluster_quality(args.cluster_qc_dirs, report, sample_ids)
 
     if args.de_report:
         de_section(report)

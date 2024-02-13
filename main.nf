@@ -150,19 +150,18 @@ process preprocess_reads {
         tuple val("${meta.alias}"),
               path("${meta.alias}_pychopper_output/"),
               emit: pychopper_output
-        path "${meta.alias}_pychopper_output/${meta.alias}_pychopper.tsv",
+        path("${meta.alias}_pychopper_output/pychopper.tsv"),
               emit: report
     script:
         def cdna_kit = params.cdna_kit.split("-")[-1]
-	    def extra_params = params.pychopper_opts ?: ''    
+	    def extra_params = params.pychopper_opts ?: ''
         """
         pychopper -t ${params.threads} -k ${cdna_kit} -m ${params.pychopper_backend} ${extra_params} 'seqs.fastq.gz' ${meta.alias}_full_length_reads.fastq
-        mv pychopper.tsv ${meta.alias}_pychopper.tsv
-        workflow-glue generate_pychopper_stats --data ${meta.alias}_pychopper.tsv --output .
+        workflow-glue generate_pychopper_stats --data pychopper.tsv --output .
 
-        # Add sample id colum
-        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${meta.alias}/" ${meta.alias}_pychopper.tsv > tmp
-        mv tmp ${meta.alias}_pychopper.tsv
+        # Add sample id column
+        sed "1s/\$/\tsample_id/; 1 ! s/\$/\t${meta.alias}/" pychopper.tsv > tmp
+        mv tmp pychopper.tsv
 
 
         mkdir "${meta.alias}_pychopper_output/"
@@ -274,9 +273,9 @@ process merge_gff_bundles{
     input:
         tuple val(sample_id), path (gff_bundle)
     output:
-        tuple val(sample_id), path('*.gff'), emit: gff
+        tuple val(sample_id), path("${sample_id}.gff"), emit: gff
     script:
-    def merged_gff = "transcripts_${sample_id}.gff"
+    def merged_gff = "${sample_id}.gff"
     """
     echo '##gff-version 2' >> $merged_gff;
     echo '#pipeline-nanopore-isoforms: stringtie' >> $merged_gff;
@@ -303,13 +302,12 @@ process run_gffcompare{
        tuple val(sample_id), path(query_annotation)
        path ref_annotation
     output:
-        tuple val(sample_id), path("${sample_id}_gffcompare"),
-            emit: gffcmp_dir
+        tuple val(sample_id), path("${sample_id}"), emit: gffcmp_dir
         path ("${sample_id}_annotated.gtf"), emit: gtf
         tuple val(sample_id), path("${sample_id}_transcripts_table.tsv"),
             emit: isoforms_table
     script:
-    def out_dir = "${sample_id}_gffcompare"
+    def out_dir = "${sample_id}"
     """
         mkdir $out_dir
         echo "Doing comparison of reference annotation: ${ref_annotation} and the query annotation"
@@ -320,14 +318,14 @@ process run_gffcompare{
         workflow-glue generate_tracking_summary --tracking $out_dir/str_merged.tracking \
             --output_dir ${out_dir} --annotation ${ref_annotation}
 
-        mv *.tmap $out_dir
-        mv *.refmap $out_dir
-        cp ${out_dir}/str_merged.annotated.gtf ${sample_id}_annotated.gtf
+        mv *.tmap "${out_dir}"
+        mv *.refmap "${out_dir}"
+        cp "${out_dir}/str_merged.annotated.gtf" "${sample_id}_annotated.gtf"
 
         # Make an isoform table for report and user output.
         workflow-glue make_isoform_table \
-            --sample_id $sample_id \
-            --gffcompare_dir "${sample_id}_gffcompare"
+            --sample_id "${sample_id}" \
+            --gffcompare_dir "${out_dir}"
         """
 }
 
@@ -398,10 +396,9 @@ process makeReport {
         path "params.json"
         path "pychopper_report/*"
         path"jaffal_csv/*"
-        val sample_ids
         path "per_read_stats/?.gz"
         path "aln_stats/*"
-        path gffcmp_dir
+        path "gffcmp_dir/*"
         path "gff_annotation/*"
         path "de_report/*"
         path "seqkit/*"
@@ -415,8 +412,6 @@ process makeReport {
         path ("filtered_transcript_counts_with_genes.tsv"), emit: filtered, optional: true
         path ("all_gene_counts.tsv"), emit: gene_counts, optional: true
     shell:
-        // Convert the sample_id arrayList.
-        sids = new BlankSeparatedList(sample_ids)
         report_name = "wf-transcriptomes-report.html"
     '''
     if [ -f "de_report/OPTIONAL_FILE" ]; then
@@ -430,10 +425,10 @@ process makeReport {
     else
         OPT_GFF_ANNOTATION="--gff_annotation gff_annotation/*"
     fi
-    if [ -f "OPTIONAL_FILE" ]; then
+    if [ -f "gffcmp_dir/OPTIONAL_FILE" ]; then
         OPT_GFFCMP_DIR=""
     else
-        OPT_GFFCMP_DIR="--gffcompare_dir !{gffcmp_dir}"  
+        OPT_GFFCMP_DIR="--gffcompare_dir gffcmp_dir/"
     fi
     if [ -f "jaffal_csv/OPTIONAL_FILE" ]; then
         OPT_JAFFAL_CSV=""
@@ -460,7 +455,6 @@ process makeReport {
     --params params.json \
     ${OPT_ALN} \
     ${OPT_PC_REPORT} \
-    --sample_ids !{sids} \
     --stats per_read_stats/* \
     ${OPT_GFF_ANNOTATION} \
     ${OPT_ISO_TABLE} \
@@ -596,7 +590,7 @@ workflow pipeline {
         }
         else{
             full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
-            pychopper_report = file("$projectDir/data/OPTIONAL_FILE")
+            pychopper_report = OPTIONAL_FILE
         }
         if (params.transcriptome_source != "precomputed"){
             build_minimap_index(ref_genome)
@@ -624,7 +618,7 @@ workflow pipeline {
                 optional_channel = Channel.fromPath("$projectDir/data/OPTIONAL_FILE")
                 gff_tuple = merge_gff_bundles.out.gff.combine(optional_channel)
                 gff_compare = OPTIONAL_FILE
-                isoforms_table = file("$projectDir/data/OPTIONAL_FILE")
+                isoforms_table = OPTIONAL_FILE
             }
             // For reference based assembly, there is only one reference
             // So map this reference to all sample_ids
@@ -638,10 +632,10 @@ workflow pipeline {
             results = results.concat(assembly.bam.map {sample_id, bam, bai -> [bam, bai]}.flatten())
         }
         else{
-            gff_compare = file("$projectDir/data/OPTIONAL_FILE")
-            isoforms_table = file("$projectDir/data/OPTIONAL_FILE")
-            merge_gff = file("$projectDir/data/OPTIONAL_FILE")
-            assembly_stats = file("$projectDir/data/OPTIONAL_FILE")
+            gff_compare = OPTIONAL_FILE
+            isoforms_table = OPTIONAL_FILE
+            merge_gff = OPTIONAL_FILE
+            assembly_stats = OPTIONAL_FILE
             use_ref_ann = false
  
         }
@@ -649,7 +643,7 @@ workflow pipeline {
                 gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
                 jaffal_out = gene_fusions.out.results_csv.map{ alias, csv -> csv}.collectFile(keepHeader: true, name: 'jaffal.csv')
             } else{
-                jaffal_out = file("$projectDir/data/OPTIONAL_FILE")
+                jaffal_out = OPTIONAL_FILE
         }
 
         if (params.de_analysis){
@@ -674,8 +668,8 @@ workflow pipeline {
             de_outputs = de.de_outputs
             counts = de.counts
         } else{
-            de_report = file("$projectDir/data/OPTIONAL_FILE")
-            count_transcripts_file = file("$projectDir/data/OPTIONAL_FILE")
+            de_report = OPTIONAL_FILE
+            count_transcripts_file = OPTIONAL_FILE
         }
         
         makeReport(
@@ -683,7 +677,6 @@ workflow pipeline {
             workflow_params,
             pychopper_report,
             jaffal_out,
-            input_reads.map{ meta, fastq -> meta.alias}.collect(),
             per_read_stats,
             assembly_stats,
             gff_compare,
@@ -724,8 +717,8 @@ workflow pipeline {
         if (params.de_analysis){
            de_results = report.concat(
             transcriptome, de_outputs.flatten(), counts.flatten(),
-            makeReport.out.results_dge,  makeReport.out.tpm, 
-            makeReport.out.filtered,  makeReport.out.unfiltered, 
+            makeReport.out.results_dge,  makeReport.out.tpm,
+            makeReport.out.filtered,  makeReport.out.unfiltered,
             makeReport.out.gene_counts)
             // Output de_analysis results in the dedicated directory.
             results = results.concat(de_results.map{ [it, "de_analysis"] })
@@ -768,7 +761,7 @@ workflow {
             error = "--ref_genome: File doesn't exist, check path."
         }
     }else {
-        ref_genome = file("$projectDir/data/OPTIONAL_FILE")
+        ref_genome = OPTIONAL_FILE
     }
     if (params.containsValue("denovo")) {
         error = "Denovo transcriptome source is no longer supported. Please use the reference-guided or precomputed options."
@@ -782,7 +775,7 @@ workflow {
         }
         use_ref_ann = true
     }else{
-        ref_annotation= file("$projectDir/data/OPTIONAL_FILE")
+        ref_annotation= OPTIONAL_FILE
         use_ref_ann = false
     }
     if (params.jaffal_refBase){
@@ -793,7 +786,7 @@ workflow {
      }else{
         jaffal_refBase = null
      }
-    ref_transcriptome = file("$projectDir/data/OPTIONAL_FILE")
+    ref_transcriptome = OPTIONAL_FILE
     if (params.ref_transcriptome){
         log.info("Reference Transcriptome provided will be used for differential expression.")
         ref_transcriptome = file(params.ref_transcriptome, type:"file")
