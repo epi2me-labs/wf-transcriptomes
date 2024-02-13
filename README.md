@@ -122,6 +122,13 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 | analyse_unclassified | boolean | Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory. | If selected and if the input is a multiplex directory the workflow will also process the unclassified directory. | False |
 
 
+### Output Options
+
+| Nextflow parameter name  | Type | Description | Help | Default |
+|--------------------------|------|-------------|------|---------|
+| out_dir | string | Directory for output of all user-facing files. |  | output |
+
+
 ### Sample Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |

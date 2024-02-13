@@ -30,6 +30,11 @@ process map_reads{
         | samtools sort --write-index -@ 1 -o "${sample_id}_reads_aln_sorted.bam##idx##${sample_id}_reads_aln_sorted.bam.bai" - ;
     ((cat "${sample_id}_reads_aln_sorted.bam" | seqkit bam -s -j 1 - 2>&1)  | tee ${sample_id}_read_aln_stats.tsv ) || true
 
+    # Add sample id header and column
+    sed "s/\$/${sample_id}/" "${sample_id}_read_aln_stats.tsv" \
+        | sed "1 s/${sample_id}/sample_id/" > tmp
+    mv tmp "${sample_id}_read_aln_stats.tsv"
+
     if [[ -s "internal_priming_fail.tsv" ]];
         then
             tail -n +2 "internal_priming_fail.tsv" | awk '{print ">" \$1 "\\n" \$4 }' - > "context_internal_priming_fail_start.fasta"
