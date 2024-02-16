@@ -175,7 +175,7 @@ docker-run:
                 --ref_genome differential_expression_mouse/GRCm39.genome.fa.gz \
                 --ref_annotation differential_expression_mouse/gencode.vM33.annotation.gtf \
                 --direct_rna --ref_transcriptome differential_expression_mouse/gencode.vM33.transcripts.fa.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                --transcriptome_assembly false --sample_sheet differential_expression_mouse/sample_sheet.csv \
                 -c demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,merge_transcriptomes,assemble_transcripts,decompress_annotation,
