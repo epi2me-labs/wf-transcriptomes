@@ -5,10 +5,10 @@ suppressMessages(library("GenomicFeatures"))
 suppressMessages(library("edgeR"))
 args <- commandArgs(trailingOnly=TRUE)
 ref_annotation <- args[1]
-min_samps_gene_expr <- args[2]
-min_samps_feature_expr <- args[3]
-min_gene_expr <- args[4] 
-min_feature_expr <- args[5]
+min_samps_gene_expr <- as.numeric(args[2])
+min_samps_feature_expr <- as.numeric(args[3])
+min_gene_expr <- as.numeric(args[4]) 
+min_feature_expr <- as.numeric(args[5])
 annotation_type <- args[6]
 strip_version <- args[7]
 
