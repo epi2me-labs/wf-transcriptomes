@@ -10,7 +10,6 @@ min_samps_feature_expr <- as.numeric(args[3])
 min_gene_expr <- as.numeric(args[4]) 
 min_feature_expr <- as.numeric(args[5])
 annotation_type <- args[6]
-strip_version <- args[7]
 
 cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
@@ -26,17 +25,31 @@ if(!"control" %in% coldata$condition)
        condition - unable to set reference.")
 coldata$condition <- relevel(coldata$condition, ref = "control")
 
-cat("Loading annotation database.\n")
 
+# Transcript_id versions (eg. ENTXXX.1, eg. ENTXXX.2) represent how many times that transcript reference has been changed 
+# during its time in the database.
+# Not all annotation files include it as part of the transcript_id - notably Ensembl
+# The following handles this.
+cat("Checking annotation file for presence of transcript_id versions.\n")
+# Get the first transcript_id from the annotation file by parsing
+lines <- readLines(file(ref_annotation), n=100000)
+# Find transcript_ids in first 1000 lines and check if they contain dot (format eg. ENTXXX.1)
+check_version <- sum(grepl("transcript_id[^;]+\\.", lines))
+if (check_version != 0){
+        # we do not need to strip the count file rows if ref_annotation includes versions
+        cat("Annotation file transcript_ids include versions.\n")
+    } else {
+       # otherwise remove the versions
+        rownames(cts) <- lapply(rownames(cts),  sub, pattern = "\\.\\d+$", replacement = "")
+        cat("Annotation file transcript_ids do not include versions so also strip versions from the counts df.\n")
+    }
+
+cat("Loading annotation database.\n")
 txdb <- makeTxDbFromGFF(ref_annotation,  format = annotation_type)
 txdf <- select(txdb, keys(txdb,"GENEID"), "TXNAME", "GENEID")
 tab <- table(txdf$GENEID)
 txdf$ntx<- tab[match(txdf$GENEID, names(tab))]
 
-
-if (strip_version == "true"){
-  rownames(cts) <- lapply(rownames(cts),  sub, pattern = "\\.\\d+$", replacement = "")
-}
 
 cts <- cts[rownames(cts) %in% txdf$TXNAME, ] # FIXME: filter for transcripts which are in the annotation. Why they are not all there? 
 
