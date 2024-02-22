@@ -9,7 +9,6 @@ min_samps_gene_expr <- as.numeric(args[2])
 min_samps_feature_expr <- as.numeric(args[3])
 min_gene_expr <- as.numeric(args[4]) 
 min_feature_expr <- as.numeric(args[5])
-annotation_type <- args[6]
 
 cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
@@ -25,6 +24,23 @@ if(!"control" %in% coldata$condition)
        condition - unable to set reference.")
 coldata$condition <- relevel(coldata$condition, ref = "control")
 
+# a .gff annotation file extension may be gff2(gtf) or gff3 so check in files for use of = in the attribute field
+# if '=' present it is gff3 if not it is gtf.
+# see https://www.ensembl.org/info/website/upload/gff.html
+# and http://gmod.org/wiki/GFF2#Converting_GFF2_to_GFF3
+cat("Checking annotation file type.\n")
+lines <- readLines(file(ref_annotation), n=10000)
+# If transcript_id containing '=' (format eg. transcript_id=xxx)
+# annotation type is gff3
+check_file_type <- sum(grepl("transcript_id=", lines))
+if (check_file_type != 0){
+    cat("Annotation file type is gff3.\n")
+    annotation_type <- "gff3"
+} else {
+    # otherwise gtf
+    cat("Annotation file type is gtf.\n")
+    annotation_type <- "gtf"
+}
 
 # Transcript_id versions (eg. ENTXXX.1, eg. ENTXXX.2) represent how many times that transcript reference has been changed 
 # during its time in the database.
