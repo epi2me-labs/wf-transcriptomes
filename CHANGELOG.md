@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 ### Changed
+- Improved handling of different annotation file types (eg. `.gtf/.gff/.gff3`) in `de_analysis` mode.
 - Improved handling of annotation files that do not contain version numbers in transcript_id (such as gtf's from Ensembl).
 ### Fixed
 - Differential expression failing with 10 or more samples.

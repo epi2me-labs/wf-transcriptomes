@@ -60,10 +60,6 @@ process mergeTPM {
 
 process deAnalysis {
     label "isoforms"
-    errorStrategy "retry"
-    // Retry if it fails to make makeTxDbFromGFF 
-    // Because a file with .gff extension may be gff2(gtf) or gff3
-    maxRetries 1
     cpus 4
     memory "16 GB"
     input:
@@ -79,17 +75,10 @@ process deAnalysis {
         path "de_analysis/results_dexseq.tsv", emit: dexseq
         path "de_analysis", emit: de_analysis
         path "de_analysis/cpm_gene_counts.tsv", emit: cpm
-    script:
-    // Just try both annotation file type because a .gff extension may be gff2(gtf) or gff3
-    String annotation_type = "gtf"
-    if (task.attempt == 2){
-        annotation_type = "gff3"
-        log.info("Retry deAnalysis with gff format setting.")
-    }
     """
     mkdir merged
     mkdir de_analysis
-    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr $annotation_type
+    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr
     """
 }
 
