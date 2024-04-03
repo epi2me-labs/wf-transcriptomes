@@ -11,6 +11,13 @@
 | analyse_unclassified | boolean | Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory. | If selected and if the input is a multiplex directory the workflow will also process the unclassified directory. | False |
 
 
+### Output Options
+
+| Nextflow parameter name  | Type | Description | Help | Default |
+|--------------------------|------|-------------|------|---------|
+| out_dir | string | Directory for output of all user-facing files. |  | output |
+
+
 ### Sample Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |
@@ -61,12 +68,5 @@
 | pychopper_opts | string | Extra pychopper opts | See available options (here)[https://github.com/epi2me-labs/pychopper#usage] |  |
 | bundle_min_reads | integer | Minimum size of bam bundle for parallel processing. |  | 50000 |
 | isoform_table_nrows | integer | Maximum rows to dispay in the isoform report table |  | 5000 |
-
-
-### Miscellaneous Options
-
-| Nextflow parameter name  | Type | Description | Help | Default |
-|--------------------------|------|-------------|------|---------|
-| disable_ping | boolean | Enable to prevent sending a workflow ping. |  | False |
 
 
