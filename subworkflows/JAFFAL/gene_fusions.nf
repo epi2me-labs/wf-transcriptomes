@@ -13,6 +13,9 @@ process jaffal{
         tuple val(sample_id), path("jaffal_output_$sample_id/*jaffa_results.csv"), emit: results_csv
     script:
     """
+    # Jaffa requires a virtual environment
+    # so override JAVA_TOOL_OPTIONS env variable.
+    JAVA_TOOL_OPTIONS=""
     JAFFAOUT=jaffal_output_$sample_id
 
     # JAFFAL exists with status code 1 when there's 0 fusion hits. Prevent this with '||:'
