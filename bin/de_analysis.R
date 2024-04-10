@@ -123,7 +123,18 @@ qlf <- glmQLFTest(fit)
 edger_res <- topTags(qlf, n=nrow(y), sort.by="PValue")[[1]]
 
 pdf("de_analysis/results_dge.pdf")
-plotMD(qlf)
+
+# create status vector
+status <- ifelse(
+  qlf$PValue<0.01 & qlf$logFC>0, 
+  'up', 
+  ifelse(
+    qlf$PValue<0.01 & qlf$logFC<=0,
+    'down',
+    'notsig'
+  )
+)
+plotMD(qlf, status=status,  values=c("up","down","notsig"), hl.col=c("red","blue","black"))
 abline(h=c(-1,1), col="blue")
 plotQLDisp(fit)
 
