@@ -815,7 +815,8 @@ workflow {
         "sample_sheet":params.sample_sheet,
         "analyse_unclassified":params.analyse_unclassified,
         "stats": true,
-        "fastcat_extra_args": ""])
+        "fastcat_extra_args": "",
+        "per_read_stats": true])
 
         pipeline(reads, ref_genome, ref_annotation,
             jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
