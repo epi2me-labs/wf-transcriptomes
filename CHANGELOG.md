@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [v1.2.0]
+### Added
+- Workflow now accepts BAM or FASTQ files as input (using the --bam or --fastq parameters, respectively).
 ### Changed
 - MA plot in the `results_dge.pdf` has been updated to match the MA plot in the report.
 
