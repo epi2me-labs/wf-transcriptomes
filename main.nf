@@ -9,7 +9,7 @@ import nextflow.util.BlankSeparatedList;
 import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
-include { fastq_ingress } from './lib/ingress'
+include { fastq_ingress; xam_ingress } from './lib/ingress'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
@@ -737,16 +737,10 @@ workflow {
 
     Pinguscript.ping_start(nextflow, workflow, params)
 
-    fastq = file(params.fastq, type: "file")
-
     error = null
 
     if (params.containsKey("minimap_index_opts")) {
         error = "`--minimap_index_opts` parameter is deprecated. Use parameter `--minimap2_index_opts` instead."
-    }
-
-    if (!fastq.exists()) {
-        error = "--fastq: File doesn't exist, check path."
     }
 
     if (params.transcriptome_source == "precomputed" && !params.ref_transcriptome){
@@ -808,22 +802,35 @@ workflow {
     }
     if (error){
         throw new Exception(error)
-    }else{
-        reads = samples = fastq_ingress([
-        "input":params.fastq,
-        "sample":params.sample,
-        "sample_sheet":params.sample_sheet,
-        "analyse_unclassified":params.analyse_unclassified,
-        "stats": true,
-        "fastcat_extra_args": "",
-        "per_read_stats": true])
-
-        pipeline(reads, ref_genome, ref_annotation,
-            jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-            ref_transcriptome, use_ref_ann)
-
-        output(pipeline.out.results)
     }
+
+    if (params.fastq) {
+        samples = fastq_ingress([
+            "input":params.fastq,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "stats": true,
+            "fastcat_extra_args": "",
+            "per_read_stats": true])
+    } else {
+        samples = xam_ingress([
+            "input":params.bam,
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "keep_unaligned": true,
+            "return_fastq": true,
+            "stats": true,
+            "per_read_stats": true])
+    }
+
+    pipeline(samples, ref_genome, ref_annotation,
+        jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
+        ref_transcriptome, use_ref_ann)
+
+    output(pipeline.out.results)
+
 }
 
 workflow.onComplete {
