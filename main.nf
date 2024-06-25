@@ -139,7 +139,7 @@ process preprocess_reads {
     */
 
     label "isoforms"
-    cpus 4
+    cpus params.threads
     memory "2 GB"
     input:
         tuple val(meta), path('seqs.fastq.gz')
@@ -198,7 +198,7 @@ process split_bam{
 
     label 'isoforms'
     cpus params.threads
-    memory "2 GB"
+    memory "4 GB"
 
     input:
         tuple val(sample_id), path(bam)
