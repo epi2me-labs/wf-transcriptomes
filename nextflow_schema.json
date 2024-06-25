@@ -60,7 +60,7 @@
                     "format": "file-path",
                     "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
                     "description": "A reference annotation in GFF2 or GFF3 format (extensions .gtf(.gz), .gff(.gz), .gff3(.gz)). Only annotation files from [Encode](https://www.encodeproject.org), [Ensembl](https://www.ensembl.org/index.html) and [NCBI](https://www.ncbi.nlm.nih.gov/) are supported.",
-                    "help_text": "This will be used for guiding the transcriptome assembly and to label transcripts with their corresponding gene identifiers."
+                    "help_text": "This will be used for guiding the transcriptome assembly and to label transcripts with their corresponding gene identifiers. Note: If in de_analysis mode transcript strands must be only + or -."
                 },
                 "direct_rna": {
                     "type": "boolean",

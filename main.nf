@@ -374,7 +374,7 @@ process merge_transcriptomes {
         path "final_non_redundant_transcriptome.fasta", emit: fasta
         path "stringtie.gtf", emit: gtf
     """
-    stringtie --merge -G $ref_annotation -p ${task.cpus} -o stringtie.gtf query_annotations/*
+    stringtie --rf --merge -G $ref_annotation -p ${task.cpus} -o stringtie.gtf query_annotations/*
     seqkit subseq --feature "transcript" --gtf-tag "transcript_id" --gtf stringtie.gtf $ref_genome > temp_transcriptome.fasta
     seqkit rmdup -s < temp_transcriptome.fasta > temp_del_repeats.fasta
     cat temp_del_repeats.fasta | sed 's/>.* />/'  | sed -e 's/_[0-9]* \\[/ \\[/' > temp_rm_empty_seq.fasta
@@ -519,6 +519,22 @@ process output {
 }
 
 
+// Check ref_annotation transcript strand column for "." if in de_analysis mode
+process check_annotation_strand {
+    label "isoforms"
+    cpus 1
+    memory "2 GB"
+    input:
+        path "ref_annotation.gtf"
+    output:
+        tuple stdout, path("ref_annotation.gtf")   
+    """
+    awk '{if (\$3=="transcript" && \$7 != "+" && \$7 != "-") print \$3, \$7}' "ref_annotation.gtf"
+    """
+}
+
+
+
 // workflow module
 workflow pipeline {
     take:
@@ -648,6 +664,12 @@ workflow pipeline {
 
         if (params.de_analysis){
             sample_sheet = file(params.sample_sheet, type:"file")
+            // check ref annotation contains only + or - strand as DE analysis will error on .
+            check_annotation_strand(ref_annotation).map { stdoutput, annotation ->
+            // check if there was an error message
+            if (stdoutput) error "In ref_annotation, transcript features must have a strand of either '+' or '-'."
+                    stdoutput
+                }
             if (!params.ref_transcriptome){
                 merge_transcriptomes(run_gffcompare.output.gtf.collect(), ref_annotation, ref_genome)
                 transcriptome = merge_transcriptomes.out.fasta

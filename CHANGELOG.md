@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow now accepts BAM or FASTQ files as input (using the --bam or --fastq parameters, respectively).
 ### Changed
 - MA plot in the `results_dge.pdf` has been updated to match the MA plot in the report.
+### Added
+- Error message when running in `de_analysis` mode and `ref_annotation` input file contains unstranded annotations.
 
 ## [v1.1.1]
 ### Changed
