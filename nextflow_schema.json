@@ -3,7 +3,7 @@
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-transcriptomes",
     "workflow_title": "Workflow Transcriptomes",
-    "description": "Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data, gene fusions and differential expression.",
+    "description": "Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data and differential expression analysis.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
     "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-transcriptomes",
@@ -37,7 +37,7 @@
                     ],
                     "default": "reference-guided",
                     "description": "Select how the transcriptome used for analysis should be prepared.",
-                    "help_text": "To analyse only gene fusions and differential expression use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter."
+                    "help_text": "For differential expression analysis, use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter."
                 },
                 "ref_genome": {
                     "type": "string",
@@ -195,41 +195,6 @@
                 }
             }
         },
-        "gene_fusion_detection_options": {
-            "title": "Gene Fusion Detection Options",
-            "type": "object",
-            "description": "Parameters for gene fusion detection",
-            "properties": {
-                "jaffal_refBase": {
-                    "type": "string",
-                    "title": "JAFFAL reference genome directory",
-                    "format": "directory-path",
-                    "description": "JAFFAl reference genome directory.",
-                    "help_text": "JAFFAL human hg38 reference data directory can be downloaded from here: https://figshare.com/ndownloader/files/25410494 or see the README for alternative instructions. If custom gemome files are required, see the instructions here: https://github.com/Oshlack/JAFFA/wiki/FAQandTroubleshooting#how-can-i-generate-the-reference-files-for-a-non-supported-genome."
-                },
-                "jaffal_genome": {
-                    "type": "string",
-                    "title": "JAFFAL genome reference prefix",
-                    "description": "Genome reference prefix. e.g. hg38.",
-                    "help_text": "JAFFAL reference files are prefixed with the genome reference file name and need to be supplied . If using the human reference data provided by JAFFAL, this can be left at `hg38`.",
-                    "default": "hg38"
-                },
-                "jaffal_annotation": {
-                    "type": "string",
-                    "title": "JAFFAL annotation suffix",
-                    "description": "Annotation suffix.",
-                    "help_text": "JAFFAL reference files are suffixed with the annotation filename and this needs to be supplied. For the human hg38 reference data supplied by JAFFAL, this is `genCode22`.",
-                    "default": "genCode22"
-                },
-                "jaffal_dir": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "description": "Path to the JAFFAL code directory. If running within EPI2ME-Labs, the default path of /home/epi2melabs/JAFFA within the application container will be used. If using outside of EPI2ME-Labs, the path to the code directory downloaded from github should be supplied.",
-                    "default": "/home/epi2melabs/JAFFA",
-                    "hidden": true
-                }
-            }
-        },
         "differential_expression_options": {
             "title": "Differential Expression Options",
             "type": "object",
@@ -367,9 +332,6 @@
         },
         {
             "$ref": "#/definitions/options_for_reference_based_workflow"
-        },
-        {
-            "$ref": "#/definitions/gene_fusion_detection_options"
         },
         {
             "$ref": "#/definitions/differential_expression_options"

@@ -11,7 +11,6 @@ nextflow.enable.dsl = 2
 
 include { fastq_ingress; xam_ingress } from './lib/ingress'
 include { reference_assembly } from './subworkflows/reference_assembly'
-include { gene_fusions } from './subworkflows/JAFFAL/gene_fusions'
 include { differential_expression } from './subworkflows/differential_expression'
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
@@ -395,7 +394,6 @@ process makeReport {
         path versions
         path "params.json"
         path "pychopper_report/*"
-        path"jaffal_csv/*"
         path "per_read_stats/?.gz"
         path "aln_stats/*"
         path "gffcmp_dir/*"
@@ -430,11 +428,6 @@ process makeReport {
     else
         OPT_GFFCMP_DIR="--gffcompare_dir gffcmp_dir/"
     fi
-    if [ -f "jaffal_csv/OPTIONAL_FILE" ]; then
-        OPT_JAFFAL_CSV=""
-    else
-        OPT_JAFFAL_CSV="--jaffal_csv jaffal_csv/*"
-    fi
     if [ -f "aln_stats/OPTIONAL_FILE" ]; then
         OPT_ALN=""
     else
@@ -460,7 +453,6 @@ process makeReport {
     ${OPT_ISO_TABLE} \
     ${OPT_GFFCMP_DIR} \
     --isoform_table_nrows !{params.isoform_table_nrows} \
-    ${OPT_JAFFAL_CSV} \
     ${dereport}
     '''
 }
@@ -500,7 +492,7 @@ process collectFastqIngressResultsInDir {
 // publish files from a workflow whilst decoupling the publish from the process steps.
 // The process takes a tuple containing the filename and the name of a sub-directory to
 // put the file into. If the latter is `null`, puts it into the top-level directory.
-process output {
+process publish_results {
     // publish inputs to output directory
     label "isoforms"
     cpus 1
@@ -541,9 +533,6 @@ workflow pipeline {
         reads
         ref_genome
         ref_annotation
-        jaffal_refBase
-        jaffal_genome
-        jaffal_annotation
         ref_transcriptome
         use_ref_ann
     main:
@@ -655,13 +644,6 @@ workflow pipeline {
             use_ref_ann = false
  
         }
-        if (jaffal_refBase){
-                gene_fusions(full_len_reads, jaffal_refBase, jaffal_genome, jaffal_annotation)
-                jaffal_out = gene_fusions.out.results_csv.map{ alias, csv -> csv}.collectFile(keepHeader: true, name: 'jaffal.csv')
-            } else{
-                jaffal_out = OPTIONAL_FILE
-        }
-
         if (params.de_analysis){
             sample_sheet = file(params.sample_sheet, type:"file")
             // check ref annotation contains only + or - strand as DE analysis will error on .
@@ -698,7 +680,6 @@ workflow pipeline {
             software_versions,
             workflow_params,
             pychopper_report,
-            jaffal_out,
             per_read_stats,
             assembly_stats,
             gff_compare,
@@ -728,14 +709,9 @@ workflow pipeline {
                       .concat(results)
 
         }
-        if (params.jaffal_refBase){
-            results = results
-                .concat(gene_fusions.out.results
-                .map {it -> it[1]})
-        }
-        
+
        results = results.map{ [it, null] }.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
-        
+
         if (params.de_analysis){
            de_results = report.concat(
             transcriptome, de_outputs.flatten(), counts.flatten(),
@@ -761,6 +737,9 @@ workflow {
 
     error = null
 
+    if (params.containsValue("jaffal_refBase")) {
+        error = "JAFFAL fusion detection has been removed from this workflow."
+    }
     if (params.containsKey("minimap_index_opts")) {
         error = "`--minimap_index_opts` parameter is deprecated. Use parameter `--minimap2_index_opts` instead."
     }
@@ -794,14 +773,6 @@ workflow {
         ref_annotation= OPTIONAL_FILE
         use_ref_ann = false
     }
-    if (params.jaffal_refBase){
-        jaffal_refBase = file(params.jaffal_refBase, type: "dir")
-        if (!jaffal_refBase.exists()) {
-            error = "--jaffa_refBase: Directory doesn't exist, check path."
-        }
-     }else{
-        jaffal_refBase = null
-     }
     ref_transcriptome = OPTIONAL_FILE
     if (params.ref_transcriptome){
         log.info("Reference Transcriptome provided will be used for differential expression.")
@@ -847,12 +818,8 @@ workflow {
             "per_read_stats": true])
     }
 
-    pipeline(samples, ref_genome, ref_annotation,
-        jaffal_refBase, params.jaffal_genome, params.jaffal_annotation,
-        ref_transcriptome, use_ref_ann)
-
-    output(pipeline.out.results)
-
+    pipeline(samples, ref_genome, ref_annotation, ref_transcriptome, use_ref_ann)
+    publish_results(pipeline.out.results)
 }
 
 workflow.onComplete {

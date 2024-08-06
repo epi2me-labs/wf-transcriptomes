@@ -191,23 +191,6 @@
       "mime-type": "text/x-fasta",
       "optional": true,
       "type": "aggregated"
-    },
-    "jaffa_fasta": {
-      "filepath": "jaffal_output_{{ alias }}/jaffa_results.fasta",
-      "title": "Fusion transcript sequences",
-      "description": "Fusion transcript sequences output by Jaffa.",
-      "mime-type": "text/x-fasta",
-      "optional": true,
-      "type": "per-sample"
-    },
-    "jaffa_results": {
-      "filepath": "jaffal_output_{{ alias }}/jaffa_results.csv",
-      "title": "Fusion transcript sequence summary file",
-      "description": "Fusion transcript sequences summary file output by Jaffa.",
-      "mime-type": "text/csv",
-      "optional": true,
-      "type": "per-sample"
     }
-   
   }
 }

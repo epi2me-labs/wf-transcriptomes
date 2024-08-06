@@ -1,6 +1,6 @@
 # Workflow Transcriptomes
 
-Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data, gene fusions and differential expression.
+Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data and differential expression analysis.
 
 
 
@@ -11,7 +11,6 @@ This workflow can be used for the following:
 + Identify RNA transcripts using either cDNA or direct RNA reads.
 + Reference aided transcriptome assembly.
 + Annotation of assembled transcripts.
-+ Gene fusions detection.
 + Differential gene expression analysis using a pre-computed or assembled reference transcriptome.
 + Differential transcript usage analysis using a precomputed or assembled reference transcriptome.
 
@@ -89,9 +88,6 @@ nextflow run epi2me-labs/wf-transcriptomes \
 	--de_analysis \
 	--direct_rna \
 	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--jaffal_annotation 'genCode22' \
-	--jaffal_genome 'hg38_chr20' \
-	--jaffal_refBase 'wf-transcriptomes-demo/chr20' \
 	--minimap2_index_opts '-k15' \
 	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
 	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \
@@ -144,7 +140,7 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 |--------------------------|------|-------------|------|---------|
 | fastq | string | FASTQ files to use in the analysis. | This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
 | bam | string | BAM or unaligned BAM (uBAM) files to use in the analysis. | This accepts one of three cases: (i) the path to a single BAM file; (ii) the path to a top-level directory containing BAM files; (iii) the path to a directory containing one level of sub-directories which in turn contain BAM files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
-| transcriptome_source | string | Select how the transcriptome used for analysis should be prepared. | To analyse only gene fusions and differential expression use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter. | reference-guided |
+| transcriptome_source | string | Select how the transcriptome used for analysis should be prepared. | For differential expression analysis, use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter. | reference-guided |
 | ref_genome | string | Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow. | A reference genome is required for reference-based assembly of a transcriptome. |  |
 | ref_transcriptome | string | Transcriptome reference file. Required for precomputed transcriptome calculation and for differential expression analysis. | A reference transcriptome related to the sample under study. Must be supplied when the 'Transcriptome source' parameter has been set to 'precomputed' or to perform differential expression. |  |
 | ref_annotation | string | A reference annotation in GFF2 or GFF3 format (extensions .gtf(.gz), .gff(.gz), .gff3(.gz)). Only annotation files from [Encode](https://www.encodeproject.org), [Ensembl](https://www.ensembl.org/index.html) and [NCBI](https://www.ncbi.nlm.nih.gov/) are supported. | This will be used for guiding the transcriptome assembly and to label transcripts with their corresponding gene identifiers. Note: If in de_analysis mode transcript strands must be only + or -. |  |
@@ -177,15 +173,6 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 | minimap2_opts | string | Additional command-line options for minimap2 alignment. | See [minimap2 options](https://lh3.github.io/minimap2/minimap2.html#5) for further information. These will only be relevant in the reference based transcriptome assembly. | -uf |
 | minimum_mapping_quality | integer | filter aligned reads by MAPQ quality. | Reads that do not meet this mapping quality after minimap2 alignment, will be filtered out. | 40 |
 | stringtie_opts | string | Extra command-line options for stringtie transcript assembly. | For additional String tie options see [here](https://github.com/gpertea/stringtie#stringtie-options). | --conservative |
-
-
-### Gene Fusion Detection Options
-
-| Nextflow parameter name  | Type | Description | Help | Default |
-|--------------------------|------|-------------|------|---------|
-| jaffal_refBase | string | JAFFAl reference genome directory. | JAFFAL human hg38 reference data directory can be downloaded from here: https://figshare.com/ndownloader/files/25410494 or see the README for alternative instructions. If custom gemome files are required, see the instructions here: https://github.com/Oshlack/JAFFA/wiki/FAQandTroubleshooting#how-can-i-generate-the-reference-files-for-a-non-supported-genome. |  |
-| jaffal_genome | string | Genome reference prefix. e.g. hg38. | JAFFAL reference files are prefixed with the genome reference file name and need to be supplied . If using the human reference data provided by JAFFAL, this can be left at `hg38`. | hg38 |
-| jaffal_annotation | string | Annotation suffix. | JAFFAL reference files are suffixed with the annotation filename and this needs to be supplied. For the human hg38 reference data supplied by JAFFAL, this is `genCode22`. | genCode22 |
 
 
 ### Differential Expression Options
@@ -245,8 +232,6 @@ Output files may be aggregated including information for all samples or provided
 | Transcript counts filtered | de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
 | Transcript info table | {{ alias }}_transcripts_table.tsv | This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) | per-sample |
 | Final non redundant transcriptome | de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. | aggregated |
-| Fusion transcript sequences | jaffal_output_{{ alias }}/jaffa_results.fasta | Fusion transcript sequences output by Jaffa. | per-sample |
-| Fusion transcript sequence summary file | jaffal_output_{{ alias }}/jaffa_results.csv | Fusion transcript sequences summary file output by Jaffa. | per-sample |
 
 
 
@@ -280,10 +265,7 @@ Transcript GFF files from the chunks with the same sample aliases will then be m
 #### 3.6 Create transcriptomes
 [Gffread](https://github.com/gpertea/gffread) is used to create a transcriptome FASTA file from the final GFF as well as a merged transcriptome that includes annotations in the FASTA headers where available.
 
-### 4. Find gene fusions
-If gene fusion options are provided, fusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFFA), with the JAFFAL extension. To enable this provide the gene fusion detection options: `jaffal_refBase`, `jaffal_genome` and `jaffal_annotation`.
-
-### 5. Differential expression analysis
+### 4. Differential expression analysis
 
 Differential gene expression (DGE) and differential transcript usage (DTU) analyses aim to identify genes and transcripts that show statistically altered expression patterns.
 
@@ -306,29 +288,26 @@ barcode05,sample05,treated
 barcode06,sample06,treated
 ```
 
-#### 5.1 Merge cross sample transcriptomes
+#### 4.1 Merge cross sample transcriptomes
 If a `ref_transcriptome` is not provided, the transcriptomes created by the workflow will be used for DE analysis. To do this, the GFF outputs of GffCompare are merged using StringTie. A final non redundant FASTA file of the transcripts is created using the merged GFF file and the reference genome using seqkit.
 
-#### 5.2 Create a final non redundant transcriptome
+#### 4.2 Create a final non redundant transcriptome
 The reads from all the samples will be aligned with the final non redundant transcriptome using Minimap2 in a splice aware manner.
 
-#### 5.3 Count genes and transcripts
+#### 4.3 Count genes and transcripts
 [Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving gene and transcript counts.
 
-#### 5.4 edgeR based differential expression analysis
+#### 4.4 edgeR based differential expression analysis
 A statistical analysis is first performed using [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) to identify the subset of differentially expressed genes using the gene counts as input. A normalisation factor is calculated for each sequence library using the default TMM method (see [McCarthy et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3378882/) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (FDR) using the method of Benjamini & Hochberg ([Benjamini and Hochberg (1995)](https://www.jstor.org/stable/2346101))
 
-#### 5.5 Pre-filtering of quantitative data using DRIMSeq
+#### 4.5 Pre-filtering of quantitative data using DRIMSeq
 [DRIMSeq](https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html) is used to filter the transcript count data from the Salmon analysis for differential transcript usage (DTU) analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed, and minimum threshold levels for the number of observed reads. The parameters used for filtering are `min_samps_gene_expr`, `min_samps_feature_expr`, `min_gene_expr`, and `min_feature_expr`. By default, any transcripts with zero expression or one transcript in all samples are filtered out at this stage.
 
-#### 5.6 Differential transcript usage using DEXSeq
+#### 4.6 Differential transcript usage using DEXSeq
 Differential transcript usage analysis is performed using the R [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) package ([Anders et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3460195/)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. 
 
-#### 5.7 StageR stage-wise analysis of DGE and DTU
+#### 4.7 StageR stage-wise analysis of DGE and DTU
 The final component of this isoform analysis is a stage-wise statistical test using the R software package [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html)([Van den Berge and Clement (2018)](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1277-0)). stageR uses (1) the raw p-values for DTU from the DEXSeq analysis in the previous section and (2) a false-discovery corrected set of p-values from testing whether individual genes contain at least one exon showing DTU. A hierarchical two-stage statistical testing evaluates the set of genes for DTU.
-
-
-
 
 
 
