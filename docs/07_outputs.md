@@ -26,5 +26,3 @@ Output files may be aggregated including information for all samples or provided
 | Transcript counts filtered | de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
 | Transcript info table | {{ alias }}_transcripts_table.tsv | This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) | per-sample |
 | Final non redundant transcriptome | de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. | aggregated |
-| Fusion transcript sequences | jaffal_output_{{ alias }}/jaffa_results.fasta | Fusion transcript sequences output by Jaffa. | per-sample |
-| Fusion transcript sequence summary file | jaffal_output_{{ alias }}/jaffa_results.csv | Fusion transcript sequences summary file output by Jaffa. | per-sample |

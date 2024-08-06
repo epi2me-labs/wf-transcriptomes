@@ -25,10 +25,7 @@ Transcript GFF files from the chunks with the same sample aliases will then be m
 #### 3.6 Create transcriptomes
 [Gffread](https://github.com/gpertea/gffread) is used to create a transcriptome FASTA file from the final GFF as well as a merged transcriptome that includes annotations in the FASTA headers where available.
 
-### 4. Find gene fusions
-If gene fusion options are provided, fusion gene detection is performed using [JAFFA](https://github.com/Oshlack/JAFFA), with the JAFFAL extension. To enable this provide the gene fusion detection options: `jaffal_refBase`, `jaffal_genome` and `jaffal_annotation`.
-
-### 5. Differential expression analysis
+### 4. Differential expression analysis
 
 Differential gene expression (DGE) and differential transcript usage (DTU) analyses aim to identify genes and transcripts that show statistically altered expression patterns.
 
@@ -51,26 +48,23 @@ barcode05,sample05,treated
 barcode06,sample06,treated
 ```
 
-#### 5.1 Merge cross sample transcriptomes
+#### 4.1 Merge cross sample transcriptomes
 If a `ref_transcriptome` is not provided, the transcriptomes created by the workflow will be used for DE analysis. To do this, the GFF outputs of GffCompare are merged using StringTie. A final non redundant FASTA file of the transcripts is created using the merged GFF file and the reference genome using seqkit.
 
-#### 5.2 Create a final non redundant transcriptome
+#### 4.2 Create a final non redundant transcriptome
 The reads from all the samples will be aligned with the final non redundant transcriptome using Minimap2 in a splice aware manner.
 
-#### 5.3 Count genes and transcripts
+#### 4.3 Count genes and transcripts
 [Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving gene and transcript counts.
 
-#### 5.4 edgeR based differential expression analysis
+#### 4.4 edgeR based differential expression analysis
 A statistical analysis is first performed using [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) to identify the subset of differentially expressed genes using the gene counts as input. A normalisation factor is calculated for each sequence library using the default TMM method (see [McCarthy et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3378882/) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (FDR) using the method of Benjamini & Hochberg ([Benjamini and Hochberg (1995)](https://www.jstor.org/stable/2346101))
 
-#### 5.5 Pre-filtering of quantitative data using DRIMSeq
+#### 4.5 Pre-filtering of quantitative data using DRIMSeq
 [DRIMSeq](https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html) is used to filter the transcript count data from the Salmon analysis for differential transcript usage (DTU) analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed, and minimum threshold levels for the number of observed reads. The parameters used for filtering are `min_samps_gene_expr`, `min_samps_feature_expr`, `min_gene_expr`, and `min_feature_expr`. By default, any transcripts with zero expression or one transcript in all samples are filtered out at this stage.
 
-#### 5.6 Differential transcript usage using DEXSeq
+#### 4.6 Differential transcript usage using DEXSeq
 Differential transcript usage analysis is performed using the R [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) package ([Anders et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3460195/)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. 
 
-#### 5.7 StageR stage-wise analysis of DGE and DTU
+#### 4.7 StageR stage-wise analysis of DGE and DTU
 The final component of this isoform analysis is a stage-wise statistical test using the R software package [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html)([Van den Berge and Clement (2018)](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1277-0)). stageR uses (1) the raw p-values for DTU from the DEXSeq analysis in the previous section and (2) a false-discovery corrected set of p-values from testing whether individual genes contain at least one exon showing DTU. A hierarchical two-stage statistical testing evaluates the set of genes for DTU.
-
-
-

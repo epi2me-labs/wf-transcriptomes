@@ -49,9 +49,6 @@ nextflow run epi2me-labs/wf-transcriptomes \
 	--de_analysis \
 	--direct_rna \
 	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--jaffal_annotation 'genCode22' \
-	--jaffal_genome 'hg38_chr20' \
-	--jaffal_refBase 'wf-transcriptomes-demo/chr20' \
 	--minimap2_index_opts '-k15' \
 	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
 	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \

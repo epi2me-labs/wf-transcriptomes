@@ -63,9 +63,6 @@ def argparser():
         "--isoform_table_nrows", required=False, type=int, default=5000,
         help="Maximum rows to display in isoforms table")
     parser.add_argument(
-        "--jaffal_csv", required=False, type=str, default=None,
-        help="Path to JAFFAL results csv")
-    parser.add_argument(
         "--de_report", required=False, type=str, default=None,
         help="Differential expression report optional")
     parser.add_argument(
@@ -762,51 +759,6 @@ def seq_stats_tabs(report, stats):
     section.plot(Tabs(tabs=[tabs.get(x) for x in sorted(tabs)]))
 
 
-def jaffal_table(report, result_csv):
-    """Make a table of fusion transcripts identified by JAFFAL."""
-    cols = [
-        'sample_id', 'fusion genes', 'chrom1', 'chrom2', 'spanning reads',
-        'classification', 'known']
-
-    section = report.add_section()
-    try:
-        df = pd.read_csv(result_csv)
-    except pd.errors.EmptyDataError:
-        section.markdown("""
-        ### JAFFAL fusion transcript summary
-
-        This section summarizes putative fusion transcripts identified
-        by [JAFFAL](https://github.com/Oshlack/JAFFA/).
-
-        No fusion transcripts were detected for any of the samples.
-        """)
-    else:
-        sid_col = df.pop('sample_id')
-        df.insert(0, 'sample_id', sid_col)
-
-        df = df[cols]
-        df['chroms'] = df.chrom1.astype(str) + ':' + df.chrom2.astype(str)
-        df.rename(columns={
-            'spanning reads': 'nreads',
-            'fusion genes': 'genes'}, inplace=True)
-        df.drop(columns=['chrom1', 'chrom2'], inplace=True)
-
-        section.markdown("""
-        ### JAFFAL fusion transcript summary
-
-        This table summarizes putative fusion transcripts identified
-        by [JAFFAL](https://github.com/Oshlack/JAFFA/).
-
-        * genes: the gene symbols of the fusion partners
-        * nreads: The number of reads supporting the fusion
-        * classification: JAFFAL's classification
-        * known: whether this fusion is in the given set of known gene fusions
-        * chroms: the respective, original chromosome location of the
-        two partner genes
-        """)
-        section.table(df)
-
-
 def de_section(report):
     """Make differential transcript expression section."""
     dexseq = os.path.join("de_report", "results_dexseq.tsv")
@@ -873,9 +825,6 @@ def main(args):
 
     if args.de_report:
         de_section(report)
-
-    if args.jaffal_csv:
-        jaffal_table(report, args.jaffal_csv)
 
     # Arguments and software versions
     report.add_section(
