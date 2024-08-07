@@ -256,6 +256,9 @@
                         "SQK-PCS109",
                         "SQK-PCS110",
                         "SQK-PCS111",
+                        "SQK-PCS114",
+                        "SQK-PCB111",
+                        "SQK-PCB114",
                         "SQK-LSK114"
                     ],
                     "description": "If cDNA reads are used, select the kit used.",
