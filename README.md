@@ -153,6 +153,7 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | out_dir | string | Directory for output of all user-facing files. |  | output |
+| igv | boolean | Visualize outputs in the EPI2ME IGV visualizer. | Enabling this option will visualize the output alignment files in the EPI2ME Desktop App IGV visualizer. | False |
 
 
 ### Sample Options
@@ -232,6 +233,11 @@ Output files may be aggregated including information for all samples or provided
 | Transcript counts filtered | de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
 | Transcript info table | {{ alias }}_transcripts_table.tsv | This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) | per-sample |
 | Final non redundant transcriptome | de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. | aggregated |
+| Index of reference FASTA file | igv_reference/{{ ref_genome file }}.fai | Reference genome index of the FASTA file required for IGV config. | aggregated |
+| GZI index of the reference FASTA file | igv_reference/{{ ref_genome file }}.gzi | GZI Index of the reference FASTA file. | aggregated |
+| JSON configuration file for IGV browser | igv.json | JSON configuration file to be loaded in IGV for visualising alignments against the reference. | aggregated |
+| BAM file (minimap2) | BAMS/{{ alias }}.reads_aln_sorted.bam | BAM file generated from mapping input reads to the reference. | per-sample |
+| BAM index file (minimap2) | BAMS/{{ alias }}.reads_aln_sort.bam.bai | Index file generated from mapping input reads to the reference. | per-sample |
 
 
 
@@ -249,6 +255,8 @@ If the `transcriptome_source` parameter is "reference-guided" a transcriptome wi
 
 #### 3.1 Align reads with reference genome.
 The reference genome will be indexed and aligned using [Minimap2](https://github.com/lh3/minimap2). The output is sorted and converted to a BAM file using [Samtools](https://www.htslib.org/). Alignment stats are created from these using [Seqkit BAM](https://bioinf.shenwei.me/seqkit/usage/#bam).
+
+Additionally, the workflow will generate an IGV configuration file if `--igv` is selected. This file allows the user to view the aligned BAM in the EPI2ME Desktop Application in the Viewer tab.
 
 #### 3.2 Chunk BAM
 The aligned BAMs are split into chunks using the bundle_min_reads parameter (default: 50000).
@@ -316,12 +324,15 @@ The final component of this isoform analysis is a stage-wise statistical test us
 
 + If the workflow fails please run it with the demo data set to ensure the workflow itself is working. This will help us determine if the issue is related to the environment, input parameters or a bug.
 + See how to interpret some common nextflow exit codes [here](https://labs.epi2me.io/trouble-shooting/).
++ Renaming, moving or deleting the input BAM, reference genome or the output directory from the location provided at runtime will stop IGV in the EPI2ME Desktop app from loading.
 
 
 
 ## FAQ's
 
 *Does the workflow support de novo assembly?* - Currently the workflow does not have a *de novo* mode.
+
+*Why is the IGV panel not showing?* - The workflow expects either an uncompressed or [`bgzip`](https://www.htslib.org/doc/bgzip.html)-compressed reference. If the user provides a reference compressed not with `bgzip`, the workflow will run to completion, but won't be able to generate the necessary indexes to visualize the outputs in IGV.
 
 If your question is not answered here, please report any issues or suggestions on the [github issues](https://github.com/epi2me-labs/wf-transcriptomes/issues) page or start a discussion on the [community](https://community.nanoporetech.com/).
 

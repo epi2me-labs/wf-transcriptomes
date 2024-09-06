@@ -191,6 +191,46 @@
       "mime-type": "text/x-fasta",
       "optional": true,
       "type": "aggregated"
+    },
+    "reference-index": {
+      "filepath": "igv_reference/{{ ref_genome file }}.fai",
+      "title": "Index of reference FASTA file",
+      "description": "Reference genome index of the FASTA file required for IGV config.",
+      "mime-type": "text/tab-separated-values",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "reference-gzi-index": {
+        "filepath": "igv_reference/{{ ref_genome file }}.gzi",
+        "title": "GZI index of the reference FASTA file",
+        "description": "GZI Index of the reference FASTA file.",
+        "mime-type": "application/octet-stream",
+        "optional": true,
+        "type": "aggregated"
+    },
+    "igv-config": {
+      "filepath": "igv.json",
+      "title": "JSON configuration file for IGV browser",
+      "description": "JSON configuration file to be loaded in IGV for visualising alignments against the reference.",
+      "mime-type": "text/json",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "minimap2-bam": {
+      "filepath": "BAMS/{{ alias }}.reads_aln_sorted.bam",
+      "title": "BAM file (minimap2)",
+      "description": "BAM file generated from mapping input reads to the reference.",
+      "mime-type": "application/gzip",
+      "optional": true,
+      "type": "per-sample"
+    },
+    "minimap2-index": {
+      "filepath": "BAMS/{{ alias }}.reads_aln_sort.bam.bai",
+      "title": "BAM index file (minimap2)",
+      "description": "Index file generated from mapping input reads to the reference.",
+      "mime-type": "application/octet-stream",
+      "optional": true,
+      "type": "per-sample"
     }
   }
 }

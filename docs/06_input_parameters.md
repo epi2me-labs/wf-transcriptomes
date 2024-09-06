@@ -17,6 +17,7 @@
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | out_dir | string | Directory for output of all user-facing files. |  | output |
+| igv | boolean | Visualize outputs in the EPI2ME IGV visualizer. | Enabling this option will visualize the output alignment files in the EPI2ME Desktop App IGV visualizer. | False |
 
 
 ### Sample Options

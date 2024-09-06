@@ -10,6 +10,7 @@ import java.util.ArrayList;
 nextflow.enable.dsl = 2
 
 include { fastq_ingress; xam_ingress } from './lib/ingress'
+include { configure_igv } from './lib/common'
 include { reference_assembly } from './subworkflows/reference_assembly'
 include { differential_expression } from './subworkflows/differential_expression'
 
@@ -526,6 +527,50 @@ process check_annotation_strand {
 }
 
 
+// Process to create the faidx index
+process faidx {
+    // If the input file is gzipped, we need to emit the indexes for the input gzip file
+    // only. Therefore, this become redundant to be emitted as it won't be used by the
+    // IGV configuration, but only by internal processes together with the decompressed
+    // FASTA file. To avoid unnecessary emissions, we enable only if the input file is
+    // decompressed.
+    publishDir "${params.out_dir}/igv_reference", mode: 'copy', pattern: "*", enabled: !params.ref_genome.toLowerCase().endsWith("gz")
+    label "wf_common"
+    cpus 1
+    memory 4.GB
+    input:
+        path(ref)
+    output:
+        path("${ref}.fai")
+    script:
+    """
+    samtools faidx ${ref}
+    """
+}
+
+
+// Process to create the faidx indexes for a gzipped reference
+process gz_faidx {
+    publishDir "${params.out_dir}/igv_reference", mode: 'copy', pattern: "*"
+    label "wf_common"
+    cpus 1
+    memory 4.GB
+    // If a user provides a non-bgzipped file, the process won't
+    // generate the indexes. We should tolerate that, still avoid emitting
+    // the reference and simply have a broken IGV file.
+    // The gzi is not required to operate the workflow, so we actually tolerate any failure.
+    errorStrategy 'ignore'
+    input:
+        path(ref)
+    output:
+        tuple path("${ref}.fai"), path("${ref}.gzi")
+    script:
+    """
+    samtools faidx ${ref}
+    """
+}
+
+
 
 // workflow module
 workflow pipeline {
@@ -580,6 +625,8 @@ workflow pipeline {
 
      
         results = Channel.empty()
+        // Define BAM output Directory
+        String publish_bams = "BAMS"
         software_versions = getVersions()
         workflow_params = getParams()
         input_reads = reads.map{ meta, samples, stats -> [meta, samples]}
@@ -634,7 +681,9 @@ workflow pipeline {
 
 
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
-            results = results.concat(assembly.bam.map {sample_id, bam, bai -> [bam, bai]}.flatten())
+            // Output BAMS in a dedicated directory
+            bam_results = assembly.bam.map{ 
+                sample_id, bam, bai -> [bam, bai]}.flatten().map{ [it, publish_bams] }
         }
         else{
             gff_compare = OPTIONAL_FILE
@@ -723,6 +772,85 @@ workflow pipeline {
         }
 
         results.concat(workflow_params.map{ [it, null]})
+        // IGV config
+        if (params.transcriptome_source == "precomputed" && params.igv){
+            log.warn("IGV configuration does not work if transcriptome sources is set to `precomputed`.")
+        }
+        if (params.transcriptome_source != "precomputed" && params.igv){
+            is_compressed = file("${params.ref_genome}").extension == "gz"
+            String publish_ref = "igv_reference"
+            String current_dir = "${file('.').toUriString()}"
+            reference_genome = Channel.fromPath("${params.ref_genome}")
+            igv_ref = reference_genome | flatten | map { it -> "${it.toUriString()}" }
+            if (is_compressed){
+                // Define indexes names.
+                String input_fai_index = "${params.ref_genome}.fai"
+                String input_gzi_index = "${params.ref_genome}.gzi"
+                // Check whether the input gzref is indexed. If so, pass these as indexes.
+                // Otherwise, generate the gzip + fai indexes for the compressed reference.
+                if (file(input_fai_index).exists() && file(input_gzi_index).exists()){
+                    gzindexes = Channel.fromPath(input_fai_index)
+                    | mix(
+                        Channel.fromPath(input_gzi_index)
+                    )
+                    gz_igv = gzindexes | flatten | map { it -> "${it.toUriString()}" }
+                } else {
+                    gz_igv = gz_faidx(Channel.fromPath("${params.ref_genome}"))
+                    | flatten
+                    | map  { it -> "$current_dir/$params.out_dir/$publish_ref/${it.Name}" }
+                    gz_igv | ifEmpty{
+                        if (params.containsKey("igv") && params.igv){
+                            log.warn """\
+                                The input reference is compressed but not with bgzip, which is required to create an index.
+                                The workflow will proceed but it will not be possible to load the reference in the IGV Viewer.
+                                To use the IGV Viewer, provide an uncompressed, or bgzip compressed version of the input reference next time you run the workflow.
+                                """.stripIndent()
+                        }
+                    }
+                }
+            } else {
+                gzindexes = Channel.empty()
+                gz_igv = Channel.empty()
+            }
+
+            // Generate fai index if the file is either compressed, or if fai doesn't exists
+            if (!is_compressed && file("${params.ref_genome}.fai").exists()){
+                ref_idx = Channel.fromPath("${params.ref_genome}.fai")
+                igv_index = ref_idx | flatten | map { it -> "${it.toUriString()}" }
+            } else {
+                ref_idx = faidx(reference_genome)
+                igv_index = ref_idx | map { it -> "$current_dir/$params.out_dir/$publish_ref/${it.Name}" }
+            }
+
+            // get list of file names
+            // Absolute paths required for directories
+            igv_files = reads
+            | map { meta, sample, stats -> meta.alias }
+            | toSortedList
+            | map { list -> list.collect{
+                [
+                 "$current_dir/$params.out_dir/$publish_bams/${it}_reads_aln_sorted.bam",
+                 "$current_dir/$params.out_dir/$publish_bams/${it}_reads_aln_sorted.bam.bai"
+                ]
+            } }
+            | concat ( igv_index)
+            | flatten
+            | concat (igv_ref)
+            | concat (gz_igv)
+            | flatten
+            | collectFile(name: "file-names.txt", newLine: true, sort: false)
+
+            // configure IGV
+            igv_conf = configure_igv(
+                igv_files,
+                Channel.of(null), // igv locus
+                [displayMode: "SQUISHED", colorBy: "strand"], // bam extra opts
+                Channel.of(null), // vcf extra opts
+                )
+            
+            results = results.concat(igv_conf.map{ [it, null]})
+            results = results.concat(bam_results)
+      }
 
        
     emit:
