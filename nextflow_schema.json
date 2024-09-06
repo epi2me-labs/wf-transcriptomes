@@ -110,6 +110,13 @@
                     "format": "directory-path",
                     "default": "output",
                     "description": "Directory for output of all user-facing files."
+                },
+                "igv": {
+                    "title": "Show in IGV",
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Visualize outputs in the EPI2ME IGV visualizer.",
+                    "help_text": "Enabling this option will visualize the output alignment files in the EPI2ME Desktop App IGV visualizer."
                 }
             }
         },

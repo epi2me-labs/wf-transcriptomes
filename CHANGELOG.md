@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+## Added
+- `--igv` parameter (default: false) for outputting IGV config allowing visualisation of read alignments in the EPI2ME App.
+- If required for IGV, reference indexes are output in to a `igv_reference` directory
+### Changed
+- BAMS are output in to a BAMS directory.
+
 ## [v1.3.0]
 ### Removed
 - Fusion detection subworkflow, as the functionality is not robust enough for general use at this time.

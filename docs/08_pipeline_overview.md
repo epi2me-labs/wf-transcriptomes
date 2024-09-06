@@ -10,6 +10,8 @@ If the `transcriptome_source` parameter is "reference-guided" a transcriptome wi
 #### 3.1 Align reads with reference genome.
 The reference genome will be indexed and aligned using [Minimap2](https://github.com/lh3/minimap2). The output is sorted and converted to a BAM file using [Samtools](https://www.htslib.org/). Alignment stats are created from these using [Seqkit BAM](https://bioinf.shenwei.me/seqkit/usage/#bam).
 
+Additionally, the workflow will generate an IGV configuration file if `--igv` is selected. This file allows the user to view the aligned BAM in the EPI2ME Desktop Application in the Viewer tab.
+
 #### 3.2 Chunk BAM
 The aligned BAMs are split into chunks using the bundle_min_reads parameter (default: 50000).
 
