@@ -44,7 +44,7 @@ sig_level <- 0.05
 genes <- as.character(tdf[which(tdf$p_gene < sig_level),]$gene_id)
 genes <- unique(genes)
 
-pdf("de_analysis/dtu_plots.pdf")
+pdf("dtu_plots.pdf")
 
 for(gene in genes){
     gdf<-tdf[which(tdf$gene_id==gene),]
