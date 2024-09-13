@@ -107,7 +107,7 @@ process plotResults {
     """
     plot_dtu_results.R
     # output plots to common analysis output directory
-    mv dtu_plots.pdf de_analysis/dtu_plots.pdf
+    cp dtu_plots.pdf de_analysis/dtu_plots.pdf
     """
 }
 
