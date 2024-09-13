@@ -779,7 +779,6 @@ workflow pipeline {
         if (params.transcriptome_source != "precomputed" && params.igv){
             is_compressed = file("${params.ref_genome}").extension == "gz"
             String publish_ref = "igv_reference"
-            String current_dir = "${file('.').toUriString()}"
             reference_genome = Channel.fromPath("${params.ref_genome}")
             igv_ref = reference_genome | flatten | map { it -> "${it.toUriString()}" }
             if (is_compressed){
@@ -797,7 +796,7 @@ workflow pipeline {
                 } else {
                     gz_igv = gz_faidx(Channel.fromPath("${params.ref_genome}"))
                     | flatten
-                    | map  { it -> "$current_dir/$params.out_dir/$publish_ref/${it.Name}" }
+                    | map  { it -> "$publish_ref/${it.Name}" }
                     gz_igv | ifEmpty{
                         if (params.containsKey("igv") && params.igv){
                             log.warn """\
@@ -819,7 +818,7 @@ workflow pipeline {
                 igv_index = ref_idx | flatten | map { it -> "${it.toUriString()}" }
             } else {
                 ref_idx = faidx(reference_genome)
-                igv_index = ref_idx | map { it -> "$current_dir/$params.out_dir/$publish_ref/${it.Name}" }
+                igv_index = ref_idx | map { it -> "$publish_ref/${it.Name}" }
             }
 
             // get list of file names
@@ -829,8 +828,8 @@ workflow pipeline {
             | toSortedList
             | map { list -> list.collect{
                 [
-                 "$current_dir/$params.out_dir/$publish_bams/${it}_reads_aln_sorted.bam",
-                 "$current_dir/$params.out_dir/$publish_bams/${it}_reads_aln_sorted.bam.bai"
+                 "$publish_bams/${it}_reads_aln_sorted.bam",
+                 "$publish_bams/${it}_reads_aln_sorted.bam.bai"
                 ]
             } }
             | concat ( igv_index)
