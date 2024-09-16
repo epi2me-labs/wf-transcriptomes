@@ -69,16 +69,21 @@ process deAnalysis {
     output:
         path "de_analysis/results_dtu_stageR.tsv", emit: stageR
         path "merged/filtered_transcript_counts_with_genes.tsv", emit: flt_counts
-        path "de_analysis/unfiltered_transcript_counts_with_genes.tsv", emit: unflt_counts
         path "merged/all_gene_counts.tsv", emit: gene_counts
+        path "de_analysis/unfiltered_transcript_counts_with_genes.tsv", emit: unflt_counts
         path "de_analysis/results_dge.tsv", emit: dge
         path "de_analysis/results_dexseq.tsv", emit: dexseq
-        path "de_analysis", emit: de_analysis
+        path "de_analysis/results_dge.pdf", emit: dge_pdf
+        path "de_analysis/results_dge.tsv", emit: dge_tsv
+        path "de_analysis/results_dtu_gene.tsv", emit: dtu_gene
+        path "de_analysis/results_dtu_transcript.tsv", emit: dtu_transcript
+        path "de_analysis/results_dtu_stageR.tsv", emit: dtu_stageR
+        path "de_analysis/results_dtu.pdf", emit: dtu_pdf
         path "de_analysis/cpm_gene_counts.tsv", emit: cpm
     """
     mkdir merged
     mkdir de_analysis
-    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr
+    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr "sample_sheet.csv"
     """
 }
 
@@ -91,23 +96,10 @@ process plotResults {
         path "filtered_transcript_counts_with_genes.tsv"
         path "results_dtu_stageR.tsv"
         path "sample_sheet.tsv"
-        path de_analysis
     output:
-        path "de_analysis/dtu_plots.pdf", emit: dtu_plots
-        path "sample_sheet.tsv", emit: sample_sheet_csv
-        // Output all DE files for use in report process
-        path "de_analysis/*", emit: stageR
-        // Output selected DE files to be output in out_dir
-        path "de_analysis/results_dge.pdf", emit: dge_pdf
-        path "de_analysis/results_dge.tsv", emit: dge_tsv
-        path "de_analysis/results_dtu_gene.tsv", emit: dtu_gene
-        path "de_analysis/results_dtu_transcript.tsv", emit: dtu_transcript
-        path "de_analysis/results_dtu_stageR.tsv", emit: dtu_stageR
-        path "de_analysis/results_dtu.pdf", emit: dtu_pdf
+        path "dtu_plots.pdf", emit: dtu_plots
     """
     plot_dtu_results.R
-    # output plots to common analysis output directory
-    cp dtu_plots.pdf de_analysis/dtu_plots.pdf
     """
 }
 
@@ -159,6 +151,7 @@ workflow differential_expression {
        sample_sheet
        ref_annotation
     main:
+        sample_sheet = Channel.fromPath(sample_sheet)
         checkSampleSheetCondition(sample_sheet)
         t_index = build_minimap_index_transcriptome(ref_transcriptome)
         mapped = map_transcriptome(full_len_reads.combine(t_index)
@@ -167,19 +160,16 @@ workflow differential_expression {
         merged = mergeCounts(count_transcripts.out.counts.collect())
         merged_TPM = mergeTPM(count_transcripts.out.counts.collect())
         analysis = deAnalysis(sample_sheet, merged, ref_annotation)
-        plotResults(analysis.flt_counts, analysis.stageR, sample_sheet, analysis.de_analysis)
+        plotResults(analysis.flt_counts, analysis.stageR, sample_sheet)
         // Concat files required for making the report
         de_report = analysis.flt_counts.concat(analysis.gene_counts, analysis.dge, analysis.dexseq,
-        analysis.stageR, plotResults.out.sample_sheet_csv, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
-        // Concat files required to be output to user
-        de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, plotResults.out.dge_pdf, plotResults.out.dge_tsv,
-        plotResults.out.dtu_gene, plotResults.out.dtu_transcript, plotResults.out.dtu_stageR, plotResults.out.dtu_pdf).collect()
+        analysis.stageR, sample_sheet, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
+        // Concat files required to be output to user without any changes
+        de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge_tsv,
+        analysis.dtu_gene, analysis.dtu_transcript, analysis.dtu_stageR, analysis.dtu_pdf, analysis.flt_counts, analysis.gene_counts, merged_TPM).collect()
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
-        all_counts = merged_TPM.concat(analysis.flt_counts, analysis.gene_counts)
 emit:
        all_de = de_report
        count_transcripts = count_transcripts_file
-       dtu_plots = plotResults.out.dtu_plots
        de_outputs = de_outputs_concat
-       counts = all_counts
 }

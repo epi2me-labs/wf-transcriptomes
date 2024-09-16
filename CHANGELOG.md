@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If required for IGV, reference indexes are output in to a `igv_reference` directory
 ### Changed
 - BAMS are output in to a BAMS directory.
+- Reconcile with template 5.2.6.
 
 ## [v1.3.0]
 ### Removed

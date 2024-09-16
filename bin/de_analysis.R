@@ -9,13 +9,14 @@ min_samps_gene_expr <- as.numeric(args[2])
 min_samps_feature_expr <- as.numeric(args[3])
 min_gene_expr <- as.numeric(args[4]) 
 min_feature_expr <- as.numeric(args[5])
+sample_sheet <- args[6]
 
 cat("Loading counts, conditions and parameters.\n")
 cts <- as.matrix(read.csv("all_counts.tsv", sep="\t", row.names="Reference", stringsAsFactors=FALSE))
 
 # Set up sample data frame:
 #changed this to sample_id
-coldata <- read.csv("sample_sheet.csv", row.names="alias", sep=",", stringsAsFactors=TRUE)
+coldata <- read.csv(sample_sheet, row.names="alias", sep=",", stringsAsFactors=TRUE)
 
 coldata$sample_id <- rownames(coldata)
 # check if control condition exists, sets as reference 

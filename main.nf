@@ -717,9 +717,7 @@ workflow pipeline {
             de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
             de_report = de.all_de
             count_transcripts_file = de.count_transcripts
-            dtu_plots = de.dtu_plots
             de_outputs = de.de_outputs
-            counts = de.counts
         } else{
             de_report = OPTIONAL_FILE
             count_transcripts_file = OPTIONAL_FILE
@@ -763,7 +761,7 @@ workflow pipeline {
 
         if (params.de_analysis){
            de_results = report.concat(
-            transcriptome, de_outputs.flatten(), counts.flatten(),
+            transcriptome, de_outputs.flatten(),
             makeReport.out.results_dge,  makeReport.out.tpm,
             makeReport.out.filtered,  makeReport.out.unfiltered,
             makeReport.out.gene_counts)
