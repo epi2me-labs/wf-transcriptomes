@@ -9,7 +9,7 @@
       "type": "aggregated"
     },
     "read-stats-per-file": {
-      "filepath": "fastq_ingress_results/reads/fastcat_stats/per-file-stats.tsv",
+      "filepath": "fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-file-stats.tsv",
       "title": "Per file read stats",
       "description": "A TSV with per file read stats, including all samples.",
       "mime-type": "text/tab-separated-values",
@@ -17,7 +17,7 @@
       "type": "aggregated"
     },
     "read-stats-per-read": {
-      "filepath": "fastq_ingress_results/reads/fastcat_stats/per-read-stats.tsv",
+      "filepath": "fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-read-stats.tsv",
       "title": "Read stats",
       "description": "A TSV with per read stats, including all samples.",
       "mime-type": "text/tab-separated-values",
@@ -25,7 +25,7 @@
       "type": "aggregated"
     },
     "run-ids": {
-      "filepath": "fastq_ingress_results/reads/fastcat_stats/run_ids",
+      "filepath": "fastq_ingress_results/{{ alias }}//reads/fastcat_stats/run_ids",
       "title": "Run ID's",
       "description": "List of run IDs present in reads.",
       "mime-type": "text/txt",
@@ -33,7 +33,7 @@
       "type": "aggregated"
     },
     "metamap": {
-      "filepath": "fastq_ingress_results/reads/metamap.json",
+      "filepath": "fastq_ingress_results/{{ alias }}//reads/metamap.json",
       "title": "Meta map json",
       "description": "Metadata used in workflow presented in a JSON.",
       "mime-type": "text/json",
@@ -41,7 +41,7 @@
       "type": "aggregated"
     },
     "sample-data": {
-      "filepath": "fastq_ingress_results/reads/{{ alias }}.fastq.gz",
+      "filepath": "fastq_ingress_results/{{ alias }}//reads/{{ alias }}.fastq.gz",
       "title": "Concatenated sequence data",
       "description": "Per sample reads concatenated in to one FASTQ file.",
       "mime-type": "text/json",
@@ -51,7 +51,7 @@
     "transcriptome": {
       "filepath": "{{ alias }}_transcriptome.fas",
       "title": "Assembled transcriptome",
-      "description": "Per sample assembled transcriptome.",
+      "description": "Per sample assembled transcriptome.  Not output if a reference annotation was supplied",
       "mime-type": "text/x-fasta",
       "optional": true,
       "type": "per-sample"
@@ -59,7 +59,7 @@
     "merged_transcriptome": {
       "filepath": "{{ alias }}_merged_transcriptome.fas",
       "title": "Annotated assembled transcriptome",
-      "description": "Per sample annotated assembled transcriptome.",
+      "description": "Per sample annotated assembled transcriptome. Only output if a reference annotation was supplied",
       "mime-type": "text/x-fasta",
       "optional": true,
       "type": "per-sample"
