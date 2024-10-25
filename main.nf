@@ -264,7 +264,7 @@ process assemble_transcripts{
 
 process merge_gff_bundles{
     /*
-    Merge gff bundles into a single gff file per sample.
+    Merge gff bundles into a single gff file per sample, and get summary statistics
     */
     label 'isoforms'
     cpus params.threads
@@ -274,6 +274,7 @@ process merge_gff_bundles{
         tuple val(sample_id), path (gff_bundle)
     output:
         tuple val(sample_id), path("${sample_id}.gff"), emit: gff
+        tuple val(sample_id), path("transcriptome_summary.pickle"), emit: summary
     script:
     def merged_gff = "${sample_id}.gff"
     """
@@ -285,6 +286,11 @@ process merge_gff_bundles{
         grep -v '#' \$fn >> $merged_gff
 
     done
+
+    workflow-glue summarise_gff \
+        $merged_gff \
+        $sample_id \
+        transcriptome_summary.pickle
     """
 }
 
@@ -315,17 +321,16 @@ process run_gffcompare{
         gffcompare -o ${out_dir}/str_merged -r ${ref_annotation} \
             ${params.gffcompare_opts} ${query_annotation}
 
-        workflow-glue generate_tracking_summary --tracking $out_dir/str_merged.tracking \
-            --output_dir ${out_dir} --annotation ${ref_annotation}
-
         mv *.tmap "${out_dir}"
         mv *.refmap "${out_dir}"
         cp "${out_dir}/str_merged.annotated.gtf" "${sample_id}_annotated.gtf"
 
-        # Make an isoform table for report and user output.
-        workflow-glue make_isoform_table \
+        workflow-glue parse_gffcompare \
             --sample_id "${sample_id}" \
-            --gffcompare_dir "${out_dir}"
+            --gffcompare_dir "${out_dir}" \
+            --isoform_table_out "${sample_id}_transcripts_table.tsv" \
+            --tracking $out_dir/str_merged.tracking \
+            --annotation ${ref_annotation}
         """
 }
 
@@ -337,10 +342,9 @@ process get_transcriptome{
         cpus 1
         memory "2 GB"
         input:
-            tuple val(sample_id), path(transcripts_gff), path(gffcmp_dir), path(reference_seq)
+            tuple val(sample_id), path("transcripts.gff"), path(gffcompare_dir), path("reference.fa")
         output:
-            tuple val(sample_id), path("*.fas"), emit: transcriptome
-
+            tuple val(sample_id), path("*transcriptome.fas"), emit: transcriptome
         script:
         def transcriptome = "${sample_id}_transcriptome.fas"
         def merged_transcriptome = "${sample_id}_merged_transcriptome.fas"
@@ -348,15 +352,11 @@ process get_transcriptome{
         // so skip getting transcriptome FASTA from the annotated files.
         if (params.ref_annotation){
         """
-        gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
-        if  [ "\$(ls -A $gffcmp_dir)" ];
-            then
-                gffread -F -g ${reference_seq} -w ${merged_transcriptome} $gffcmp_dir/str_merged.annotated.gtf
-        fi
+        gffread -F -g reference.fa -w ${merged_transcriptome} $gffcompare_dir/str_merged.annotated.gtf
         """
         } else {
         """
-        gffread -g ${reference_seq} -w ${transcriptome} ${transcripts_gff}
+        gffread -g reference.fa -w ${transcriptome} "transcripts.gff"
         """
         }
 }
@@ -387,75 +387,59 @@ process merge_transcriptomes {
 
 process makeReport {
 
-    label "isoforms"
+    label "wf_common"
     cpus 2
     memory "4 GB"
-
+    publishDir "${params.out_dir}", mode: 'copy', pattern: "wf-transcriptomes-report.html"
     input:
+        val metadata
+        path stats, stageAs: "stats_*"
         path versions
+        val wf_version
         path "params.json"
-        path "pychopper_report/*"
-        path "per_read_stats/?.gz"
-        path "aln_stats/*"
-        path "gffcmp_dir/*"
-        path "gff_annotation/*"
-        path "de_report/*"
-        path "seqkit/*"
-        path "isoforms_table/*"
+        path "transcriptome_aln_stats/*"
+        path pychopper, stageAs: "pychopper_report/*"
+        path aln_stats, stageAs: "aln_stats/*"
+        path gffcmp_dir, stageAs: "gffcmp_dir/*"
+        path gff_annotation, stageAs: "gff_annotation/*"
+        path de_report, stageAs: "de_report/*"
+        path isoforms_table, stageAs: "isoforms_table/*"
+        path "transcriptome_summary/summary_*.tsv"
+
     output:
         path ("wf-transcriptomes-*.html"), emit: report
-        // If de analysis has been run output the counts files with gene name added.
         path ("results_dge.tsv"), emit: results_dge, optional: true
         path ("unfiltered_tpm_transcript_counts.tsv"), emit: tpm, optional: true
         path ("unfiltered_transcript_counts_with_genes.tsv"), emit: unfiltered, optional: true
         path ("filtered_transcript_counts_with_genes.tsv"), emit: filtered, optional: true
         path ("all_gene_counts.tsv"), emit: gene_counts, optional: true
-    shell:
-        report_name = "wf-transcriptomes-report.html"
-    '''
-    if [ -f "de_report/OPTIONAL_FILE" ]; then
-        dereport=""
-    else
-        dereport="--de_report true --de_stats "seqkit/*""
-        mv de_report/*.g*f* de_report/stringtie_merged.gtf
-    fi
-    if [ -f "gff_annotation/OPTIONAL_FILE" ]; then
-        OPT_GFF_ANNOTATION=""
-    else
-        OPT_GFF_ANNOTATION="--gff_annotation gff_annotation/*"
-    fi
-    if [ -f "gffcmp_dir/OPTIONAL_FILE" ]; then
-        OPT_GFFCMP_DIR=""
-    else
-        OPT_GFFCMP_DIR="--gffcompare_dir gffcmp_dir/"
-    fi
-    if [ -f "aln_stats/OPTIONAL_FILE" ]; then
-        OPT_ALN=""
-    else
-        OPT_ALN="--alignment_stats aln_stats/*"
-    fi
-    if [ -f "pychopper_report/OPTIONAL_FILE" ]; then
-        OPT_PC_REPORT=""
-    else
-        OPT_PC_REPORT="--pychop_report pychopper_report/*"
-    fi
-    if [ -f "isoforms_table/OPTIONAL_FILE" ]; then
-        OPT_ISO_TABLE=""
-    else
-        OPT_ISO_TABLE="--isoform_table isoforms_table"
-    fi
-    workflow-glue report --report !{report_name} \
-    --versions !{versions} \
-    --params params.json \
-    ${OPT_ALN} \
-    ${OPT_PC_REPORT} \
-    --stats per_read_stats/* \
-    ${OPT_GFF_ANNOTATION} \
-    ${OPT_ISO_TABLE} \
-    ${OPT_GFFCMP_DIR} \
-    --isoform_table_nrows !{params.isoform_table_nrows} \
-    ${dereport}
-    '''
+    script:
+        String report_name = "wf-transcriptomes-report.html"
+        String metadata = new JsonBuilder(metadata).toPrettyString()
+        String gff_opts = gff_annotation.fileName.name == OPTIONAL_FILE.name ? "" :  "--gff_annotation gff_annotation/"
+        String de_report_opts = de_report.fileName.name == OPTIONAL_FILE.name ? "" : "--de_report de_report/ --de_stats transcriptome_aln_stats/"
+        String gffcmp_opts = gffcmp_dir.fileName.name == OPTIONAL_FILE.name  ? "" :  "--gffcompare_dir gffcmp_dir/"
+        String aln_stats_opts = aln_stats.fileName.name == OPTIONAL_FILE.name ? "" :  "--alignment_stats aln_stats/"
+        String pychop_opts = pychopper.fileName.name == OPTIONAL_FILE.name ? "" :  "--pychop_report pychopper_report/"
+        String iso_table_opts = isoforms_table.fileName.name == OPTIONAL_FILE.name ? "" :  "--isoform_table isoforms_table/"
+    """
+    echo '${metadata}' > metadata.json
+    workflow-glue report \
+        --report $report_name \
+        --versions $versions \
+        --wf_version $wf_version \
+        --params params.json \
+        $aln_stats_opts \
+        $pychop_opts \
+        --stats $stats \
+        --metadata metadata.json \
+        $gff_opts \
+        $iso_table_opts \
+        $gffcmp_opts \
+        --isoform_table_nrows ${params.isoform_table_nrows} \
+        $de_report_opts \
+        --transcriptome_summary transcriptome_summary/
+    """
 }
 
 
@@ -598,9 +582,15 @@ workflow pipeline {
         }
         
         fastq_ingress_results = reads
-        // replace `null` with path to optional file
-        | map { [ it[0], it[1] ?: OPTIONAL_FILE, it[2] ?: OPTIONAL_FILE ] }
         | collectFastqIngressResultsInDir
+        // fastq_ingress doesn't have the index; add one extra null for compatibility.
+        // We do not use variable name as assigning variable name with a tuple
+        // not matching (e.g. meta, bam, bai, stats <- [meta, bam, stats]) causes
+        // the workflow to crash.
+        reads = reads
+        .map{
+            it.size() == 4 ? it : [it[0], it[1], null, it[2]]
+        }
         map_sample_ids_cls = {it ->
         /* Harmonize tuples
         output:
@@ -629,9 +619,8 @@ workflow pipeline {
         String publish_bams = "BAMS"
         software_versions = getVersions()
         workflow_params = getParams()
-        input_reads = reads.map{ meta, samples, stats -> [meta, samples]}
+        input_reads = reads.map{ meta, samples, index, stats -> [meta, samples]}
         sample_ids = input_reads.flatMap({meta,samples -> meta.alias})
-        per_read_stats = reads.map{ meta, samples, stats -> stats.resolve("per-read-stats.tsv.gz") }.toList()
 
         if (!params.direct_rna){
             preprocess_reads(input_reads)
@@ -682,7 +671,7 @@ workflow pipeline {
 
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
             // Output BAMS in a dedicated directory
-            bam_results = assembly.bam.map{ 
+            bam_results = assembly.bam.map{
                 sample_id, bam, bai -> [bam, bai]}.flatten().map{ [it, publish_bams] }
         }
         else{
@@ -691,7 +680,6 @@ workflow pipeline {
             merge_gff = OPTIONAL_FILE
             assembly_stats = OPTIONAL_FILE
             use_ref_ann = false
- 
         }
         if (params.de_analysis){
             sample_sheet = file(params.sample_sheet, type:"file")
@@ -716,24 +704,35 @@ workflow pipeline {
             }
             de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
             de_report = de.all_de
-            count_transcripts_file = de.count_transcripts
             de_outputs = de.de_outputs
+            count_transcripts_file = de.count_transcripts
         } else{
             de_report = OPTIONAL_FILE
             count_transcripts_file = OPTIONAL_FILE
         }
-        
+
+        // get metadata and stats files, keeping them ordered (could do with transpose I suppose)
+        reads.multiMap{ meta, path, index, stats ->
+            meta: meta
+            stats: stats
+        }.set { for_report }
+        metadata = for_report.meta.collect()
+        stats = for_report.stats.collect()
+
         makeReport(
+            metadata,
+            stats,
             software_versions,
+            workflow.manifest.version,
             workflow_params,
+            count_transcripts_file,
             pychopper_report,
-            per_read_stats,
             assembly_stats,
             gff_compare,
             merge_gff,
             de_report,
-            count_transcripts_file,
-            isoforms_table)
+            isoforms_table,
+            merge_gff_bundles.out.summary.map {it[1]}.collect())
 
        report = makeReport.out.report
 
@@ -768,6 +767,7 @@ workflow pipeline {
             // Output de_analysis results in the dedicated directory.
             results = results.concat(de_results.map{ [it, "de_analysis"] })
         }
+
 
         results.concat(workflow_params.map{ [it, null]})
         // IGV config
@@ -822,7 +822,7 @@ workflow pipeline {
             // get list of file names
             // Absolute paths required for directories
             igv_files = reads
-            | map { meta, sample, stats -> meta.alias }
+            | map { meta, sample, index, stats -> meta.alias }
             | toSortedList
             | map { list -> list.collect{
                 [
@@ -830,9 +830,9 @@ workflow pipeline {
                  "$publish_bams/${it}_reads_aln_sorted.bam.bai"
                 ]
             } }
-            | concat ( igv_index)
-            | flatten
             | concat (igv_ref)
+            | flatten
+            | concat ( igv_index)
             | concat (gz_igv)
             | flatten
             | collectFile(name: "file-names.txt", newLine: true, sort: false)
@@ -844,7 +844,7 @@ workflow pipeline {
                 [displayMode: "SQUISHED", colorBy: "strand"], // bam extra opts
                 Channel.of(null), // vcf extra opts
                 )
-            
+
             results = results.concat(igv_conf.map{ [it, null]})
             results = results.concat(bam_results)
       }

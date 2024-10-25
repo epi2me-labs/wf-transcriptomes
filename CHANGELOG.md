@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Updated
+- Workflow report updated to use `ezcharts`.
+### Fixed
+- Exons per isoforms histogram reporting incorrect numbers.
+### Removed
+- per-class gffcompare tracking files as there exists a combine tracking file. 
+
 ## [v1.4.0]
 ## Added
 - `--igv` parameter (default: false) for outputting IGV config allowing visualisation of read alignments in the EPI2ME App.

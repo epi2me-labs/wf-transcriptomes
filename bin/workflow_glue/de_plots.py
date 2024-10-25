@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """Create de report section."""
 
-from glob import glob
 import os
 
-from aplanat import hist, points
-from aplanat.bars import boxplot_series
-from aplanat.util import Colors
+from dominate.tags import h5, p
+from dominate.util import raw
+from ezcharts import scatterplot
+from ezcharts.components.ezchart import EZChart
+from ezcharts.layout.snippets import DataTable
 import numpy as np
 import pandas as pd
 
@@ -51,174 +52,55 @@ def create_summary_table(df):
         avg_acc, avg_mapq])
 
 
-def dtu_table(gene_id, dtu_file, alignment_stats, condition_sheet):
-    """Create DTU table and plot."""
-    dtu_results = pd.read_csv(dtu_file, sep='\t')
-    f = open(condition_sheet)
-    df = pd.read_csv(f, sep='\t')
-    treated_df = df.loc[df['condition'] == "treated"]
-    untreated_df = df.loc[df['condition'] == "untreated"]
-    treated_samples = treated_df['sample'].tolist()
-    control_samples = untreated_df['sample'].tolist()
-    # parmaterise these
-    control_name = "condition1"
-    treated_name = "condition2"
-    table = dtu_results.loc[(dtu_results["geneID"] == gene_id)]
-    msg = "Gene ID \"{}\" does not exist in the dataset, please select another"
-    assert not table.empty, msg.format(gene_id)
-    alignment_stats[alignment_stats["Ref"].isin([gene_id])]
-    alignment_stats["Transcript"] = alignment_stats["Ref"].apply(
-        lambda x: x.split(".")[0])
-    gene_alignments = alignment_stats[alignment_stats["Transcript"].isin(
-        table["txID"])]
-    gene_alignments = gene_alignments.loc[(
-        gene_alignments["Type"] == "Primary")]
-    gene_alignments["condition"] = gene_alignments.apply(
-        lambda x: control_name if x["fname"] in
-        control_samples else treated_name, axis=1)
-    groups = gene_alignments.groupby(
-        ["Transcript", "fname", "condition"]).agg(
-            **{"Transcript_count": ("Read", "size")})
-    df = None
-    for gene_id, group in gene_alignments.groupby("Transcript"):
-        temp = group.groupby("fname").agg(**{
-            gene_id: ("Read", "size")
-        }).transpose()
-    if df is None:
-        df = temp
-    else:
-        df = pd.concat([df, temp])
-    df = df.reset_index().rename(columns={"index": "Transcript_ID"})
-    table = table.rename(columns={
-        "txID": "Transcript_ID",
-        "gene": "p_gene",
-        "transcript": "p_transcript"
-        })
-    gene_table = pd.merge(df, table)
-    gene_table = gene_table.set_index(["geneID", "Transcript_ID"])
-    file_names = set(control_samples.keys())
-    file_names.update(treated_samples.keys())
-    gene_table = gene_table.fillna(0)
-    table = groups.reset_index()[
-        ["condition", "Transcript", "Transcript_count"]]
-    table['transcript, condition'] = \
-        table['Transcript'].astype(str) + ', ' + table['condition'].astype(str)
-    repeats = groups.groupby(level=['Transcript', 'condition']).size()
-    min_rep, max_rep = min(repeats), max(repeats)
-    plot = boxplot_series(
-        table['transcript, condition'], table['Transcript_count'],
-        x_axis_label='Transcript, condition',
-        y_axis_label='Transcript count',
-        height=200, width=200,
-        title="Transcript counts (from {}-{} replicates)".format(
-            min_rep, max_rep))
-    plot.xaxis.major_label_orientation = 3.1452/2
-    if min_rep < 7:
-        for renderer in plot.renderers:
-            renderer.glyph.line_alpha = 0.2
-            try:
-                renderer.glyph.fill_alpha = 0.2
-            except Exception:
-                pass
-        plot.circle(
-            table['transcript, condition'], table['Transcript_count'],
-            fill_color='black', line_color='black')
-    return (table, plot)
-
-
-def pool_csvs(folder):
-    """Concat seqkit stats."""
-    files = glob(folder + "/*.seqkit.stats")
-    dfs = [parse_seqkit(f) for f in files]
-    return pd.concat(dfs)
-
-
-def abundance_histogram(filtered_counts, gene_counts, section):
-    """Create plot for abundance of transcripts across all samples."""
-    section.markdown("""
-Histogram showing the abundance of transcript
-counts for genes identified in the analysis.
-    """)
-    filtered_count_file = filtered_counts
-    gene_count_file = gene_counts
-    transcripts_per_gene = pd.read_csv(
-        filtered_count_file, sep='\t',
-        usecols=['gene_id', 'feature_id']).groupby(['gene_id']).agg(['count'])
-    transcripts_per_gene.columns = transcripts_per_gene.columns.droplevel()
-    gene_ids = pd.read_csv(
-        gene_count_file, sep='\t',
-        usecols=[0]).index.values.tolist()
-    singletons = [
-        gene_id for gene_id in gene_ids if gene_id not in transcripts_per_gene.index.values.tolist()] # noqa
-    singletons = pd.DataFrame(index=singletons, columns=['count']).fillna(1)
-    transcripts_per_gene = pd.concat([singletons, transcripts_per_gene])
-    transcript_plot = hist.histogram(
-        [transcripts_per_gene['count'].tolist()],
-        binwidth=1, colors=[Colors.cerulean])
-    transcript_plot.xaxis.axis_label = "Number of isoforms per gene (n)"
-    transcript_plot.yaxis.axis_label = "Number of occurences"
-    section.markdown("### Transcripts per gene")
-    section.plot(transcript_plot)
-
-
-def dexseq_section(dexseq_file, section, id_dic):
+def dexseq_section(dexseq_file, id_dic, pval_thresh):
     """Add gene isoforms table and plot."""
-    section.markdown("### Differential Isoform usage")
-    dexseq_caption = '''Table showing gene isoforms, ranked by adjusted
+    h5("Differential Isoform usage")
+    p("""Table showing gene isoforms, ranked by adjusted
     p-value, from the DEXSeq analysis. Information shown includes the log2 fold
     change between experimental conditions, the log-scaled transcript
-    abundance and the false discovery corrected p-value (FDR).
+    abundance and the false discovery corrected p-value (FDR - Benjamini-Hochberg) .
     This table has not been filtered
-    for genes that satisfy statistical or magnitudinal thresholds'''
-    section.markdown(dexseq_caption)
+    for genes that satisfy statistical or magnitudinal thresholds""")
+
     dexseq_results = pd.read_csv(dexseq_file, sep='\t')
-    dexseq_results.index.name = "gene_id:trancript_id"
+    dexseq_results.index.name = "gene_id:transcript_id"
     # Replace gene id with more useful gene name where possible
     dexseq_results.index = dexseq_results.index.map(
         lambda x: str(id_dic.get(x.split(':')[0])) + ':' + str(x.split(':')[1]))
-    dexseq_pvals = dexseq_results.sort_values(by='pvalue', ascending=True)
-    section.table(dexseq_results.loc[dexseq_pvals.index], index=True)
-    section.markdown("""
-The figure below presents the MA plot from the DEXSeq analysis.
-M is the log2 ratio of isoform transcript abundance between conditions.
-A is the log2 transformed mean abundance value.
-Transcripts that satisfy the logFC and FDR corrected p-value
-thresholds defined are shaded as 'Up-' or 'Down-' regulated.""")
-    pval_limit = 0.01
-    up = dexseq_results.loc[
-        (dexseq_results["Log2FC"] > 0) & (
-            dexseq_results['pvalue'] < pval_limit)]
-    down = dexseq_results.loc[
-        (dexseq_results["Log2FC"] <= 0) & (
-            dexseq_results['pvalue'] < pval_limit)]
-    not_sig = dexseq_results.loc[(dexseq_results["pvalue"] >= pval_limit)]
 
-    dexseq_plot = points.points(
-        x_datas=[
-                up["Log2MeanExon"],
-                down["Log2MeanExon"],
-                not_sig["Log2MeanExon"],
-                ],
-        y_datas=[
-                up["Log2FC"],
-                down["Log2FC"],
-                not_sig["Log2FC"],
-                ],
-        title="Average copy per million (CPM) vs Log-fold change (LFC)",
-        colors=["red", "blue", "black"],
-        names=["Up", "Down", "NotSig"]
-        )
+    DataTable.from_pandas(
+        dexseq_results.sort_values(by='pvalue', ascending=True), use_index=True)
 
-    dexseq_plot.xaxis.axis_label = "A (log2 transformed mean exon read counts)"
-    dexseq_plot.yaxis.axis_label = """
-    M (log2 transformed differential abundance)
-    """
-    dexseq_results_caption = "### Dexseq results"
-    section.markdown(dexseq_results_caption)
-    section.plot(dexseq_plot)
+    p(
+        """The figure below presents the MA plot from the DEXSeq analysis.
+        M is the log2 ratio of isoform transcript abundance between conditions.
+        A is the log2 transformed mean abundance value.
+        Transcripts that satisfy the logFC and FDR-corrected
+        (False discovery rate - Benjamini-Hochberg) p-value
+        thresholds defined are shaded as 'Up-' or 'Down-' regulated.""")
+
+    dexseq_results['direction'] = 'not_sig'
+
+    dexseq_results.loc[
+        (dexseq_results["Log2FC"] > 0) & (dexseq_results['pvalue'] < pval_thresh),
+        'direction'] = 'up'
+
+    dexseq_results.loc[
+        (dexseq_results["Log2FC"] <= 0) & (dexseq_results['pvalue'] < pval_thresh),
+        'direction'] = 'down'
+
+    plot = scatterplot(
+        data=dexseq_results, x='Log2MeanExon', y='Log2FC', hue='direction',
+        palette=['#E32636', '#7E8896', '#0A22DE'],
+        hue_order=['up', 'down', 'not_sig'], marker='circle')
+    plot._fig.xaxis.axis_label = "A (log2 transformed mean exon read counts)"
+    plot._fig.yaxis.axis_label = "M (log2 transformed differential abundance)"
+    plot.legend = dict(orient='horizontal', top=30)
+    plot._fig.title = "Average copy per million (CPM) vs Log-fold change (LFC)"
+    EZChart(plot)
 
 
-def dtu_section(dtu_file, section, gt_dic, ge_dic):
+def dtu_section(dtu_file, gt_dic, ge_dic):
     """Plot dtu section."""
     dtu_results = pd.read_csv(dtu_file, sep='\t')
     dtu_results["gene_name"] = dtu_results["txID"].apply(
@@ -226,198 +108,187 @@ def dtu_section(dtu_file, section, gt_dic, ge_dic):
     dtu_results["geneID"] = dtu_results["geneID"].apply(
         lambda x: ge_dic.get(x))
     dtu_pvals = dtu_results.sort_values(by='gene', ascending=True)
-    dtu_caption = '''Table showing gene and transcript identifiers
-    and their FDR corrected probabilities
+    raw("""Table showing gene and transcript identifiers
+    and their FDR-corrected (False discovery rate - Benjamini-Hochberg) probabilities
     for the genes and their isoforms that have been
     identified as showing DTU using the R packages DEXSeq and StageR.
     This list has been shortened requiring that both gene and transcript
     must satisfy the p-value
-    threshold'''
-    section.markdown(dtu_caption)
-    section.table(dtu_results.loc[dtu_pvals.index])
+    threshold""")
+    DataTable.from_pandas(dtu_results.loc[dtu_pvals.index], use_index=False)
+
+    raw("""View dtu_plots.pdf file to see plots of differential isoform usage""")
 
 
-def copy_dge_add_gene_names(dge_file, geid_gname, newfile_name):
-    """Add gene name column to DGE TSV with gene ID to gene Name dict."""
+def dge_section(dge_file, ids_dic, pval_thresh):
+    """Create DGE table and MA plot."""
+    h5("Differential gene expression")
     dge_results = pd.read_csv(dge_file, sep='\t')
-    column_to_move = dge_results.index.map(
-        lambda x: geid_gname.get(x))
-    dge_results.insert(0, "gene_name", column_to_move)
-    dge_results.to_csv(newfile_name, index=True, index_label="gene_id",  sep="\t")
-
-
-def copy_filtered_add_gene_names(unfiltered_file, geid_gname, newfile_name):
-    """Use gene id to gene name dict to add name column to counts TSV."""
-    unfiltered = pd.read_csv(unfiltered_file, sep='\t')
-    unfiltered.insert(1, "gene_name",  unfiltered.gene_id.map(
-        lambda x: geid_gname.get(x)))
-    unfiltered.to_csv(newfile_name, index=False, sep='\t')
-
-
-def copy_tpm_add_gene_names(tpm_file, txid_gname, newfile_name):
-    """Use transcript id to gene name dict to add name column to TPM TSV."""
-    tpm = pd.read_csv(tpm_file, sep='\t')
-    tpm.insert(1, "gene_name", tpm.Reference.map(
-        lambda x: txid_gname.get(x)))
-    tpm.to_csv(newfile_name, index=False, sep='\t')
-
-
-def dge_section(dge_file, section, ids_dic):
-    """Create DGE table and plot."""
-    section.markdown('### Differential gene expression')
-    dge_results = pd.read_csv(dge_file, sep='\t')
-    dge_pvals = dge_results.sort_values(by='FDR', ascending=True)
     dge_results[['logFC', 'logCPM', 'F']] = dge_results[
         ['logFC', 'logCPM', 'F']].round(2)
-    dge_caption = """
-Table showing the genes from the edgeR analysis.
-Information shown includes the log2 fold change between
-experimental conditions, the log-scaled counts per million measure of abundance
-and the false discovery corrected p-value (FDR). This table has not been
-filtered for genes that satisfy statistical or magnitudinal thresholds"""
-    section.markdown(dge_caption)
+
+    p("""Table showing the genes from the edgeR analysis.
+    Information shown includes the log2 fold change between
+    experimental conditions, the log-scaled counts per million measure of abundance
+    and the FDR-corrected p-value (False discovery rate - Benjamini-Hochberg).
+    This table has not been
+    filtered for genes that satisfy statistical or magnitudinal thresholds""")
+
     dge_results.index = dge_results.index.map(lambda x: ids_dic.get(x))
-    dge_pvals.index = dge_pvals.index.map(lambda x: ids_dic.get(x))
-    section.table(dge_results.loc[dge_pvals.index], index=True)
-    dge = pd.read_csv(dge_file, sep="\t")
-    section.markdown("""
-This plot visualises differences in measurements between the
-two experimental conditions. M is the log2 ratio of gene expression
-calculated between the conditions.
-A is a log2 transformed mean expression value.
-The figure below presents the MA figure from this edgeR analysis.
-Genes that satisfy the logFC and FDR corrected p-value thresholds
-defined are shaded as 'Up-' or 'Down-' regulated.
+    dge_results = dge_results.sort_values('FDR', ascending=True)
+    dge_results.index.name = 'Transcript'
+    DataTable.from_pandas(dge_results, use_index=True)
+
+    h5("Results of the edgeR Analysis.")
+
+    p("""This plot visualises differences in measurements between the
+    two experimental conditions. M is the log2 ratio of gene expression
+    calculated between the conditions.
+    A is a log2 transformed mean expression value.
+    The figure below presents the MA figure from this edgeR analysis.
+    Genes that satisfy the logFC and FDR-corrected
+    (False discovery rate - Benjamini-Hochberg) p-value thresholds
+    defined are shaded as 'Up-' or 'Down-' regulated.
     """)
-    pval_limit = 0.01
-    up = dge.loc[(dge["logFC"] > 0) & (dge['PValue'] < pval_limit)]
-    down = dge.loc[(dge["logFC"] <= 0) & (dge['PValue'] < pval_limit)]
-    not_sig = dge.loc[(dge["PValue"] >= pval_limit)]
-    logcpm_vs_logfc = points.points(
-        x_datas=[
-                up["logCPM"],
-                down["logCPM"],
-                not_sig["logCPM"],
-                ],
-        y_datas=[
-                up["logFC"],
-                down["logFC"],
-                not_sig["logFC"],
-                ],
-        title="Average copy per million (CPM) vs Log-fold change (LFC)",
-        colors=["red", "blue", "black"],
-        names=["Up", "Down", "NotSig"]
-        )
-    logcpm_vs_logfc.xaxis.axis_label = "Average log CPM"
-    logcpm_vs_logfc.yaxis.axis_label = "Log-fold change"
-    logcpm_caption = """### Results of the edgeR Analysis."""
-    section.markdown(logcpm_caption)
-    section.plot(logcpm_vs_logfc)
+
+    dge = pd.read_csv(dge_file, sep="\t")
+    dge['sig'] = None
+    dge.loc[(dge["logFC"] > 0) & (dge['PValue'] < pval_thresh), 'sig'] = 'up'
+    dge.loc[(dge["logFC"] <= 0) & (dge['PValue'] < pval_thresh), 'sig'] = 'down'
+    dge.loc[(dge["PValue"] >= pval_thresh), 'sig'] = 'not_sig'
+
+    plot = scatterplot(
+        data=dge, x='logCPM', y='logFC', hue='sig',
+        palette=['#E32636', '#7E8896', '#0A22DE'],
+        hue_order=['up', 'not_sig', 'down'], marker='circle')
+    plot._fig.x_range.start = 10
+    plot._fig.xaxis.axis_label = "Average log CPM"
+    plot._fig.yaxis.axis_label = "Log-fold change"
+    plot.legend = dict(orient='horizontal', top=30)
+    # Should opacity of the symbols be lowered?
+    plot._fig.title = "Average copy per million (CPM) vs Log-fold change (LFC)"
+    EZChart(plot)
 
 
-def salmon_table(salmon_counts, section):
+def salmon_table(salmon_counts):
     """Create salmon counts summary table."""
     salmon_counts = pd.read_csv(salmon_counts, sep='\t')
     salmon_counts.set_index("Reference", drop=True, append=False, inplace=True)
     salmon_size_top = salmon_counts.sum(axis=1).sort_values(ascending=False)
     salmon_counts = salmon_counts.applymap(np.int64)
-    salmon_count_caption = """
-    Table showing the annotated Transcripts Per Million
+    h5("Transcripts Per Million")
+    p("""Table showing the annotated Transcripts Per Million
     identified by Minimap2 mapping and Salmon transcript
-    detection with the highest
-    number of mapped reads"""
-    section.markdown("### Transcripts Per Million ")
-    section.markdown(salmon_count_caption, "salmon-head-caption")
-    section.table(
-        salmon_counts.loc[salmon_size_top.index].head(n=100), index=True)
+    detection. Displaying the top 100 transcripts with the highest
+    number of mapped reads""")
+
+    salmon_counts = salmon_counts[sorted(salmon_counts.columns)]
+    DataTable.from_pandas(
+        salmon_counts.loc[salmon_size_top.index].head(n=100), use_index=True)
 
 
 def get_translations(gtf):
     """Create dict with gene_name and gene_references."""
-    fn = open(gtf).readlines()
-    gene_txid = {}
-    gene_geid = {}
-    geid_gname = {}
+    with open(gtf) as fh:
+        gene_txid = {}
+        gene_geid = {}
+        geid_gname = {}
 
-    def get_feature(row, feature):
-        return row.split(feature)[1].split(
-            ";")[0].replace('=', '').replace("\"", "").strip()
+        def get_feature(row, feature):
+            return row.split(feature)[1].split(
+                ";")[0].replace('=', '').replace("\"", "").strip()
 
-    for i in fn:
-        if i.startswith("#"):
-            continue
-        # Different gtf/gff formats contain different attributes
-        # and different formating (eg. gene_name="xyz" or gene_name "xyz")
-        if 'gene_name' in i:
-            gene_name = get_feature(i, "gene_name")
-        elif 'gene_id' in i:
-            gene_name = get_feature(i, 'gene_id')
-        elif 'gene' in i:
-            gene_name = get_feature(i, "gene")
-        else:
-            continue
+        for i in fh:
+            if i.startswith("#"):
+                continue
+            # Different gtf/gff formats contain different attributes
+            # and different formating (eg. gene_name="xyz" or gene_name "xyz")
+            gene_name = None
+            for var_name in ["gene_name", "gene_id", "gene"]:
+                if var_name in i:
+                    gene_name = get_feature(i, var_name)
+                    break
 
-        if 'ref_gene_id' in i:
-            gene_reference = get_feature(i, 'ref_gene_id')
-        elif 'gene_id' in i:
-            gene_reference = get_feature(i, 'gene_id')
-        else:
-            gene_reference = gene_name
-        if 'transcript_id' in i:
-            transcript_id = get_feature(i, 'transcript_id')
-        else:
-            transcript_id = "unknown"
-        if 'gene_id' in i:
-            gene_id = get_feature(i, 'gene_id')
-        else:
-            gene_id = gene_name
-        gene_txid[transcript_id] = gene_name
-        gene_geid[gene_id] = gene_reference
-        geid_gname[gene_reference] = gene_name
+            if 'ref_gene_id' in i:
+                gene_reference = get_feature(i, 'ref_gene_id')
+            elif 'gene_id' in i:
+                gene_reference = get_feature(i, 'gene_id')
+            else:
+                gene_reference = gene_name
+            if 'transcript_id' in i:
+                transcript_id = get_feature(i, 'transcript_id')
+            else:
+                transcript_id = "unknown"
+            if 'gene_id' in i:
+                gene_id = get_feature(i, 'gene_id')
+            else:
+                gene_id = gene_name
+            gene_txid[transcript_id] = gene_name
+            gene_geid[gene_id] = gene_reference
+            geid_gname[gene_reference] = gene_name
     return gene_txid, gene_geid, geid_gname
 
 
 def de_section(
         stringtie, dge, dexseq, dtu,
         tpm, report, filtered, unfiltered,
-        gene_counts):
+        gene_counts, aln_stats_dir, pval_threshold=0.01):
     """Differential expression sections."""
-    section = report.add_section()
-    section.markdown("# Differential expression.")
-    section.markdown("""
-This section shows differential gene expression
-and differential isoform usage. Salmon was used to
-assign reads to individual annotated isoforms defined by
-the GTF-format annotation.
-These counts were used to perform a statistical analysis to identify
-the genes and isoforms that show differences in abundance between
-the experimental conditions.
-Any novel genes or transcripts that do not have relevant gene or transcript IDs
-are prefixed with MSTRG for use in differential expression analysis.
-Find the full sequences of any transcripts in the
-`final_non_redundant_transcriptome.fasta` file.
-    """)
-    section.markdown("### Alignment summary stats")
-    alignment_stats = pool_csvs("seqkit")
-    alignment_summary_df = create_summary_table(alignment_stats)
-    alignment_summary_df = alignment_summary_df.fillna(0).applymap(np.int64)
-    section.table(alignment_summary_df, key='alignment-stats', index=True)
-    salmon_table(tpm, section)
-    gene_txid, gene_name, geid_gname = get_translations(stringtie)
-    # Use dictionaries to add gene names to the counts tsv files to help users
-    copy_dge_add_gene_names(dge, geid_gname, "results_dge.tsv")
-    copy_dge_add_gene_names(gene_counts, geid_gname, "all_gene_counts.tsv")
-    copy_filtered_add_gene_names(
-        filtered, geid_gname, "filtered_transcript_counts_with_genes.tsv")
-    copy_filtered_add_gene_names(
-        unfiltered, geid_gname, "unfiltered_transcript_counts_with_genes.tsv")
-    copy_tpm_add_gene_names(tpm, gene_txid, "unfiltered_tpm_transcript_counts.tsv")
+    with report.add_section("Differential expression", "DE"):
 
-    # Add tables to report
-    dge_section(dge, section, gene_name)
-    dexseq_section(dexseq, section, gene_name)
-    dtu_section(dtu, section, gene_txid, gene_name)
-    # missing dtu plots at the moment as too many
-    section.markdown("""
-### View dtu_plots.pdf file to see plots of differential isoform usage
-""")
+        p("""This section shows differential gene expression
+        and differential isoform usage. Salmon was used to
+        assign reads to individual annotated isoforms defined by
+        the GTF-format annotation.
+        These counts were used to perform a statistical analysis to identify
+        the genes and isoforms that show differences in abundance between
+        the experimental conditions.
+        Any novel genes or transcripts that do not have relevant gene or transcript IDs
+        are prefixed with MSTRG for use in differential expression analysis.
+        Find the full sequences of any transcripts in the
+        final_non_redundant_transcriptome.fasta file.
+        """)
+        alignment_stats = pd.concat([parse_seqkit(f) for f in aln_stats_dir.iterdir()])
+        alignment_summary_df = create_summary_table(alignment_stats)
+        alignment_summary_df = alignment_summary_df.fillna(0).applymap(np.int64)
+        h5("Alignment summary stats")
+        alignment_summary_df.index.name = "statistic"
+        DataTable.from_pandas(alignment_summary_df, use_index=True)
+
+        salmon_table(tpm)
+        gene_txid, gene_name, geid_gname = get_translations(stringtie)
+
+        # Add gene names columns to counts files and write out
+        # for publishing to user dir.
+        df_dge = pd.read_csv(dge, sep='\t')
+        df_dge.insert(0, 'gene_name', df_dge.index.map(lambda x: geid_gname.get(x)))
+        df_dge.to_csv('results_dge.tsv', index=True, index_label="gene_id", sep="\t")
+
+        # write_dge(gene_counts, geid_gname, "all_gene_counts.tsv")
+        df_gene_counts = pd.read_csv(gene_counts, sep='\t')
+        df_gene_counts.insert(
+                0, 'gene_name', df_gene_counts.index.map(lambda x: geid_gname.get(x)))
+        df_gene_counts.to_csv(
+            'results_dge.tsv', index=True, index_label="gene_id", sep="\t")
+
+        df_filtered = pd.read_csv(filtered, sep='\t')
+        df_filtered.insert(1, "gene_name", df_filtered.gene_id.map(
+            lambda x: geid_gname.get(x)))
+        df_filtered.to_csv(
+            'filtered_transcript_counts_with_genes.tsv', index=False, sep='\t')
+
+        df_unfiltered = pd.read_csv(unfiltered, sep='\t')
+        df_unfiltered.insert(1, "gene_name", df_unfiltered.gene_id.map(
+            lambda x: geid_gname.get(x)))
+        df_unfiltered.to_csv(
+            'unfiltered_transcript_counts_with_genes.tsv', index=False, sep='\t')
+
+        df_tpm = pd.read_csv(tpm, sep='\t')
+        df_tpm.insert(1, "gene_name", df_tpm.Reference.map(
+            lambda x: gene_txid.get(x)))
+        df_tpm.to_csv("unfiltered_tpm_transcript_counts.tsv", index=False, sep='\t')
+
+        # Add tables to report
+        dge_section(dge, gene_name, pval_threshold)
+        dexseq_section(dexseq, gene_name, pval_threshold)
+        dtu_section(dtu, gene_txid, gene_name)

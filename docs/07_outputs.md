@@ -3,13 +3,13 @@ Output files may be aggregated including information for all samples or provided
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
 | workflow report | wf-transcriptomes-report.html | a HTML report document detailing the primary findings of the workflow | aggregated |
-| Per file read stats | fastq_ingress_results/reads/fastcat_stats/per-file-stats.tsv | A TSV with per file read stats, including all samples. | aggregated |
-| Read stats | fastq_ingress_results/reads/fastcat_stats/per-read-stats.tsv | A TSV with per read stats, including all samples. | aggregated |
-| Run ID's | fastq_ingress_results/reads/fastcat_stats/run_ids | List of run IDs present in reads. | aggregated |
-| Meta map json | fastq_ingress_results/reads/metamap.json | Metadata used in workflow presented in a JSON. | aggregated |
-| Concatenated sequence data | fastq_ingress_results/reads/{{ alias }}.fastq.gz | Per sample reads concatenated in to one FASTQ file. | per-sample |
-| Assembled transcriptome | {{ alias }}_transcriptome.fas | Per sample assembled transcriptome. | per-sample |
-| Annotated assembled transcriptome | {{ alias }}_merged_transcriptome.fas | Per sample annotated assembled transcriptome. | per-sample |
+| Per file read stats | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-file-stats.tsv | A TSV with per file read stats, including all samples. | aggregated |
+| Read stats | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-read-stats.tsv | A TSV with per read stats, including all samples. | aggregated |
+| Run ID's | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/run_ids | List of run IDs present in reads. | aggregated |
+| Meta map json | fastq_ingress_results/{{ alias }}//reads/metamap.json | Metadata used in workflow presented in a JSON. | aggregated |
+| Concatenated sequence data | fastq_ingress_results/{{ alias }}//reads/{{ alias }}.fastq.gz | Per sample reads concatenated in to one FASTQ file. | per-sample |
+| Assembled transcriptome | {{ alias }}_transcriptome.fas | Per sample assembled transcriptome.  Not output if a reference annotation was supplied | per-sample |
+| Annotated assembled transcriptome | {{ alias }}_merged_transcriptome.fas | Per sample annotated assembled transcriptome. Only output if a reference annotation was supplied | per-sample |
 | Alignment summary statistics | {{ alias }}_read_aln_stats.tsv | Per sample alignment summary statistics. | per-sample |
 | GFF compare results. | {{ alias }}_gffcompare | All GFF compare output files. | per-sample |
 | Differential gene expression results | de_analysis/results_dge.tsv | This is a gene-level result file that describes genes and their probability of showing differential expression between experimental conditions. | aggregated |
