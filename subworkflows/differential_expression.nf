@@ -165,7 +165,7 @@ workflow differential_expression {
         de_report = analysis.flt_counts.concat(analysis.gene_counts, analysis.dge, analysis.dexseq,
         analysis.stageR, sample_sheet, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
         // Concat files required to be output to user without any changes
-        de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge_tsv,
+        de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge_tsv, analysis.dexseq,
         analysis.dtu_gene, analysis.dtu_transcript, analysis.dtu_stageR, analysis.dtu_pdf, analysis.flt_counts, analysis.gene_counts, merged_TPM).collect()
         count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
 emit:
