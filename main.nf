@@ -257,7 +257,7 @@ process assemble_transcripts{
 
     """
     stringtie --rf ${G_FLAG} -L -v -p ${task.cpus} ${params.stringtie_opts} \
-    -o  ${prefix}.gff -l ${prefix} ${bam} 2>/dev/null
+    -o  ${prefix}.gff -l ${prefix} ${bam}
      """
 }
 

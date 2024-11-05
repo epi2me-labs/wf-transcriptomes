@@ -187,7 +187,7 @@
     "final_non_redundant_transcriptome": {
       "filepath": "de_analysis/final_non_redundant_transcriptome.fasta",
       "title": "Final non redundant transcriptome",
-      "description": "Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis.",
+      "description": "Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. Only applicable when the ref_transcriptome parameter is not provided.",
       "mime-type": "text/x-fasta",
       "optional": true,
       "type": "aggregated"
