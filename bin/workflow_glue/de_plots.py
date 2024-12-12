@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """Create de report section."""
-
 import os
 
 from dominate.tags import h5, p
@@ -52,7 +51,7 @@ def create_summary_table(df):
         avg_acc, avg_mapq])
 
 
-def dexseq_section(dexseq_file, id_dic, pval_thresh):
+def dexseq_section(dexseq_file, tr_id_to_gene_name, tr_id_to_gene_id, pval_thresh):
     """Add gene isoforms table and plot."""
     h5("Differential Isoform usage")
     p("""Table showing gene isoforms, ranked by adjusted
@@ -64,9 +63,17 @@ def dexseq_section(dexseq_file, id_dic, pval_thresh):
 
     dexseq_results = pd.read_csv(dexseq_file, sep='\t')
     dexseq_results.index.name = "gene_id:transcript_id"
-    # Replace gene id with more useful gene name where possible
+
+    # Replace any occurrences of stringtie-generated MSTRG gene ids with
+    # reference gene_ids.
     dexseq_results.index = dexseq_results.index.map(
-        lambda x: str(id_dic.get(x.split(':')[0])) + ':' + str(x.split(':')[1]))
+        lambda ge_tr: str(  # lookup gene_id from transcript_id [1]
+            f"{tr_id_to_gene_id.get(ge_tr.split(':')[1])}: {str(ge_tr.split(':')[1])}")
+    )
+
+    # Add gene name column.
+    dexseq_results.insert(0, "gene_name", dexseq_results.index.map(
+        lambda x: tr_id_to_gene_name.get(x.split(':')[1])))
 
     DataTable.from_pandas(
         dexseq_results.sort_values(by='pvalue', ascending=True), use_index=True)
@@ -100,13 +107,12 @@ def dexseq_section(dexseq_file, id_dic, pval_thresh):
     EZChart(plot)
 
 
-def dtu_section(dtu_file, gt_dic, ge_dic):
+def dtu_section(dtu_file, txid_to_gene_name):
     """Plot dtu section."""
     dtu_results = pd.read_csv(dtu_file, sep='\t')
     dtu_results["gene_name"] = dtu_results["txID"].apply(
-        lambda x: gt_dic.get(x))
-    dtu_results["geneID"] = dtu_results["geneID"].apply(
-        lambda x: ge_dic.get(x))
+        lambda x: txid_to_gene_name.get(x))
+
     dtu_pvals = dtu_results.sort_values(by='gene', ascending=True)
     raw("""Table showing gene and transcript identifiers
     and their FDR-corrected (False discovery rate - Benjamini-Hochberg) probabilities
@@ -120,11 +126,10 @@ def dtu_section(dtu_file, gt_dic, ge_dic):
     raw("""View dtu_plots.pdf file to see plots of differential isoform usage""")
 
 
-def dge_section(dge_file, ids_dic, pval_thresh):
+def dge_section(df, pval_thresh):
     """Create DGE table and MA plot."""
     h5("Differential gene expression")
-    dge_results = pd.read_csv(dge_file, sep='\t')
-    dge_results[['logFC', 'logCPM', 'F']] = dge_results[
+    df[['logFC', 'logCPM', 'F']] = df[
         ['logFC', 'logCPM', 'F']].round(2)
 
     p("""Table showing the genes from the edgeR analysis.
@@ -134,10 +139,9 @@ def dge_section(dge_file, ids_dic, pval_thresh):
     This table has not been
     filtered for genes that satisfy statistical or magnitudinal thresholds""")
 
-    dge_results.index = dge_results.index.map(lambda x: ids_dic.get(x))
-    dge_results = dge_results.sort_values('FDR', ascending=True)
-    dge_results.index.name = 'Transcript'
-    DataTable.from_pandas(dge_results, use_index=True)
+    df = df.sort_values('FDR', ascending=True)
+    df.index.name = 'gene_id'
+    DataTable.from_pandas(df, use_index=True)
 
     h5("Results of the edgeR Analysis.")
 
@@ -150,15 +154,13 @@ def dge_section(dge_file, ids_dic, pval_thresh):
     (False discovery rate - Benjamini-Hochberg) p-value thresholds
     defined are shaded as 'Up-' or 'Down-' regulated.
     """)
-
-    dge = pd.read_csv(dge_file, sep="\t")
-    dge['sig'] = None
-    dge.loc[(dge["logFC"] > 0) & (dge['PValue'] < pval_thresh), 'sig'] = 'up'
-    dge.loc[(dge["logFC"] <= 0) & (dge['PValue'] < pval_thresh), 'sig'] = 'down'
-    dge.loc[(dge["PValue"] >= pval_thresh), 'sig'] = 'not_sig'
+    df['sig'] = None
+    df.loc[(df["logFC"] > 0) & (df['PValue'] < pval_thresh), 'sig'] = 'up'
+    df.loc[(df["logFC"] <= 0) & (df['PValue'] < pval_thresh), 'sig'] = 'down'
+    df.loc[(df["PValue"] >= pval_thresh), 'sig'] = 'not_sig'
 
     plot = scatterplot(
-        data=dge, x='logCPM', y='logFC', hue='sig',
+        data=df, x='logCPM', y='logFC', hue='sig',
         palette=['#E32636', '#7E8896', '#0A22DE'],
         hue_order=['up', 'not_sig', 'down'], marker='circle')
     plot._fig.x_range.start = 10
@@ -188,53 +190,58 @@ def salmon_table(salmon_counts):
 
 
 def get_translations(gtf):
-    """Create dict with gene_name and gene_references."""
+    """Create gene_and transcript id mappings.
+
+    Annotation can be stringtie-generated (GTF) or from the input
+    reference annotation (GTF or GFF3) and the various attributes can differ
+    """
     with open(gtf) as fh:
-        gene_txid = {}
-        gene_geid = {}
-        geid_gname = {}
+        txid_to_gene_name = {}
+        gid_to_gene_name = {}
+        tx_id_to_gene_id = {}
 
         def get_feature(row, feature):
             return row.split(feature)[1].split(
                 ";")[0].replace('=', '').replace("\"", "").strip()
 
-        for i in fh:
-            if i.startswith("#"):
+        for gff_entry in fh:
+            # Process transcripts features only
+            if gff_entry.startswith("#") or gff_entry.split('\t')[2] != 'transcript':
                 continue
             # Different gtf/gff formats contain different attributes
             # and different formating (eg. gene_name="xyz" or gene_name "xyz")
-            gene_name = None
-            for var_name in ["gene_name", "gene_id", "gene"]:
-                if var_name in i:
-                    gene_name = get_feature(i, var_name)
-                    break
+            gene_name = gene_id = transcript_id = 'unknown'
 
-            if 'ref_gene_id' in i:
-                gene_reference = get_feature(i, 'ref_gene_id')
-            elif 'gene_id' in i:
-                gene_reference = get_feature(i, 'gene_id')
+            if 'ref_gene_id' in gff_entry:
+                # Favour ref_gene_id over gene_id. The latter can be multi-locus merged
+                # genes from stringtie
+                gene_id = get_feature(gff_entry, 'ref_gene_id')
+            elif 'gene_id' in gff_entry:
+                gene_id = get_feature(gff_entry, 'gene_id')
             else:
-                gene_reference = gene_name
-            if 'transcript_id' in i:
-                transcript_id = get_feature(i, 'transcript_id')
+                gene_id = get_feature(gff_entry, 'gene')
+
+            if 'transcript_id' in gff_entry:
+                transcript_id = get_feature(gff_entry, 'transcript_id')
+
+            if 'gene_name' in gff_entry:
+                gene_name = get_feature(gff_entry, 'gene_name')
             else:
-                transcript_id = "unknown"
-            if 'gene_id' in i:
-                gene_id = get_feature(i, 'gene_id')
-            else:
-                gene_id = gene_name
-            gene_txid[transcript_id] = gene_name
-            gene_geid[gene_id] = gene_reference
-            geid_gname[gene_reference] = gene_name
-    return gene_txid, gene_geid, geid_gname
+                # Fallback to gene_id if gene_name is not present
+                gene_name = gene_id
+
+            txid_to_gene_name[transcript_id] = gene_name
+            tx_id_to_gene_id[transcript_id] = gene_id
+            gid_to_gene_name[gene_id] = gene_name
+    return txid_to_gene_name, tx_id_to_gene_id, gid_to_gene_name
 
 
 def de_section(
-        stringtie, dge, dexseq, dtu,
+        annotation, dge, dexseq, dtu,
         tpm, report, filtered, unfiltered,
         gene_counts, aln_stats_dir, pval_threshold=0.01):
     """Differential expression sections."""
-    with report.add_section("Differential expression", "DE"):
+    with (report.add_section("Differential expression", "DE")):
 
         p("""This section shows differential gene expression
         and differential isoform usage. Salmon was used to
@@ -256,39 +263,45 @@ def de_section(
         DataTable.from_pandas(alignment_summary_df, use_index=True)
 
         salmon_table(tpm)
-        gene_txid, gene_name, geid_gname = get_translations(stringtie)
+
+        # Get translations for adding gene names to tables
+        (
+            txid_to_gene_name,  txid_to_gene_id, gid_to_gene_name
+         ) = get_translations(annotation)
 
         # Add gene names columns to counts files and write out
         # for publishing to user dir.
         df_dge = pd.read_csv(dge, sep='\t')
-        df_dge.insert(0, 'gene_name', df_dge.index.map(lambda x: geid_gname.get(x)))
+        df_dge.insert(0, 'gene_name', df_dge.index.map(
+            lambda x: gid_to_gene_name.get(x)))
         df_dge.to_csv('results_dge.tsv', index=True, index_label="gene_id", sep="\t")
 
-        # write_dge(gene_counts, geid_gname, "all_gene_counts.tsv")
+        # write_dge(gene_counts, gid_to_gene_name, "all_gene_counts.tsv")
         df_gene_counts = pd.read_csv(gene_counts, sep='\t')
         df_gene_counts.insert(
-                0, 'gene_name', df_gene_counts.index.map(lambda x: geid_gname.get(x)))
+            0, 'gene_name', df_gene_counts.index.map(
+                lambda x: gid_to_gene_name.get(x)))
         df_gene_counts.to_csv(
             'results_dge.tsv', index=True, index_label="gene_id", sep="\t")
 
         df_filtered = pd.read_csv(filtered, sep='\t')
         df_filtered.insert(1, "gene_name", df_filtered.gene_id.map(
-            lambda x: geid_gname.get(x)))
+            lambda x: gid_to_gene_name.get(x)))
         df_filtered.to_csv(
             'filtered_transcript_counts_with_genes.tsv', index=False, sep='\t')
 
         df_unfiltered = pd.read_csv(unfiltered, sep='\t')
         df_unfiltered.insert(1, "gene_name", df_unfiltered.gene_id.map(
-            lambda x: geid_gname.get(x)))
+            lambda x: gid_to_gene_name.get(x)))
         df_unfiltered.to_csv(
             'unfiltered_transcript_counts_with_genes.tsv', index=False, sep='\t')
 
         df_tpm = pd.read_csv(tpm, sep='\t')
         df_tpm.insert(1, "gene_name", df_tpm.Reference.map(
-            lambda x: gene_txid.get(x)))
+            lambda x: txid_to_gene_name.get(x)))
         df_tpm.to_csv("unfiltered_tpm_transcript_counts.tsv", index=False, sep='\t')
 
         # Add tables to report
-        dge_section(dge, gene_name, pval_threshold)
-        dexseq_section(dexseq, gene_name, pval_threshold)
-        dtu_section(dtu, gene_txid, gene_name)
+        dge_section(df_dge, pval_threshold)
+        dexseq_section(dexseq, txid_to_gene_name, txid_to_gene_id, pval_threshold)
+        dtu_section(dtu, txid_to_gene_name)

@@ -12,6 +12,8 @@ variables:
               --direct_rna --minimap2_index_opts '-k 15' --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
               -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
               CI_FLAVOUR: "new"
+              PYTEST_CONTAINER_NAME: "wf-common"
+              PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
 
 macos-run:
   # Let's avoid those ARM64 runners for now
@@ -146,7 +148,7 @@ docker-run:
                 --ref_genome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
                 --direct_rna --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                --sample_sheet test_data/sample_sheet.csv \
                 -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
@@ -160,7 +162,7 @@ docker-run:
                 --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
                 --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.109.gtf.gz \
                 --direct_rna --ref_transcriptome  ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.cdna.all.fa.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                --sample_sheet test_data/sample_sheet.csv \
                 -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
@@ -174,7 +176,7 @@ docker-run:
                 --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_mouse/GRCm39.genome.fa.gz \
                 --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_mouse/gencode.vM33.annotation.gtf \
                 --direct_rna --ref_transcriptome  ${CI_PROJECT_NAME}/data/differential_expression_mouse/gencode.vM33.transcripts.fa.gz \
-                --transcriptome_assembly false --sample_sheet  ${CI_PROJECT_NAME}/data/differential_expression_mouse/sample_sheet.csv \
+                --sample_sheet  ${CI_PROJECT_NAME}/data/differential_expression_mouse/sample_sheet.csv \
                 -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config"
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,
@@ -215,7 +217,7 @@ docker-run:
                 --ref_genome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
                 --direct_rna --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
-                --transcriptome_assembly false --sample_sheet test_data/sample_sheet.csv \
+                --sample_sheet test_data/sample_sheet.csv \
                 --igv \
                 -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
               NF_IGNORE_PROCESSES: >

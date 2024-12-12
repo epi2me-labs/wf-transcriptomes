@@ -319,15 +319,16 @@ def de_section(report, de_report_dir, de_aln_stats_dir, pval_threshold):
     dexseq = de_report_dir / "results_dexseq.tsv"
     dge = de_report_dir / "results_dge.tsv"
     dtu = de_report_dir / "results_dtu_stageR.tsv"
-    # GFF file can have gtf or gff extension
-    stringtie = next(de_report_dir.glob("*.g*f*"))
+    # GFF file can have gtf or gff extension.
+    # Will be the original (transcriptome_source=precomputed) or wf-assembled annotation
+    annotation = next(de_report_dir.glob("*.g*f*"))
     tpm = de_report_dir / "unfiltered_tpm_transcript_counts.tsv"
     filtered = de_report_dir / "filtered_transcript_counts_with_genes.tsv"
     unfiltered = de_report_dir / "unfiltered_transcript_counts_with_genes.tsv"
     gene_counts = de_report_dir / "all_gene_counts.tsv"
     # This will also add a gene name column to the above counts tsv files
     de_plots.de_section(
-        stringtie=stringtie,
+        annotation=annotation,
         dexseq=dexseq,
         dge=dge,
         dtu=dtu,
