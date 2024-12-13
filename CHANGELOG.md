@@ -4,8 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-- Fix v1.4.0 bug; access to undefined channel output bug when using precomputed transcriptome.
+## [v1.6.0]
+### Fixed
+- v1.5.0 bug; access to undefined channel output bug when using precomputed transcriptome.
+- Bug where incorrect gene_id assigned in the DE tables.
 
 ## [v1.5.0]
 ### Updated
