@@ -404,7 +404,7 @@ process makeReport {
         path gff_annotation, stageAs: "gff_annotation/*"
         path de_report, stageAs: "de_report/*"
         path isoforms_table, stageAs: "isoforms_table/*"
-        path "transcriptome_summary/summary_*.tsv"
+        path transcriptome_summary, stageAs: "transcriptome_summary/summary_*.pkl"
 
     output:
         path ("wf-transcriptomes-*.html"), emit: report
@@ -422,6 +422,7 @@ process makeReport {
         String aln_stats_opts = aln_stats.fileName.name == OPTIONAL_FILE.name ? "" :  "--alignment_stats aln_stats/"
         String pychop_opts = pychopper.fileName.name == OPTIONAL_FILE.name ? "" :  "--pychop_report pychopper_report/"
         String iso_table_opts = isoforms_table.fileName.name == OPTIONAL_FILE.name ? "" :  "--isoform_table isoforms_table/"
+        String tr_summary_opts = transcriptome_summary.fileName.name == OPTIONAL_FILE.name ? "" :  "--transcriptome_summary transcriptome_summary/"
     """
     echo '${metadata}' > metadata.json
     workflow-glue report \
@@ -438,7 +439,7 @@ process makeReport {
         $gffcmp_opts \
         --isoform_table_nrows ${params.isoform_table_nrows} \
         $de_report_opts \
-        --transcriptome_summary transcriptome_summary/
+        $tr_summary_opts
     """
 }
 
@@ -633,6 +634,7 @@ workflow pipeline {
             full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
             pychopper_report = OPTIONAL_FILE
         }
+        
         if (params.transcriptome_source != "precomputed"){
             build_minimap_index(ref_genome)
             log.info("Doing reference based transcript analysis")
@@ -645,6 +647,8 @@ workflow pipeline {
             assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls).combine(ref_annotation),use_ref_ann)
 
             merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
+            transcriptome_summary = merge_gff_bundles.out.summary.map {it[1]}.collect()
+
             // only run gffcompare if ref annotation provided. Otherwise create optional files and channels
             if (params.ref_annotation){
                 run_gffcompare(merge_gff_bundles.out.gff, ref_annotation)
@@ -679,6 +683,7 @@ workflow pipeline {
             isoforms_table = OPTIONAL_FILE
             merge_gff = OPTIONAL_FILE
             assembly_stats = OPTIONAL_FILE
+            transcriptome_summary = OPTIONAL_FILE
             use_ref_ann = false
         }
         if (params.de_analysis){
@@ -732,7 +737,7 @@ workflow pipeline {
             merge_gff,
             de_report,
             isoforms_table,
-            merge_gff_bundles.out.summary.map {it[1]}.collect())
+            transcriptome_summary)
 
        report = makeReport.out.report
 
