@@ -250,7 +250,7 @@ def transcriptome_summary(report, summaries_dir):
         tabs = Tabs()
         data = {}
         # Load all the dataframes upfront to get sample_id for sorting.
-        for summ_file in summaries_dir.glob('summary_*.tsv'):
+        for summ_file in summaries_dir.glob('summary_*.pkl'):
             with open(summ_file, 'rb') as fh:
                 summ = pickle.load(fh)
             sample_id = summ['sample_id']
