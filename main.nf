@@ -271,7 +271,7 @@ process merge_gff_bundles{
     memory "2 GB"
 
     input:
-        tuple val(sample_id), path (gff_bundle)
+        tuple val(sample_id), path ('gff_bundles/annotation*.gff')
     output:
         tuple val(sample_id), path("${sample_id}.gff"), emit: gff
         tuple val(sample_id), path("transcriptome_summary.pickle"), emit: summary
@@ -281,11 +281,13 @@ process merge_gff_bundles{
     echo '##gff-version 2' >> $merged_gff;
     echo '#pipeline-nanopore-isoforms: stringtie' >> $merged_gff;
 
-    for fn in ${gff_bundle};
-    do
-        grep -v '#' \$fn >> $merged_gff
-
-    done
+    find -L gff_bundles -type f -name "*.gff" \
+        -exec awk '!/^#/ {print}' {} \\; >> "${sample_id}.gff"
+    if ! [ -s "${sample_id}.gff" ]; then
+        echo "No transcripts found for ${sample_id}"
+        # This is unlikely to ever happen, but if it does, we should fail the workflow.
+        exit 70
+    fi
 
     workflow-glue summarise_gff \
         $merged_gff \
