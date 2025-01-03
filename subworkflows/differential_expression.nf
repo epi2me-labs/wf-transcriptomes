@@ -109,7 +109,7 @@ process build_minimap_index_transcriptome{
     */
     label "isoforms"
     cpus params.threads
-    memory "16 GB"
+    memory "31 GB"
     input:
         path reference
     output:
