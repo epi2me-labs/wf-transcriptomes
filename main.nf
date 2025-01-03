@@ -193,12 +193,11 @@ process split_bam{
     Partition BAM file into loci or bundles with `params.bundle_min_reads` minimum size
     If no splitting required, just create single symbolic link to a single bundle.
 
-    Output tuples containing `sample_id` so bundles can be combined later in th pipeline.
     */
 
     label 'isoforms'
     cpus params.threads
-    memory "4 GB"
+    memory "15 GB"
 
     input:
         tuple val(sample_id), path(bam)

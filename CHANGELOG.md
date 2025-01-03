@@ -4,9 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Changed
+- `split_bam` and `build_minimap_index_transcriptome` process memory allocation increased.
+
 ## [v1.6.1]
 ### Fixed
-- merge_gff_compare failing with empty GFF files.
+- `merge_gff_compare` failing with empty GFF files.
 
 ## [v1.6.0]
 ### Fixed
