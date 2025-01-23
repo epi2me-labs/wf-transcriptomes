@@ -3,7 +3,7 @@
     "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
     "title": "epi2me-labs/wf-transcriptomes",
     "workflow_title": "Workflow Transcriptomes",
-    "description": "Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data and differential expression analysis.",
+    "description": "Transcriptome analysis of cDNA and direct RNA sequencing data.",
     "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
     "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/aws.nextflow.config",
     "url": "https://github.com/epi2me-labs/wf-transcriptomes",
@@ -376,7 +376,7 @@
     "resources": {
         "recommended": {
             "cpus": 16,
-            "memory": "32GB"
+            "memory": "64GB"
         },
         "minimum": {
             "cpus": 8,

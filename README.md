@@ -1,6 +1,6 @@
 # Workflow Transcriptomes
 
-Transcriptome analysis including assembly and annotation of cDNA and direct RNA sequencing data and differential expression analysis.
+Transcriptome analysis of cDNA and direct RNA sequencing data.
 
 
 
@@ -21,7 +21,7 @@ This workflow can be used for the following:
 Recommended requirements:
 
 + CPUs = 16
-+ Memory = 32GB
++ Memory = 64GB
 
 Minimum requirements:
 
