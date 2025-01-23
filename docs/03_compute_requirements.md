@@ -1,7 +1,7 @@
 Recommended requirements:
 
 + CPUs = 16
-+ Memory = 32GB
++ Memory = 64GB
 
 Minimum requirements:
 
