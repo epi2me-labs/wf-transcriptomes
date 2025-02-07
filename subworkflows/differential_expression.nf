@@ -81,9 +81,16 @@ process deAnalysis {
         path "de_analysis/results_dtu.pdf", emit: dtu_pdf
         path "de_analysis/cpm_gene_counts.tsv", emit: cpm
     """
-    mkdir merged
-    mkdir de_analysis
-    de_analysis.R annotation.gtf $params.min_samps_gene_expr $params.min_samps_feature_expr $params.min_gene_expr $params.min_feature_expr "sample_sheet.csv"
+    de_analysis.R \
+    --annotation annotation.gtf \
+    --min_samps_gene_expr $params.min_samps_gene_expr \
+    --min_samps_feature_expr $params.min_samps_feature_expr \
+    --min_gene_expr $params.min_gene_expr \
+    --min_feature_expr $params.min_feature_expr \
+    --sample_sheet sample_sheet.csv \
+    --all_counts all_counts.tsv \
+    --de_out_dir de_analysis \
+    --merged_out_dir merged
     """
 }
 
@@ -99,7 +106,11 @@ process plotResults {
     output:
         path "dtu_plots.pdf", emit: dtu_plots
     """
-    plot_dtu_results.R
+    plot_dtu_results.R \
+    --counts filtered_transcript_counts_with_genes.tsv \
+    --results_dtu results_dtu_stageR.tsv \
+    --sample_sheet sample_sheet.tsv \
+    --pdf_out dtu_plots.pdf
     """
 }
 

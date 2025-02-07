@@ -1,21 +1,30 @@
 #!/usr/bin/env Rscript
 
+suppressMessages(library(argparser))
+
+parser <- arg_parser("Plot results")
+parser <- add_argument(parser, "--counts", help="Filtered transcript counts with genes.")
+parser <- add_argument(parser, "--results_dtu", help="stageR results.")
+parser <- add_argument(parser, "--sample_sheet", help="Sample sheet.")
+parser <- add_argument(parser, "--pdf_out", help="PDF file name.")
+argv <- parse_args(parser)
+
 suppressMessages(library(dplyr))
 suppressMessages(library(ggplot2))
 suppressMessages(library(tidyr))
 
 # Set up sample data frame:
-coldata <- read.csv("sample_sheet.tsv", row.names="alias", sep=",")
+coldata <- read.csv(argv$sample_sheet, row.names="alias", sep=",")
 coldata$condition <- factor(coldata$condition, levels=rev(levels(coldata$condition)))
 coldata$type <-NULL
 coldata$patient <-NULL
 
 # Read stageR results:
-stageR <- read.csv("results_dtu_stageR.tsv", sep="\t")
+stageR <- read.csv(argv$results_dtu, sep="\t")
 names(stageR) <- c("gene_id", "transcript_id", "p_gene", "p_transcript");
 
 # Read filtered counts:
-counts <- read.csv("filtered_transcript_counts_with_genes.tsv", sep="\t");
+counts <- read.csv(argv$counts, sep="\t");
 names(counts)[2]<-"transcript_id"
 
 # Join counts and stageR results:
@@ -44,13 +53,13 @@ sig_level <- 0.05
 genes <- as.character(tdf[which(tdf$p_gene < sig_level),]$gene_id)
 genes <- unique(genes)
 
-pdf("dtu_plots.pdf")
+pdf(argv$pdf_out)
 
 for(gene in genes){
     gdf<-tdf[which(tdf$gene_id==gene),]
     p_gene <- unique(gdf$p_gene)
-    p <- ggplot(gdf, aes(x=transcript_id, y=norm_count)) + geom_bar(stat="identity", aes(fill=sample), position="dodge")
-    p <- p + facet_wrap(~ group) + coord_flip()
-    p <- p + ggtitle(paste(gene," : p_value=",p_gene,sep=""))
-    print(p)
+    dtu_plot <- ggplot(gdf, aes(x=transcript_id, y=norm_count)) + geom_bar(stat="identity", aes(fill=sample), position="dodge")
+    dtu_plot <- dtu_plot + facet_wrap(~ group) + coord_flip()
+    dtu_plot <- dtu_plot + ggtitle(paste(gene," : p_value=",p_gene,sep=""))
+    print(dtu_plot)
 }
