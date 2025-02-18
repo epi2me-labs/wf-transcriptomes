@@ -276,13 +276,12 @@ def de_section(
             lambda x: gid_to_gene_name.get(x)))
         df_dge.to_csv('results_dge.tsv', index=True, index_label="gene_id", sep="\t")
 
-        # write_dge(gene_counts, gid_to_gene_name, "all_gene_counts.tsv")
         df_gene_counts = pd.read_csv(gene_counts, sep='\t')
         df_gene_counts.insert(
             0, 'gene_name', df_gene_counts.index.map(
                 lambda x: gid_to_gene_name.get(x)))
         df_gene_counts.to_csv(
-            'results_dge.tsv', index=True, index_label="gene_id", sep="\t")
+            'all_gene_counts.tsv', index=True, index_label="gene_id", sep="\t")
 
         df_filtered = pd.read_csv(filtered, sep='\t')
         df_filtered.insert(1, "gene_name", df_filtered.gene_id.map(
