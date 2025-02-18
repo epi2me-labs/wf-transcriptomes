@@ -25,7 +25,6 @@ process getVersions {
     script:
     """
     python -c "import pysam; print(f'pysam,{pysam.__version__}')" >> versions.txt
-    python -c "import aplanat; print(f'aplanat,{aplanat.__version__}')" >> versions.txt
     python -c "import pandas; print(f'pandas,{pandas.__version__}')" >> versions.txt
     python -c "import sklearn; print(f'scikit-learn,{sklearn.__version__}')" >> versions.txt
     fastcat --version | sed 's/^/fastcat,/' >> versions.txt
