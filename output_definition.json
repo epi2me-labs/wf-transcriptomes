@@ -193,7 +193,7 @@
       "type": "aggregated"
     },
     "reference-index": {
-      "filepath": "igv_reference/{{ ref_genome file }}.fai",
+      "filepath": "igv_reference/{{ ref_genome_file }}.fai",
       "title": "Index of reference FASTA file",
       "description": "Reference genome index of the FASTA file required for IGV config.",
       "mime-type": "text/tab-separated-values",
@@ -201,7 +201,7 @@
       "type": "aggregated"
     },
     "reference-gzi-index": {
-        "filepath": "igv_reference/{{ ref_genome file }}.gzi",
+        "filepath": "igv_reference/{{ ref_genome_file }}.gzi",
         "title": "GZI index of the reference FASTA file",
         "description": "GZI Index of the reference FASTA file.",
         "mime-type": "application/octet-stream",
