@@ -233,8 +233,8 @@ Output files may be aggregated including information for all samples or provided
 | Transcript counts filtered | de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
 | Transcript info table | {{ alias }}_transcripts_table.tsv | This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) | per-sample |
 | Final non redundant transcriptome | de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. Only applicable when the ref_transcriptome parameter is not provided. | aggregated |
-| Index of reference FASTA file | igv_reference/{{ ref_genome file }}.fai | Reference genome index of the FASTA file required for IGV config. | aggregated |
-| GZI index of the reference FASTA file | igv_reference/{{ ref_genome file }}.gzi | GZI Index of the reference FASTA file. | aggregated |
+| Index of reference FASTA file | igv_reference/{{ ref_genome_file }}.fai | Reference genome index of the FASTA file required for IGV config. | aggregated |
+| GZI index of the reference FASTA file | igv_reference/{{ ref_genome_file }}.gzi | GZI Index of the reference FASTA file. | aggregated |
 | JSON configuration file for IGV browser | igv.json | JSON configuration file to be loaded in IGV for visualising alignments against the reference. | aggregated |
 | BAM file (minimap2) | BAMS/{{ alias }}.reads_aln_sorted.bam | BAM file generated from mapping input reads to the reference. | per-sample |
 | BAM index file (minimap2) | BAMS/{{ alias }}.reads_aln_sort.bam.bai | Index file generated from mapping input reads to the reference. | per-sample |
