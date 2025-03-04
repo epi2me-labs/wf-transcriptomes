@@ -676,9 +676,12 @@ workflow pipeline {
 
 
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
+
             // Output BAMS in a dedicated directory
             bam_results = assembly.bam.map{
                 sample_id, bam, bai -> [bam, bai]}.flatten().map{ [it, publish_bams] }
+
+            results = results.concat(bam_results)
         }
         else{
             gff_compare = OPTIONAL_FILE
@@ -743,27 +746,24 @@ workflow pipeline {
 
        report = makeReport.out.report
 
-       results = results.concat(report)
+       results = results.concat(report.map{ [it, null] })
        
        if (use_ref_ann){
-            results = run_gffcompare.output.gffcmp_dir.concat(
+            results = results.concat(run_gffcompare.output.gffcmp_dir.concat(
                       assembly.stats,
                       run_gffcompare.out.isoforms_table,
                       get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
-                      .map {it -> it[1]}
-                      .concat(results)
+                      .map {it -> [ it[1], null ]})
 
        }
     
         if (!use_ref_ann && params.transcriptome_source == "reference-guided"){
-            results =  assembly.stats.concat(
+            results =  results.concat(assembly.stats.concat(
                        get_transcriptome.out.transcriptome.flatMap(map_sample_ids_cls))
-                      .map {it -> it[1]}
-                      .concat(results)
-
+                      .map {it -> [ it[1], null ]})
         }
 
-       results = results.map{ [it, null] }.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
+       results = results.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
 
         if (params.de_analysis){
            de_results = report.concat(
@@ -853,10 +853,9 @@ workflow pipeline {
                 )
 
             results = results.concat(igv_conf.map{ [it, null]})
-            results = results.concat(bam_results)
+            // results = results.concat(bam_results)
       }
 
-       
     emit:
         results
 }
@@ -951,6 +950,7 @@ workflow {
     }
 
     pipeline(samples, ref_genome, ref_annotation, ref_transcriptome, use_ref_ann)
+    // pipeline.out.results.view()
     publish_results(pipeline.out.results)
 }
 
