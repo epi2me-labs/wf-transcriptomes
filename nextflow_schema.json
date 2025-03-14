@@ -316,6 +316,10 @@
                     "fa_icon": "fas fa-question-circle",
                     "hidden": true
                 },
+                "store_dir": {
+                    "type": "string",
+                    "hidden": true
+                },
                 "disable_ping": {
                     "type": "boolean",
                     "default": false,
