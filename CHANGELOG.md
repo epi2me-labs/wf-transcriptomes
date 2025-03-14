@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `split_bam` and `build_minimap_index_transcriptome` process memory allocation increased.
 - Updated recommended memory requirement.
 - Updated project description.
+- A common user issue is providing a ref_annotation and ref_genome parameter that have mismatched reference IDs, which causes the DE_analysis to fail. The workflow will now do an upfront check and give an error message if no overlap is found or a warning if some IDs are present in one file but not in the other.
 - Reconciled workflow with wf-template v5.5.0.
 ### Fixed
 - `all_gene_counts.tsv` contained the DE counts results.

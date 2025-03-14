@@ -69,6 +69,54 @@ process decompress_ref {
     """
 }
 
+process validate_ref_annotation {
+    label "isoforms"
+    cpus 1
+    memory "2 GB"
+    input:
+        path "annotation.gtf"
+        path "reference.fasta"
+    output: 
+        stdout
+    // Checks for overlap between seq_id column in annotation gtf and fasta reference ID's
+    // If no overlap is found exit
+    // Partial overlap (eg. user supplies genes/contigs of interest in annotation but the genome sequence) - warning
+    script:
+    """
+    grep -v '^#' annotation.gtf | cut -f1  | sort -u > seq_ids.txt
+    awk '/^>/ {print substr(\$1,2)}' reference.fasta | sort -u > ref_ids.txt
+    matches=\$(comm -12 seq_ids.txt ref_ids.txt)
+    only_in_annotation=\$(comm -23 seq_ids.txt ref_ids.txt)
+    only_in_reference=\$(comm -13 seq_ids.txt ref_ids.txt)
+    if [[ -z "\$matches" ]]; then
+        echo "
+        ERROR: Seqid mismatch found between the provided ref_annotation (GTF/GFF)
+        file and ref_genome (FASTA).
+        For the reference guided differential expression subworkflow they must overlap.
+        " >&2
+        echo "Annotation ID examples:"
+        head -n 5 seq_ids.txt
+        echo "Reference ID examples:"
+        head -n 5 ref_ids.txt
+        echo "We recommend getting both files from the same source.
+        eg. both from Ensembl or both from NCBI.
+        Alternatively provide a pre-computed transcriptome using the ref_transcriptome parameter
+        See the README for more details on which inputs are supported."
+        exit 78 
+    fi
+    if [[ -n "\$only_in_annotation" ]]; then
+        echo "Warning: Some sequence IDs are only present in the reference annotation and not the
+             reference genome so will not be used in downstream analysis eg."
+        echo "\$only_in_annotation" | head -n 5
+    fi
+    if [[ -n "\$only_in_reference" ]]; then
+        echo "Warning: Some FASTA reference IDs are only present in the reference genome
+            and not the reference annotation so will not be used in downstream analysis eg."
+        echo "\$only_in_reference" | head -n 5
+    fi
+    """
+}
+
 
 process decompress_annotation {
     label "isoforms"
@@ -695,6 +743,11 @@ workflow pipeline {
                     stdoutput
                 }
             if (!params.ref_transcriptome){
+                validate_ref_annotation(ref_annotation, ref_genome).map { stdoutput ->
+                    if (stdoutput) {
+                        log.warn(stdoutput)
+                    }
+                }
                 merge_transcriptomes(run_gffcompare.output.gtf.collect(), ref_annotation, ref_genome)
                 transcriptome = merge_transcriptomes.out.fasta
                 gtf = merge_transcriptomes.out.gtf
