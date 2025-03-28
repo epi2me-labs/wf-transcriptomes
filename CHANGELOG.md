@@ -11,8 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated project description.
 - A common user issue is providing a ref_annotation and ref_genome parameter that have mismatched reference IDs, which causes the DE_analysis to fail. The workflow will now do an upfront check and give an error message if no overlap is found or a warning if some IDs are present in one file but not in the other.
 - Reconciled workflow with wf-template v5.5.0.
+- Sort the columns and rows of the gene and transcript count files.
 ### Fixed
 - `all_gene_counts.tsv` contained the DE counts results.
+- The merged transcriptome generated for differential expression analysis now only contains the exons and not the full genomic sequence.
+- Output the gene name annotated differential expression analysis count files only.
+- Only use full length reads in the differential expression analysis.
 
 ## [v1.6.1]
 ### Fixed

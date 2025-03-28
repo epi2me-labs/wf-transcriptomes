@@ -58,5 +58,7 @@ def main(args):
         left, right, on=args.f, how=args.j), dfs)
     if args.z:
         df_merged = df_merged.fillna(0)
+    df_merged = df_merged.sort_index(axis=1)
+    df_merged = df_merged.sort_index(axis=0)
 
     df_merged.to_csv(args.o, sep="\t", index=False)

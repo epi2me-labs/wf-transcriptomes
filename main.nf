@@ -422,14 +422,8 @@ process merge_transcriptomes {
         path "final_non_redundant_transcriptome.fasta", emit: fasta
         path "stringtie.gtf", emit: gtf
     """
-    stringtie --rf --merge -G $ref_annotation -p ${task.cpus} -o stringtie.gtf query_annotations/*
-    seqkit subseq --feature "transcript" --gtf-tag "transcript_id" --gtf stringtie.gtf $ref_genome > temp_transcriptome.fasta
-    seqkit rmdup -s < temp_transcriptome.fasta > temp_del_repeats.fasta
-    cat temp_del_repeats.fasta | sed 's/>.* />/'  | sed -e 's/_[0-9]* \\[/ \\[/' > temp_rm_empty_seq.fasta
-    awk 'BEGIN {RS = ">" ; FS = "\\n" ; ORS = ""} \$2 {print ">"\$0}' temp_rm_empty_seq.fasta > "final_non_redundant_transcriptome.fasta"
-    rm temp_transcriptome.fasta
-    rm temp_del_repeats.fasta
-    rm temp_rm_empty_seq.fasta
+    stringtie --merge -G "${ref_annotation}" -p ${task.cpus} -o stringtie.gtf query_annotations/*
+    gffread -g "${ref_genome}" -w "final_non_redundant_transcriptome.fasta" "stringtie.gtf"
     """
 }
 
@@ -760,7 +754,7 @@ workflow pipeline {
                 transcriptome = preprocess_ref_transcriptome(transcriptome)
                 gtf = ref_annotation
             }
-            de = differential_expression(transcriptome, input_reads, sample_sheet, gtf)
+            de = differential_expression(transcriptome, full_len_reads.map{ sample_id, reads -> [[alias:sample_id], reads]}, sample_sheet, gtf)
             de_report = de.all_de
             de_outputs = de.de_outputs
             count_transcripts_file = de.count_transcripts
