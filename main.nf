@@ -757,10 +757,10 @@ workflow pipeline {
             de = differential_expression(transcriptome, full_len_reads.map{ sample_id, reads -> [[alias:sample_id], reads]}, sample_sheet, gtf)
             de_report = de.all_de
             de_outputs = de.de_outputs
-            count_transcripts_file = de.count_transcripts
+            de_alignment_stats = de.de_alignment_stats
         } else{
             de_report = OPTIONAL_FILE
-            count_transcripts_file = OPTIONAL_FILE
+            de_alignment_stats = OPTIONAL_FILE
         }
 
         // get metadata and stats files, keeping them ordered (could do with transpose I suppose)
@@ -777,7 +777,7 @@ workflow pipeline {
             software_versions,
             workflow.manifest.version,
             workflow_params,
-            count_transcripts_file,
+            de_alignment_stats,
             pychopper_report,
             assembly_stats,
             gff_compare,

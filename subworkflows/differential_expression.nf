@@ -16,16 +16,14 @@ process count_transcripts {
     // library type is specified as forward stranded (-l SF) as it should have either been through pychopper or come from direct RNA reads.
     label "isoforms"
     cpus params.threads
-    memory "16 GB"
+    memory "31 GB"
     input:
         tuple val(meta), path(bam), path(ref_transcriptome)
     output:
         path "*transcript_counts.tsv", emit: counts
-        path "*seqkit.stats", emit: seqkit_stats
     """
     salmon quant --noErrorModel -p "${task.cpus}" -t "${ref_transcriptome}" -l SF -a "${bam}" -o counts
     mv counts/quant.sf "${meta.alias}.transcript_counts.tsv"
-    seqkit bam  "${bam}" 2>  "${meta.alias}.seqkit.stats"
     """
 }
 
@@ -147,10 +145,12 @@ process map_transcriptome{
        tuple val(meta), path (fastq_reads), path(index)
     output:
        tuple val(meta), path("${meta.alias}_reads_aln_sorted.bam"), emit: bam
+       path("${meta.alias}.flagstat.stats"), emit: align_stats
     """
     minimap2 -t ${task.cpus} -ax splice -uf -p 1.0 "${index}" "${fastq_reads}" \
     | samtools view -Sb > "output.bam"
     samtools sort -@ ${task.cpus} "output.bam" -o "${meta.alias}_reads_aln_sorted.bam"
+    samtools flagstat -O json "${meta.alias}_reads_aln_sorted.bam" > "${meta.alias}.flagstat.stats"
     """
 }
 
@@ -179,9 +179,9 @@ workflow differential_expression {
         // Concat files required to be output to user without any changes
         de_outputs_concat = analysis.cpm.concat(plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge_tsv,
         analysis.dtu_gene, analysis.dtu_transcript, analysis.dtu_stageR, analysis.dtu_pdf, merged_TPM).collect()
-        count_transcripts_file = count_transcripts.out.seqkit_stats.collect()
+        collected_de_alignment_stats = mapped.align_stats.collect()
 emit:
        all_de = de_report
-       count_transcripts = count_transcripts_file
+       de_alignment_stats = collected_de_alignment_stats
        de_outputs = de_outputs_concat
 }
