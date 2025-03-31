@@ -314,7 +314,7 @@ def transcriptome_summary(report, summaries_dir):
                         df_table, use_index=False, searchable=False, paging=False)
 
 
-def de_section(report, de_report_dir, de_aln_stats_dir, pval_threshold):
+def de_section(report, de_report_dir, flagstats_dir, pval_threshold):
     """Make differential transcript expression section."""
     dexseq = de_report_dir / "results_dexseq.tsv"
     dge = de_report_dir / "results_dge.tsv"
@@ -337,7 +337,7 @@ def de_section(report, de_report_dir, de_aln_stats_dir, pval_threshold):
         filtered=filtered,
         unfiltered=unfiltered,
         gene_counts=gene_counts,
-        aln_stats_dir=de_aln_stats_dir,
+        flagstats_dir=flagstats_dir,
         pval_threshold=pval_threshold
     )
 

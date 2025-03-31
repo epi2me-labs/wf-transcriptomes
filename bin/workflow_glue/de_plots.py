@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Create de report section."""
+import json
 import os
 
 from dominate.tags import h5, p
@@ -7,48 +8,32 @@ from dominate.util import raw
 from ezcharts import scatterplot
 from ezcharts.components.ezchart import EZChart
 from ezcharts.layout.snippets import DataTable
+from natsort import natsorted
 import numpy as np
 import pandas as pd
 
 
-def parse_seqkit(fname):
-    """Get seqkit columns."""
-    cols = {
-        'Read': str, 'Ref': str, 'MapQual': int, 'Acc': float, 'ReadLen': int,
-        'ReadAln': int, 'ReadCov': float, 'MeanQual': float,
-        'IsSec': bool, 'IsSup': bool}
-    df = pd.read_csv(fname, sep="\t", dtype=cols, usecols=cols.keys())
-    df['Clipped'] = df['ReadLen'] - df['ReadAln']
-    df['Type'] = 'Primary'
-    df.loc[df['IsSec'], 'Type'] = 'Secondary'
-    df.loc[df['IsSup'], 'Type'] = 'Supplementary'
-    df["fname"] = os.path.basename(fname).rstrip(".seqkit.stats")
-    return df
-
-
-def number_of_alignments(df, field_name):
-    """Group alignments for summary table."""
-    grouped = df.groupby('fname').agg(**{
-        field_name: ('Read', 'size'),
-    })
-    return grouped.transpose()
-
-
-def create_summary_table(df):
-    """Create summary table."""
-    all_aln = number_of_alignments(df, "Read mappings")
-    primary = number_of_alignments(df.loc[df['Type'] == 'Primary'], "Primary")
-    secondary = number_of_alignments(
-        df.loc[df['Type'] == 'Secondary'], "Secondary")
-    supplementary = number_of_alignments(
-        df.loc[df['Type'] == 'Supplementary'], "Supplementary")
-    avg_acc = df.loc[df['Type'] == 'Primary'].groupby(
-        'fname').agg(**{"Median Qscore": ('MeanQual', 'median'), }).transpose()
-    avg_mapq = df.loc[df['Type'] == 'Primary'].groupby(
-        'fname').agg(**{"Median MAPQ": ('MapQual', 'median'), }).transpose()
-    return pd.concat([
-        all_aln, primary, secondary, supplementary,
-        avg_acc, avg_mapq])
+def flagstats_df(flagstats_reports):
+    """Flag stats alignment dataframe."""
+    flagstats_dic = {}
+    for flagstat in flagstats_reports.iterdir():
+        with open(flagstat, "r") as f:
+            data = json.load(f)
+            data = data["QC-passed reads"]
+            flagstats = [
+                'mapped', 'primary mapped', 'secondary', 'supplementary']
+            per_sample_flagstats = {key: data.get(key) for key in flagstats}
+            sample = os.path.basename(flagstat).split(".")[0]
+            flagstats_dic[sample] = per_sample_flagstats
+    alignment_summary_df = pd.DataFrame(flagstats_dic)
+    alignment_summary_df = alignment_summary_df[
+        natsorted(alignment_summary_df.columns)]
+    alignment_summary_df.index = [
+        "Total Read Mappings",
+        "Primary", "Secondary",
+        "Supplementary"]
+    alignment_summary_df.index.name = "Statistic"
+    return alignment_summary_df
 
 
 def dexseq_section(dexseq_file, tr_id_to_gene_name, tr_id_to_gene_id, pval_thresh):
@@ -239,7 +224,7 @@ def get_translations(gtf):
 def de_section(
         annotation, dge, dexseq, dtu,
         tpm, report, filtered, unfiltered,
-        gene_counts, aln_stats_dir, pval_threshold=0.01):
+        gene_counts, flagstats_dir, pval_threshold=0.01):
     """Differential expression sections."""
     with (report.add_section("Differential expression", "DE")):
 
@@ -255,13 +240,9 @@ def de_section(
         Find the full sequences of any transcripts in the
         final_non_redundant_transcriptome.fasta file.
         """)
-        alignment_stats = pd.concat([parse_seqkit(f) for f in aln_stats_dir.iterdir()])
-        alignment_summary_df = create_summary_table(alignment_stats)
-        alignment_summary_df = alignment_summary_df.fillna(0).applymap(np.int64)
+        alignment_summary_df = flagstats_df(flagstats_dir)
         h5("Alignment summary stats")
-        alignment_summary_df.index.name = "statistic"
         DataTable.from_pandas(alignment_summary_df, use_index=True)
-
         salmon_table(tpm)
 
         # Get translations for adding gene names to tables
