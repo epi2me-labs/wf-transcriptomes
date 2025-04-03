@@ -659,7 +659,7 @@ workflow pipeline {
      
         results = Channel.empty()
         // Define BAM output Directory
-        String publish_bams = "BAMS"
+        String publish_prefix_bams = "BAMS"
         software_versions = getVersions()
         workflow_params = getParams()
         input_reads = reads.map{ meta, samples, index, stats -> [meta, samples]}
@@ -680,7 +680,7 @@ workflow pipeline {
         if (params.transcriptome_source != "precomputed"){
             build_minimap_index(ref_genome)
             log.info("Doing reference based transcript analysis")
-            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads)
+            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads, publish_prefix_bams)
         
             assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
      
@@ -716,9 +716,6 @@ workflow pipeline {
 
 
             merge_gff = merge_gff_bundles.out.gff.map{ it -> it[1]}.collect()
-            // Output BAMS in a dedicated directory
-            bam_results = assembly.bam.map{
-                sample_id, bam, bai -> [bam, bai]}.flatten().map{ [it, publish_bams] }
         }
         else{
             gff_compare = OPTIONAL_FILE
@@ -878,8 +875,8 @@ workflow pipeline {
             | toSortedList
             | map { list -> list.collect{
                 [
-                 "$publish_bams/${it}_reads_aln_sorted.bam",
-                 "$publish_bams/${it}_reads_aln_sorted.bam.bai"
+                 "$publish_prefix_bams/${it}_reads_aln_sorted.bam",
+                 "$publish_prefix_bams/${it}_reads_aln_sorted.bam.bai"
                 ]
             } }
             | concat (igv_ref)
@@ -898,7 +895,6 @@ workflow pipeline {
                 )
 
             results = results.concat(igv_conf.map{ [it, null]})
-            results = results.concat(bam_results)
       }
 
        

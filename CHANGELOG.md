@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `all_gene_counts.tsv` contained the DE counts results.
 - Reduced memory usage of the report workflow process.
+- Output BAM alignments in all cases unless the workflow is run with `transcriptome_source` set to `precomputed`.
 - The merged transcriptome generated for differential expression analysis now only contains the exons and not the full genomic sequence.
 - Output the gene name annotated differential expression analysis count files only.
 - Only use full length reads in the differential expression analysis.
