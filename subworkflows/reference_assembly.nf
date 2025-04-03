@@ -7,10 +7,10 @@ process map_reads{
     label "isoforms"
     cpus params.threads
     memory "31 GB"
-
+    publishDir path: "${params.out_dir}/${publish_prefix_bams}", mode: 'copy', pattern: "${sample_id}_reads_aln_sorted.bam*", overwrite: true
     input:
        tuple val(sample_id), path (fastq_reads), path(index), path(reference)
-
+       val publish_prefix_bams
     output:
        tuple val(sample_id), 
              path("${sample_id}_reads_aln_sorted.bam"), 
@@ -51,8 +51,9 @@ workflow reference_assembly {
        index
        reference
        fastq_reads
+       publish_prefix_bams
     main:
-        map_reads(fastq_reads.combine(index).combine(reference))
+        map_reads(fastq_reads.combine(index).combine(reference), publish_prefix_bams)
     emit:
        bam = map_reads.out.bam
        stats = map_reads.out.stats
