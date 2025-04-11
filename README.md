@@ -88,7 +88,7 @@ nextflow run epi2me-labs/wf-transcriptomes \
 	--de_analysis \
 	--direct_rna \
 	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--minimap2_index_opts '-k15' \
+	--minimap2_index_opts '-k 15' \
 	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
 	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \
 	--sample_sheet 'wf-transcriptomes-demo/sample_sheet.csv' \
@@ -170,7 +170,7 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 |--------------------------|------|-------------|------|---------|
 | plot_gffcmp_stats | boolean | Create a PDF of plots from showing gffcompare results | If set to true, a PDF file containing detailed gffcompare reults will be output | True |
 | gffcompare_opts | string | Extra command-line options to give to gffcompare -r | For a list of possible options see [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml). | -R |
-| minimap2_index_opts | string | Extra command-line options for minimap2 indexing. | See [minimap2 index options](https://lh3.github.io/minimap2/minimap2.html#4) for more information. These will only be relevant in the reference based transcriptome assembly. | -k14 |
+| minimap2_index_opts | string | Extra command-line options for minimap2 indexing. | See [minimap2 index options](https://lh3.github.io/minimap2/minimap2.html#4) for more information. These will only be relevant in the reference based transcriptome assembly. | -k 14 |
 | minimap2_opts | string | Additional command-line options for minimap2 alignment. | See [minimap2 options](https://lh3.github.io/minimap2/minimap2.html#5) for further information. These will only be relevant in the reference based transcriptome assembly. | -uf |
 | minimum_mapping_quality | integer | filter aligned reads by MAPQ quality. | Reads that do not meet this mapping quality after minimap2 alignment, will be filtered out. | 40 |
 | stringtie_opts | string | Extra command-line options for stringtie transcript assembly. | For additional String tie options see [here](https://github.com/gpertea/stringtie#stringtie-options). | --conservative |

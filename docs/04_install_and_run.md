@@ -49,7 +49,7 @@ nextflow run epi2me-labs/wf-transcriptomes \
 	--de_analysis \
 	--direct_rna \
 	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--minimap2_index_opts '-k15' \
+	--minimap2_index_opts '-k 15' \
 	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
 	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \
 	--sample_sheet 'wf-transcriptomes-demo/sample_sheet.csv' \

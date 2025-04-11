@@ -162,7 +162,7 @@
                     "type": "string",
                     "title": "Minimap2 index options",
                     "description": "Extra command-line options for minimap2 indexing.",
-                    "default": "-k14",
+                    "default": "-k 14",
                     "help_text": "See [minimap2 index options](https://lh3.github.io/minimap2/minimap2.html#4) for more information. These will only be relevant in the reference based transcriptome assembly."
                 },
                 "minimap2_opts": {
