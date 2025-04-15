@@ -14,7 +14,6 @@ variables:
               CI_FLAVOUR: "new"
               PYTEST_CONTAINER_NAME: "wf-common"
               PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
-              MEM_CFG: "echo 'process { withName:build_minimap_index { memory = '16.GB' };  withName:build_minimap_index_transcriptome { memory = '16.GB' } }' > ${CI_PROJECT_NAME}/data/mm2.config"
 
 macos-run:
   # Let's avoid those ARM64 runners for now
@@ -66,38 +65,37 @@ docker-run:
           when: never
         - if: $MATRIX_NAME == "isoforms"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq --transcriptome_source reference-guided \
-                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm \
-                  -c ${CI_PROJECT_NAME}/data/mm2.config"
+                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm"
               NF_IGNORE_PROCESSES: preprocess_reads,validate_ref_annotation,faidx,gz_faidx,check_annotation_strand,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "isoforms_bam"
           variables:
-            NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+            NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
             NF_WORKFLOW_OPTS: "--bam  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.bam --transcriptome_source reference-guided \
                   --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --pychopper_backend phmm \
-                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
             NF_IGNORE_PROCESSES: preprocess_reads,validate_ref_annotation,faidx,gz_faidx,check_annotation_strand,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "no_ref_annotation"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq --transcriptome_source reference-guided \
                   --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa \
-                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: run_gffcompare,validate_ref_annotation,check_annotation_strand,preprocess_reads,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --de_analysis \
                   --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa --transcriptome_source reference-guided \
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gtf \
                 --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: preprocess_reads,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --transcriptome_source precomputed \
                   --de_analysis \
@@ -106,13 +104,13 @@ docker-run:
                 --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression/ref_transcriptome.fasta \
                 --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,validate_ref_annotation,gz_faidx,merge_transcriptomes,merge_gff_bundles,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression_gff3"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq   ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --transcriptome_source precomputed \
                   --de_analysis \
@@ -121,13 +119,13 @@ docker-run:
                 --direct_rna --minimap2_index_opts '-k 15' \
                 --ref_transcriptome  ${CI_PROJECT_NAME}/data/differential_expression/ref_transcriptome.fasta \
                 --sample_sheet test_data/sample_sheet.csv \
-                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "ncbi_gzip"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                   "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
                   --de_analysis \
@@ -135,13 +133,13 @@ docker-run:
                 --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                 --direct_rna --minimap2_index_opts '-w 25' \
                --sample_sheet test_data/sample_sheet.csv \
-               -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+               -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
         - if: $MATRIX_NAME == "ncbi_no_gene_id"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                 "--fastq ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
                 --transcriptome_source precomputed --de_analysis \
@@ -149,13 +147,13 @@ docker-run:
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
                 --direct_rna --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
                 --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,validate_ref_annotation,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome      
         - if: $MATRIX_NAME == "ensembl_with_versions"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                 "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                 --de_analysis \
@@ -163,13 +161,13 @@ docker-run:
                 --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.109.gtf.gz \
                 --direct_rna --ref_transcriptome  ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.cdna.all.fa.gz \
                 --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "differential_expression_mouse"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_mouse.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz -C ${CI_PROJECT_NAME}/data/&&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_mouse.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz -C ${CI_PROJECT_NAME}/data/&&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                 "--fastq  ${CI_PROJECT_NAME}/data/differential_expression_mouse/differential_expression_fastq \
                 --transcriptome_source precomputed --de_analysis \
@@ -177,25 +175,25 @@ docker-run:
                 --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_mouse/gencode.vM33.annotation.gtf \
                 --direct_rna --ref_transcriptome  ${CI_PROJECT_NAME}/data/differential_expression_mouse/gencode.vM33.transcripts.fa.gz \
                 --sample_sheet  ${CI_PROJECT_NAME}/data/differential_expression_mouse/sample_sheet.csv \
-                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam    
         - if: $MATRIX_NAME == "unstranded_annotation_error"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --de_analysis \
                   --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa --transcriptome_source reference-guided \
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/unstranded_annotation.gtf \
                 --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: preprocess_reads,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
               ASSERT_NEXTFLOW_FAILURE: "test_fail" # set to any non-zero length str to allow the nextflow CMD to fail
               ASSERT_NEXTFLOW_FAILURE_REXP: "In ref_annotation, transcript features must have a strand of either '+' or '-'"
         - if: $MATRIX_NAME == "igv"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --de_analysis \
                   --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
@@ -204,13 +202,13 @@ docker-run:
                 --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression/ref_transcriptome.fasta \
                 --sample_sheet test_data/sample_sheet.csv \
                 --igv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,validate_ref_annotation,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "igv_fai_gz"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                 "--fastq ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
                 --transcriptome_source precomputed --de_analysis \
@@ -219,13 +217,13 @@ docker-run:
                 --direct_rna --ref_transcriptome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_rna.fna.gz \
                 --sample_sheet test_data/sample_sheet.csv \
                 --igv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,validate_ref_annotation,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome,faidx,gz_faidx 
         - if: $MATRIX_NAME == "mismatch_seqid_error"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                   "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
                   --de_analysis \
@@ -233,7 +231,7 @@ docker-run:
                   --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                   --direct_rna \
                   --sample_sheet test_data/sample_sheet.csv \
-                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
@@ -241,7 +239,7 @@ docker-run:
               ASSERT_NEXTFLOW_FAILURE_REXP: Seqid mismatch found between the provided ref_annotation
         - if: $MATRIX_NAME == "mismatch_seqid_warn"
           variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config; ${MEM_CFG}"
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS:
                   "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
                   --de_analysis \
@@ -249,7 +247,7 @@ docker-run:
                   --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
                   --direct_rna \
                   --sample_sheet test_data/sample_sheet.csv --minimap2_index_opts '-w 25' \
-                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config -c ${CI_PROJECT_NAME}/data/mm2.config"
+                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
