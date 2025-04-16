@@ -267,7 +267,7 @@ The aligned BAMs are split into chunks using the bundle_min_reads parameter (def
 #### 3.4 Merge Chunks
 Transcript GFF files from the chunks with the same sample aliases will then be merged.
 
-#### 3.5 Annnotate
+#### 3.5 Annotate
 [GffCompare](https://ccb.jhu.edu/software/stringtie/gffcompare.html) is then used to compare query and reference annotations, merging records where appropriate and then annotating them. This also creates estimates of accuracy of the GFF files output in a stats file per sample.
 
 #### 3.6 Create transcriptomes
