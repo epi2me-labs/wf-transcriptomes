@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - dacite.exceptions.WrongTypeError during report generation when barcode is null.
     - Sequence summary read length N50 incorrectly displayed minimum read length, it now correctly shows the N50.
     - Sequence summary component alignment and coverage plots failed to plot under some conditions.
+- Error in `deAnalysis` process - `mode(counts) %in% "numeric" is not TRUE` - caused by hyphens in sample sheet aliases.
 
 ## [v1.7.0]
 ### Changed

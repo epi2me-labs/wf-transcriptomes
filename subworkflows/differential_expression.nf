@@ -80,15 +80,30 @@ process deAnalysis {
         path "de_analysis/cpm_gene_counts.tsv", emit: cpm
     """
     de_analysis.R \
-    --annotation annotation.gtf \
-    --min_samps_gene_expr $params.min_samps_gene_expr \
-    --min_samps_feature_expr $params.min_samps_feature_expr \
-    --min_gene_expr $params.min_gene_expr \
-    --min_feature_expr $params.min_feature_expr \
-    --sample_sheet sample_sheet.csv \
-    --all_counts all_counts.tsv \
-    --de_out_dir de_analysis \
-    --merged_out_dir merged
+        --annotation annotation.gtf \
+        --min_samps_gene_expr $params.min_samps_gene_expr \
+        --min_samps_feature_expr $params.min_samps_feature_expr \
+        --min_gene_expr $params.min_gene_expr \
+        --min_feature_expr $params.min_feature_expr \
+        --sample_sheet sample_sheet.csv \
+        --all_counts all_counts.tsv \
+        --de_out_dir de_analysis \
+        --merged_out_dir merged
+
+    # Check that the original aliases in the input TSV have not been mangled by R's read.csv or other functions
+    head -1 all_counts.tsv | cut -f2- | tr '\t' '\n'   > expected_colnames
+    
+    head -1 de_analysis/cpm_gene_counts.tsv | cut -f2- | tr '\t' '\n'  > cpm_gene_counts_colnames
+    head -1 merged/all_gene_counts.tsv | tr '\t' '\n'  > merged_counts_colnames
+    head -1 merged/filtered_transcript_counts_with_genes.tsv | cut -f3- | tr '\t' '\n' > merged_filtered_colnames
+    
+    # Check for mismatches in sample column names
+    for file in cpm_gene_counts_colnames merged_counts_colnames merged_filtered_colnames; do
+    if ! diff -q \$file expected_colnames > /dev/null; then
+        echo "Column names in \$file do not match expected aliases."
+        exit 70
+    fi
+    done
     """
 }
 
