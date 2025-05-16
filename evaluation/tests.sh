@@ -36,7 +36,7 @@ results+=("$(basename $OUTPUT): $r")
 OUTPUT=$1/multiple_samples;
 nextflow run . --fastq $multisampledir $config --ref_genome test_data/SIRV_150601a.fasta --minimap2_opts '-uf --splice-flank=no'\
 --ref_annotation test_data/SIRV_isoforms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
---sample_sheet test_data/sample_sheet -resume;
+--sample_sheet test_data/sample_sheet.csv -resume;
 r=$?
 results+=("$(basename $OUTPUT): $r")
 
