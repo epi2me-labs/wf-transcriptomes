@@ -29,14 +29,14 @@ results=()
 # Reference based tests
 OUTPUT=$1/reference_single_dir;
 nextflow run . --fastq $singledir $config --ref_genome test_data/SIRV_150601a.fasta --minimap2_opts '-uf --splice-flank=no' \
---ref_annotation test_data/SIRV_isofroms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace -resume;
+--ref_annotation test_data/SIRV_isoforms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace -resume;
 r=$?
 results+=("$(basename $OUTPUT): $r")
 
 OUTPUT=$1/multiple_samples;
 nextflow run . --fastq $multisampledir $config --ref_genome test_data/SIRV_150601a.fasta --minimap2_opts '-uf --splice-flank=no'\
---ref_annotation test_data/SIRV_isofroms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
---sample_sheet test_data/sample_sheet -resume;
+--ref_annotation test_data/SIRV_isoforms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
+--sample_sheet test_data/sample_sheet.csv -resume;
 r=$?
 results+=("$(basename $OUTPUT): $r")
 
@@ -49,7 +49,7 @@ results+=("$(basename $OUTPUT): $r")
 # Force split_bam to make multiple alignment bundles
 OUTPUT=$1/reference_frce_split_bam;
 nextflow run . --fastq $singledir  $config --ref_genome test_data/SIRV_150601a.fasta --minimap2_opts '-uf --splice-flank=no'\
---ref_annotation test_data/SIRV_isofroms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
+--ref_annotation test_data/SIRV_isoforms.gtf -profile local --out_dir ${OUTPUT} -w ${OUTPUT}/workspace \
 --bundle_min_reads 5 -resume;
 r=$?
 results+=("$(basename $OUTPUT): $r")
