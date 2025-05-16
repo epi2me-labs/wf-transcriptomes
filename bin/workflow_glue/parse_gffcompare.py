@@ -197,6 +197,8 @@ def tracking_summary(tracking_file, output_dir, annotations=None):
         df = (
             pd.DataFrame(tracking['class'].value_counts())
             .reset_index()
+            # Reminder when updating pandas > 2
+            # .rename(columns={'count': 'Count'})
             .rename(columns={'index': 'class', 'class': 'Count'})
         )
 
