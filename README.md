@@ -130,6 +130,27 @@ input_reads.fastq   ─── input_directory  ─── input_directory
                                               └── reads0.fastq
 ```
 
+**Providing Pre-aligned BAMs via Sample Sheet:**
+
+If you have existing BAM alignment files and wish to bypass the internal alignment step, you can provide them using the `--bam_input_dir` parameter along with a `--sample_sheet`. The workflow expects the following structure:
+
+```
+--bam_input_dir /path/to/your_bam_collections/
+--sample_sheet /path/to/your_bam_sheet.csv
+```
+
+And the directory structure within `/path/to/your_bam_collections/` should be:
+
+```
+/path/to/your_bam_collections/
+├── sampleA/
+│   └── sampleA_aligned.bam  // (and optionally sampleA_aligned.bam.bai)
+├── sampleB/
+│   └── sampleB_aligned.bam  // (and optionally sampleB_aligned.bam.bai)
+└── another_sample/
+    └── reads.bam            // (and optionally reads.bam.bai)
+```
+The names of the subdirectories (`sampleA`, `sampleB`, `another_sample`) must correspond to an identifier in your sample sheet (see Sample Sheet section below). The workflow will locate the BAM files within these subdirectories.
 
 
 ## Input parameters
@@ -138,8 +159,9 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
-| fastq | string | FASTQ files to use in the analysis. | This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
-| bam | string | BAM or unaligned BAM (uBAM) files to use in the analysis. | This accepts one of three cases: (i) the path to a single BAM file; (ii) the path to a top-level directory containing BAM files; (iii) the path to a directory containing one level of sub-directories which in turn contain BAM files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
+| fastq | string | FASTQ files to use in the analysis. | This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files (barcodes). For cases (i) and (ii), use `--sample` to name the sample. For case (iii), use `--sample_sheet` to map barcodes to aliases. This parameter is used if `--bam_input_dir` is not provided. |  |
+| bam | string | Single BAM or uBAM file for analysis. | Path to a single BAM or uBAM file. Use `--sample` to specify the sample name. This mode is for processing a single alignment file directly without a sample sheet. For providing multiple BAMs via a sample sheet, use `--bam_input_dir` instead. |  |
+| bam_input_dir | string | Directory containing per-sample BAM subdirectories. | Use this parameter along with `--sample_sheet` to provide pre-aligned BAM files as input. The workflow will look for subdirectories named by sample identifiers (from the sample sheet) within this directory, and use BAM files found within those subdirectories. This mode bypasses the internal alignment step. | null |
 | transcriptome_source | string | Select how the transcriptome used for analysis should be prepared. | For differential expression analysis, use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter. | reference-guided |
 | ref_genome | string | Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow. | A reference genome is required for reference-based assembly of a transcriptome. |  |
 | ref_transcriptome | string | Transcriptome reference file. Required for precomputed transcriptome calculation and for differential expression analysis. | A reference transcriptome related to the sample under study. Must be supplied when the 'Transcriptome source' parameter has been set to 'precomputed' or to perform differential expression. |  |
@@ -160,9 +182,32 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
-| sample_sheet | string | A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files. If you are running the differential expression workflow, there must be an additional column `condition` with two labels, one of which must be `control` (e.g. `control` and `treated`). Control will indicate which samples will be used as the reference. There should be at least 3 repeats for each condition. | The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed. |  |
+| sample_sheet | string | A CSV file used to map barcodes or sample identifiers to sample aliases and other metadata. | The sample sheet is a CSV file with a header row. <br><br> **For FASTQ input (using `--fastq`):** It minimally requires columns `barcode` (matching subdirectory names under `--fastq`) and `alias`. <br><br> **For BAM input (using `--bam_input_dir`):** It requires a column (e.g., `sample_id` or `alias`) whose values match the subdirectory names under `--bam_input_dir`. Each such subdirectory should contain the BAM file(s) for that sample. <br><br> **For differential expression:** An additional column `condition` is required, with at least two conditions, one of which must be `control`. At least 3 replicates per condition are recommended. <br><br> Extra columns for additional metadata are allowed in all cases. |  |
 | sample | string | A single sample name for non-multiplexed data. Permissible if passing a single .fastq(.gz) file or directory of .fastq(.gz) files. |  |  |
 
+**Sample Sheet Example for BAM Inputs:**
+
+When using `--bam_input_dir`, your sample sheet tells the workflow where to find your per-sample BAM directories. For example, if `--bam_input_dir path/to/bams_collection/` is used, and your sample sheet (`sheet.csv`) is:
+
+```csv
+sample_name,condition,replicate
+ALPHA,treated,1
+BETA,control,1
+GAMMA,treated,2
+```
+
+The workflow will expect the following directory structure:
+
+```
+path/to/bams_collection/
+├── ALPHA/
+│   └── your_bam_for_alpha.bam
+├── BETA/
+│   └── your_bam_for_beta.bam
+└── GAMMA/
+    └── your_bam_for_gamma.bam
+```
+The column header used to match directory names (here `sample_name`) should correspond to the names of your subdirectories. The workflow will automatically locate `.bam` files within these directories.
 
 ### Options for reference-based workflow
 
@@ -251,7 +296,7 @@ The [fastcat](https://github.com/epi2me-labs/fastcat) tool is used to concatenat
 If input sequences are cDNA [Pychopper](https://github.com/epi2me-labs/pychopper) is used to orient, trim and rescue full length cDNA reads and associated statistics. If the `direct_rna` parameter is selected this step will be skipped.
 
 ### 3. Build transcriptome.
-If the `transcriptome_source` parameter is "reference-guided" a transcriptome will be built for each sample as outlined below. If the `transcriptome_source` is "precomputed" and the `reference_transcriptome` parameter is provided the workflow will skip step 3.
+If the `transcriptome_source` parameter is "reference-guided" **and the input is FASTQ files**, a transcriptome will be built for each sample as outlined below. If pre-aligned BAM files are provided via `--bam_input_dir`, step 3.1 (Align reads) will be skipped, and the provided BAMs will be used for subsequent steps like chunking (3.2) and transcript assembly (3.3). If the `transcriptome_source` is "precomputed" and the `reference_transcriptome` parameter is provided the workflow will skip step 3 entirely.
 
 #### 3.1 Align reads with reference genome.
 The reference genome will be indexed and aligned using [Minimap2](https://github.com/lh3/minimap2). The output is sorted and converted to a BAM file using [Samtools](https://www.htslib.org/). Alignment stats are created from these using [Seqkit BAM](https://bioinf.shenwei.me/seqkit/usage/#bam).
