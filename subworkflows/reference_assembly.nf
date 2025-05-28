@@ -5,7 +5,7 @@ process map_reads{
     Filter internally-primed reads.
     */
     label "isoforms"
-    cpus params.threads
+    cpus 11
     memory "31 GB"
     publishDir path: "${params.out_dir}/${publish_prefix_bams}", mode: 'copy', pattern: "${sample_id}_reads_aln_sorted.bam*", overwrite: true
     input:
@@ -22,9 +22,8 @@ process map_reads{
         RightShift: ${params.poly_context}, RegexEnd: "[Aa]{${params.max_poly_run},}",
         Stranded: True,Invert: True, Tsv: "internal_priming_fail.tsv"} """
 
-        def mm2_threads = Math.max(task.cpus - 3, 1)
     """
-    minimap2 -t ${mm2_threads} -ax splice ${params.minimap2_opts} ${index} ${fastq_reads}\
+    minimap2 -t 8 -ax splice ${params.minimap2_opts} ${index} ${fastq_reads}\
         | samtools view -q ${params.minimum_mapping_quality} -F 2304 -Sb -\
         | seqkit bam -j 1 -x -T '${ContextFilter}' -\
         | samtools sort --write-index -@ 1 -o "${sample_id}_reads_aln_sorted.bam##idx##${sample_id}_reads_aln_sorted.bam.bai" - ;
