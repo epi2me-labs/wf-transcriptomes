@@ -289,7 +289,7 @@ process assemble_transcripts{
     Output gff annotation files in a tuple with `sample_id` for combining into samples later in the pipeline.
     */
     label 'isoforms'
-    cpus params.threads
+    cpus Math.min(params.threads, 6)
     memory "2 GB"
 
     input:
@@ -412,7 +412,7 @@ process get_transcriptome{
 process merge_transcriptomes {
     // Merge the transcriptomes from all samples
     label 'isoforms'
-    cpus 2
+    cpus Math.min(params.threads, 6)
     memory "2 GB"
     input:
         path "query_annotations/*"
