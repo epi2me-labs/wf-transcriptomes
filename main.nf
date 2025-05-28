@@ -289,7 +289,7 @@ process assemble_transcripts{
     Output gff annotation files in a tuple with `sample_id` for combining into samples later in the pipeline.
     */
     label 'isoforms'
-    cpus params.threads
+    cpus Math.min(params.threads, 6)
     memory "2 GB"
 
     input:
@@ -412,7 +412,7 @@ process get_transcriptome{
 process merge_transcriptomes {
     // Merge the transcriptomes from all samples
     label 'isoforms'
-    cpus 2
+    cpus Math.min(params.threads, 6)
     memory "2 GB"
     input:
         path "query_annotations/*"
@@ -602,38 +602,167 @@ process gz_faidx {
 // workflow module
 workflow pipeline {
     take:
-        reads
-        ref_genome
-        ref_annotation
-        ref_transcriptome
-        use_ref_ann
+        raw_reads_ch // from initial fastq_ingress or xam_ingress in the entrypoint workflow
+        ref_genome_file
+        ref_annotation_file
+        ref_transcriptome_file
+        use_ref_ann_bool
     main:
-        if (params.ref_genome && file(params.ref_genome).extension == "gz") {
-            // gzipped ref not supported by some downstream tools
-            // easier to just decompress and pass it around.
-            ref_genome = decompress_ref(ref_genome)
-        }else {
-            ref_genome = Channel.fromPath(ref_genome)
+        // Define input mode
+        def is_bam_input = params.bam_input_dir && params.sample_sheet
+        def is_fastq_input = params.fastq && params.sample_sheet
+
+        if (is_bam_input && is_fastq_input) {
+            error "Both --bam_input_dir and --fastq are specified with --sample_sheet. Please provide only one input type."
+        } else if (is_bam_input && params.bam) {
+            error "--bam_input_dir and --bam cannot be used together. Use --sample_sheet with --bam_input_dir for multiple BAMs."
+        } else if (is_fastq_input && params.bam) {
+             error "--fastq and --bam cannot be used together. For single BAM, just use --bam. For multiple BAMs via sheet, use --bam_input_dir."
+        } else if (!is_bam_input && !is_fastq_input && !params.bam) { //
+            error "No valid input provided. Please specify --fastq and --sample_sheet, or --bam_input_dir and --sample_sheet, or a single --bam."
         }
-        if (params.ref_annotation && file(params.ref_annotation).extension == "gz") {
-            // gzipped ref not supported by some downstream tools
-            // easier to just decompress and pass it around.
-            decompress_annot= decompress_annotation(ref_annotation)
-            ref_annotation = preprocess_ref_annotation(decompress_annot)
-        }else {
-            ref_annotation = preprocess_ref_annotation(ref_annotation)
+
+
+        // Initialize conditional output channels
+        Channel PYCHOPPER_REPORT_CH = Channel.value(OPTIONAL_FILE)
+        Channel ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE)
+        Channel BAMS_FOR_SPLITTING = Channel.empty()
+        Channel FULL_LEN_READS_FOR_DE = Channel.empty() // For DE analysis input, might be FASTQ or BAM
+
+        // Process ref_genome and ref_annotation first
+        Channel ref_genome_ch
+        if (ref_genome_file && ref_genome_file.extension == "gz") {
+            ref_genome_ch = decompress_ref(ref_genome_file)
+        } else {
+            ref_genome_ch = Channel.fromPath(ref_genome_file)
         }
-        
-        fastq_ingress_results = reads
-        | collectFastqIngressResultsInDir
-        // fastq_ingress doesn't have the index; add one extra null for compatibility.
-        // We do not use variable name as assigning variable name with a tuple
-        // not matching (e.g. meta, bam, bai, stats <- [meta, bam, stats]) causes
-        // the workflow to crash.
-        reads = reads
-        .map{
-            it.size() == 4 ? it : [it[0], it[1], null, it[2]]
+
+        Channel ref_annotation_ch
+        if (ref_annotation_file && ref_annotation_file.extension == "gz") {
+            decompress_annot_ch = decompress_annotation(ref_annotation_file)
+            ref_annotation_ch = preprocess_ref_annotation(decompress_annot_ch)
+        } else {
+            ref_annotation_ch = preprocess_ref_annotation(ref_annotation_file)
         }
+
+        // Build minimap index if ref_genome is provided
+        MINIMAP_INDEX_CH = Channel.empty()
+        if (params.ref_genome) {
+            MINIMAP_INDEX_CH = build_minimap_index(ref_genome_ch)
+        } else if (params.transcriptome_source != "precomputed") {
+            // This case should have been caught by entrypoint validation, but double check
+            error "Reference genome (--ref_genome) is required when transcriptome_source is not 'precomputed'."
+        }
+
+
+        // This channel will hold [meta, file1, file2_or_null, stats_file_or_null] from ingress
+        Channel INGRESS_RESULTS_CH = Channel.empty()
+
+        if (is_bam_input) {
+            log.info "Running in BAM input mode."
+            // xam_ingress for BAMs via sample sheet
+            // Assuming xam_ingress is updated or suitable for bam_input_dir
+            // For now, we'll use the existing `reads` channel structure from the entrypoint for `xam_ingress`
+            // if it's already configured for bam_input_dir there.
+            // The key is that `raw_reads_ch` from the entry point needs to be the output of xam_ingress
+            // when params.bam_input_dir is set.
+
+            INGRESS_RESULTS_CH = raw_reads_ch // This comes from xam_ingress in WorkflowMain
+
+            // Map BAMs for splitting and DE
+            // Input: [meta, bam, bai, stats]
+            BAMS_FOR_SPLITTING = INGRESS_RESULTS_CH
+                .map { meta, bam, bai, stats ->
+                    if (bam == null) return null // Should not happen if ingress is correct
+                    [meta.alias, bam]
+                }
+                .filter { it != null }
+
+            // Attempt to pass BAMs to DE. Subworkflow might need changes.
+            FULL_LEN_READS_FOR_DE = BAMS_FOR_SPLITTING.map { id, bam -> [[alias:id], bam] }
+
+            // Pychopper and assembly stats are not generated directly in this path
+            PYCHOPPER_REPORT_CH = Channel.value(OPTIONAL_FILE)
+            ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE)
+
+        } else if (is_fastq_input) {
+            log.info "Running in FASTQ input mode."
+            // This is the original logic for FASTQ input
+            INGRESS_RESULTS_CH = raw_reads_ch // This comes from fastq_ingress in WorkflowMain
+
+            // Prepare input for preprocess_reads or direct use
+            // input_reads_for_processing: [meta, fastq_path]
+            input_reads_for_processing = INGRESS_RESULTS_CH.map { meta, fastq, index, stats -> [meta, fastq] }
+
+
+            if (!params.direct_rna){
+                preprocess_reads(input_reads_for_processing)
+                FULL_LEN_READS_FOR_DE = preprocess_reads.out.full_len_reads // [sample_id, fastq_path]
+                PYCHOPPER_REPORT_CH = preprocess_reads.out.report.collectFile(keepHeader: true)
+                // Collect pychopper output directories for results
+                pychopper_results_dir = preprocess_reads.out.pychopper_output.map{ it -> it[1]}
+                results = results.concat(pychopper_results_dir)
+            } else {
+                // If direct RNA, use raw FASTQs for DE (after mapping to [sample_id, fastq_path])
+                FULL_LEN_READS_FOR_DE = input_reads_for_processing.map{ meta, fastq -> [meta.alias, fastq]}
+                PYCHOPPER_REPORT_CH = Channel.value(OPTIONAL_FILE)
+            }
+
+            if (params.transcriptome_source != "precomputed"){
+                if (!MINIMAP_INDEX_CH.isEmpty()) { // Ensure index is available
+                    assembly = reference_assembly(MINIMAP_INDEX_CH, ref_genome_ch, FULL_LEN_READS_FOR_DE, publish_prefix_bams)
+                    ASSEMBLY_STATS_CH = assembly.stats.map{ it -> it[1]}.collect()
+                    BAMS_FOR_SPLITTING = assembly.bam.map {sample_id, bam, bai -> [sample_id, bam]}
+                } else {
+                     // This should not happen if params.ref_genome was required
+                    log.warn "Minimap index not available, skipping reference assembly for FASTQ input."
+                    ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE) // ensure it's OPTIONAL_FILE
+                    BAMS_FOR_SPLITTING = Channel.empty()
+                }
+            } else {
+                // FASTQ input with precomputed transcriptome
+                log.info "FASTQ input with precomputed transcriptome. BAMs for splitting will not be generated from reads."
+                ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE) // ensure it's OPTIONAL_FILE
+                BAMS_FOR_SPLITTING = Channel.empty()
+            }
+
+        } else if (params.bam) {
+            // Single BAM file input (original simple BAM mode, not via bam_input_dir)
+            // This mode might need further integration with the new channel structure if it's to be fully supported
+            // alongside the sample sheet methods. For now, this subtask focuses on bam_input_dir.
+            // We can assume `raw_reads_ch` from `WorkflowMain` handles this and provides a compatible structure.
+            log.info "Running in single BAM input mode (params.bam)."
+            INGRESS_RESULTS_CH = raw_reads_ch // This comes from xam_ingress (single BAM) in WorkflowMain
+
+            BAMS_FOR_SPLITTING = INGRESS_RESULTS_CH
+                .map { meta, bam, bai, stats -> // Assuming xam_ingress for single BAM also gives this structure
+                    if (bam == null) return null
+                    [meta.alias, bam]
+                }
+                .filter { it != null }
+            FULL_LEN_READS_FOR_DE = BAMS_FOR_SPLITTING.map { id, bam -> [[alias:id], bam] }
+            PYCHOPPER_REPORT_CH = Channel.value(OPTIONAL_FILE)
+            ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE)
+
+        } else {
+            // Should have been caught by initial checks
+            error "Pipeline started with an undetermined input configuration."
+        }
+
+
+        // Harmonize sample_ids and collect input files for report
+        // INGRESS_RESULTS_CH is [meta, file1, file2_or_null, stats_file_or_null]
+        // file1 is fastq for FASTQ mode, bam for BAM mode.
+        // file2_or_null is bam_index for BAM mode.
+        input_files_for_report = INGRESS_RESULTS_CH
+            | map { meta, f1, f2, stats -> [meta, f1, stats] } // take meta, primary file, and stats
+            | collectFastqIngressResultsInDir // Renamed for clarity, but re-used logic
+
+        // Extract sample_ids for downstream processes
+        // Ensure sample_ids are derived correctly regardless of input
+        sample_ids = INGRESS_RESULTS_CH.flatMap({meta, f1, f2, stats -> meta.alias})
+
+
         map_sample_ids_cls = {it ->
         /* Harmonize tuples
         output:
@@ -659,34 +788,533 @@ workflow pipeline {
      
         results = Channel.empty()
         // Define BAM output Directory
-        String publish_prefix_bams = "BAMS"
+        String publish_prefix_bams = "BAMS" // Used by reference_assembly and IGV
         software_versions = getVersions()
         workflow_params = getParams()
-        input_reads = reads.map{ meta, samples, index, stats -> [meta, samples]}
-        sample_ids = input_reads.flatMap({meta,samples -> meta.alias})
 
-        if (!params.direct_rna){
-            preprocess_reads(input_reads)
-            full_len_reads = preprocess_reads.out.full_len_reads
-            pychopper_report = preprocess_reads.out.report.collectFile(keepHeader: true)
-            pychopper_results_dir = preprocess_reads.out.pychopper_output.map{ it -> it[1]}
-            results = results.concat(pychopper_results_dir)
-        }
-        else{
-            full_len_reads = input_reads.map{ meta, reads -> [meta.alias, reads]}
-            pychopper_report = OPTIONAL_FILE
-        }
-        
+        // `input_reads` and `full_len_reads` are effectively replaced by `FULL_LEN_READS_FOR_DE`
+        // and `BAMS_FOR_SPLITTING` or direct BAM inputs.
+        // `pychopper_report` is replaced by `PYCHOPPER_REPORT_CH`
+        // `assembly_stats` is replaced by `ASSEMBLY_STATS_CH`
+
         if (params.transcriptome_source != "precomputed"){
-            build_minimap_index(ref_genome)
-            log.info("Doing reference based transcript analysis")
-            assembly = reference_assembly(build_minimap_index.out.index, ref_genome, full_len_reads, publish_prefix_bams)
-        
-            assembly_stats = assembly.stats.map{ it -> it[1]}.collect()
-     
-            split_bam(assembly.bam.map {sample_id, bam, bai -> [sample_id, bam]})
+            // Reference-guided assembly path
+            // This block will run if BAMS_FOR_SPLITTING has items, regardless of original input type (BAM or FASTQ-derived BAMs)
+            // If BAMS_FOR_SPLITTING is empty (e.g. FASTQ input with precomputed transcriptome), these steps will be skipped.
 
-            assemble_transcripts(split_bam.out.bundles.flatMap(map_sample_ids_cls).combine(ref_annotation),use_ref_ann)
+            log.info("Transcriptome source is not precomputed. Attempting transcript assembly.")
+
+            // split_bam now takes BAMS_FOR_SPLITTING
+            // Ensure BAMS_FOR_SPLITTING is not empty before calling split_bam if it's a possibility
+            SPLIT_BAM_BUNDLES_CH = Channel.empty()
+            if (!BAMS_FOR_SPLITTING.isEmpty()) {
+                 SPLIT_BAM_BUNDLES_CH = split_bam(BAMS_FOR_SPLITTING).bundles
+            } else if (params.transcriptome_source == "reference-guided") {
+                // This implies an issue if we expected BAMs (e.g. from FASTQ alignment) but didn't get them
+                log.warn "BAMS_FOR_SPLITTING is empty but transcriptome_source is reference-guided. Assembly will be skipped."
+            }
+
+
+            // assemble_transcripts takes output of split_bam
+            // It also needs ref_annotation_ch and use_ref_ann_bool
+            ASSEMBLED_GFF_BUNDLES_CH = Channel.empty()
+            if (!SPLIT_BAM_BUNDLES_CH.isEmpty()) {
+                 ASSEMBLED_GFF_BUNDLES_CH = assemble_transcripts(
+                    SPLIT_BAM_BUNDLES_CH.flatMap(map_sample_ids_cls).combine(ref_annotation_ch),
+                    use_ref_ann_bool
+                ).gff_bundles
+            } else if (params.transcriptome_source == "reference-guided") {
+                 log.warn "Split BAM bundles are empty. Transcript assembly will be skipped."
+            }
+
+
+            MERGED_GFF_CH = Channel.empty()
+            TRANSCRIPTOME_SUMMARY_CH = Channel.value(OPTIONAL_FILE) // Initialize as optional
+
+            if (!ASSEMBLED_GFF_BUNDLES_CH.isEmpty()) {
+                merge_gff_out = merge_gff_bundles(ASSEMBLED_GFF_BUNDLES_CH.groupTuple())
+                MERGED_GFF_CH = merge_gff_out.gff
+                TRANSCRIPTOME_SUMMARY_CH = merge_gff_out.summary.map {it[1]}.collect()
+            } else if (params.transcriptome_source == "reference-guided") {
+                log.warn "Assembled GFF bundles are empty. GFF merging and downstream steps will be skipped."
+                // Ensure MERGED_GFF_CH remains empty and TRANSCRIPTOME_SUMMARY_CH is OPTIONAL_FILE
+            }
+
+
+            GFFCOMPARE_DIR_CH = Channel.empty()
+            GFFCOMPARE_GTF_CH = Channel.empty() // for merge_transcriptomes
+            ISOFORMS_TABLE_CH = Channel.value(OPTIONAL_FILE)
+            GFF_TUPLE_FOR_TRANSCRIPTOME_CH = Channel.empty()
+
+
+            // only run gffcompare if ref annotation provided.
+            if (params.ref_annotation && !MERGED_GFF_CH.isEmpty()){
+                gffcompare_results = run_gffcompare(MERGED_GFF_CH, ref_annotation_ch)
+                GFFCOMPARE_DIR_CH = gffcompare_results.gffcmp_dir
+                GFFCOMPARE_GTF_CH = gffcompare_results.gtf // Used by merge_transcriptomes
+                ISOFORMS_TABLE_CH = gffcompare_results.isoforms_table.map{ it -> it[1]}.collect()
+                // create per sample gff tuples with gff compare directories
+                GFF_TUPLE_FOR_TRANSCRIPTOME_CH = MERGED_GFF_CH.join(GFFCOMPARE_DIR_CH)
+            } else if (params.ref_annotation && MERGED_GFF_CH.isEmpty() && params.transcriptome_source == "reference-guided") {
+                log.warn "Merged GFF is empty, GFFCompare will be skipped."
+                ISOFORMS_TABLE_CH = Channel.value(OPTIONAL_FILE) // Ensure it's optional
+                GFFCOMPARE_DIR_CH = Channel.value(OPTIONAL_FILE).collect() // makeReport expects a list-like structure for gff_compare
+            }
+            else if (!params.ref_annotation && !MERGED_GFF_CH.isEmpty()) {
+                 // No ref annotation, but have assembled GFFs
+                optional_file_ch = Channel.fromPath(OPTIONAL_FILE)
+                GFF_TUPLE_FOR_TRANSCRIPTOME_CH = MERGED_GFF_CH.combine(optional_file_ch) // Use OPTIONAL_FILE for gffcompare_dir input to get_transcriptome
+                ISOFORMS_TABLE_CH = Channel.value(OPTIONAL_FILE)
+                GFFCOMPARE_DIR_CH = Channel.value(OPTIONAL_FILE).collect() // makeReport expects a list-like structure for gff_compare
+            } else {
+                 // No ref annotation and no merged GFF (e.g. precomputed or failed assembly)
+                ISOFORMS_TABLE_CH = Channel.value(OPTIONAL_FILE)
+                GFFCOMPARE_DIR_CH = Channel.value(OPTIONAL_FILE).collect()
+            }
+
+
+            // For reference based assembly, there is only one reference
+            // So map this reference to all sample_ids
+            // Ensure sample_ids is not empty
+            TRANSCRIPTOME_FROM_ASSEMBLY_CH = Channel.empty()
+            if (!GFF_TUPLE_FOR_TRANSCRIPTOME_CH.isEmpty() && !sample_ids.isEmpty()){
+                seq_for_transcriptome_build = sample_ids.flatten().combine(ref_genome_ch)
+                TRANSCRIPTOME_FROM_ASSEMBLY_CH = get_transcriptome(
+                    GFF_TUPLE_FOR_TRANSCRIPTOME_CH.join(seq_for_transcriptome_build)
+                ).transcriptome
+            } else if (params.transcriptome_source == "reference-guided") {
+                 log.warn "Inputs for get_transcriptome are not available. Transcriptome generation from assembly will be skipped."
+            }
+
+
+            MERGED_GFF_COLLECTED_CH = MERGED_GFF_CH.map{ it -> it[1]}.collect{ it ?: OPTIONAL_FILE }
+            // Ensure it emits OPTIONAL_FILE if empty to satisfy makeReport
+            if (MERGED_GFF_COLLECTED_CH.isEmpty()){
+                MERGED_GFF_COLLECTED_CH = Channel.value(OPTIONAL_FILE)
+            }
+
+
+        } else { // params.transcriptome_source == "precomputed"
+            log.info("Transcriptome source is precomputed. Skipping assembly steps.")
+            // Set all assembly-derived channels to optional or empty as appropriate
+            ISOFORMS_TABLE_CH = Channel.value(OPTIONAL_FILE)
+            MERGED_GFF_COLLECTED_CH = Channel.value(OPTIONAL_FILE)
+            ASSEMBLY_STATS_CH = Channel.value(OPTIONAL_FILE) // Already default, but reaffirm
+            TRANSCRIPTOME_SUMMARY_CH = Channel.value(OPTIONAL_FILE)
+            GFFCOMPARE_DIR_CH = Channel.value(OPTIONAL_FILE).collect() // makeReport expects a list-like structure
+            // FULL_LEN_READS_FOR_DE should be populated based on input type (FASTQ or BAM)
+            // BAMS_FOR_SPLITTING will be empty if precomputed and FASTQ input.
+            // If BAM input and precomputed, BAMS_FOR_SPLITTING is populated but assembly is skipped.
+        }
+
+
+        // Differential Expression
+        Channel DE_REPORT_CH = Channel.value(OPTIONAL_FILE)
+        Channel DE_ALIGNMENT_STATS_CH = Channel.value(OPTIONAL_FILE)
+        Channel FINAL_TRANSCRIPTOME_FOR_DE_CH = Channel.empty()
+        Channel GTF_FOR_DE_CH = Channel.empty()
+        Channel DE_OUTPUTS_CH = Channel.empty()
+
+
+        if (params.de_analysis){
+            sample_sheet_file = file(params.sample_sheet, type:"file")
+            // check ref annotation contains only + or - strand as DE analysis will error on .
+            check_annotation_strand(ref_annotation_ch).map { stdoutput, annotation ->
+            // check if there was an error message
+            if (stdoutput) error "In ref_annotation, transcript features must have a strand of either '+' or '-'."
+                    stdoutput
+                }
+            if (!params.ref_transcriptome){ // Transcriptome needs to be generated
+                if (params.transcriptome_source == "precomputed") {
+                    error "Differential expression (--de_analysis) requires a reference transcriptome (--ref_transcriptome) when --transcriptome_source is 'precomputed'."
+                }
+                // Use assembly GTF if available, otherwise error (or handle if GTF can be optional for merge_transcriptomes)
+                // GFFCOMPARE_GTF_CH should be from run_gffcompare if ref_annotation was used, or could be from other source if assembly done without ref_ann
+                // For now, assume run_gffcompare's GTF is the one needed if ref_annotation was provided.
+                // If no ref_annotation, merge_transcriptomes might need a different GTF or handle its absence.
+                // This part might need refinement based on exact logic for GTF source.
+                // For now, we rely on GFFCOMPARE_GTF_CH which is populated if params.ref_annotation and MERGED_GFF_CH is not empty.
+
+                if (GFFCOMPARE_GTF_CH.isEmpty() && params.ref_annotation) {
+                     log.warn "GFFCompare GTF is not available, which might be needed for merge_transcriptomes if no ref_transcriptome is provided. DE might fail."
+                     // Potentially set FINAL_TRANSCRIPTOME_FOR_DE_CH and GTF_FOR_DE_CH to empty to prevent DE from running
+                }
+
+                // Validate ref_annotation against ref_genome
+                validate_ref_annotation(ref_annotation_ch, ref_genome_ch).map { stdoutput ->
+                    if (stdoutput) {
+                        log.warn(stdoutput)
+                    }
+                }
+                // Collect GFFCOMPARE_GTF_CH, ensuring it's a single file or OPTIONAL_FILE
+                collected_gtfs_for_merge = GFFCOMPARE_GTF_CH.collect()
+                // merge_transcriptomes expects a list of GTFs from query_annotations/*, here we use the collected GTF from gffcompare
+                // This assumes GFFCOMPARE_GTF_CH contains the GTFs that would have gone into query_annotations
+
+                merged_trans_results = merge_transcriptomes(collected_gtfs_for_merge, ref_annotation_ch, ref_genome_ch)
+                FINAL_TRANSCRIPTOME_FOR_DE_CH = merged_trans_results.fasta
+                GTF_FOR_DE_CH = merged_trans_results.gtf
+            }
+            else { // User-provided reference transcriptome
+                FINAL_TRANSCRIPTOME_FOR_DE_CH =  Channel.fromPath(ref_transcriptome_file)
+                if (ref_transcriptome_file.extension == "gz") {
+                    FINAL_TRANSCRIPTOME_FOR_DE_CH = decompress_transcriptome(FINAL_TRANSCRIPTOME_FOR_DE_CH)
+                }
+                FINAL_TRANSCRIPTOME_FOR_DE_CH = preprocess_ref_transcriptome(FINAL_TRANSCRIPTOME_FOR_DE_CH)
+                GTF_FOR_DE_CH = ref_annotation_ch // Use the main ref_annotation as GTF
+            }
+
+            // FULL_LEN_READS_FOR_DE is already prepared:
+            // - FASTQ mode: output of preprocess_reads or raw FASTQs if direct_rna
+            // - BAM mode: input BAMs mapped to [[alias:id], bam_path]
+            // The differential_expression subworkflow needs to handle either FASTQ or BAM.
+            if (!FULL_LEN_READS_FOR_DE.isEmpty() && !FINAL_TRANSCRIPTOME_FOR_DE_CH.isEmpty() && !GTF_FOR_DE_CH.isEmpty()) {
+                de_workflow_inputs = FULL_LEN_READS_FOR_DE.map{ sample_id_or_meta, reads_path ->
+                    // Ensure it's always [[alias:id], path]
+                    def meta_map = (sample_id_or_meta instanceof Map) ? sample_id_or_meta : [alias:sample_id_or_meta]
+                    [meta_map, reads_path]
+                }
+
+                de_results = differential_expression(FINAL_TRANSCRIPTOME_FOR_DE_CH, de_workflow_inputs, sample_sheet_file, GTF_FOR_DE_CH)
+                DE_REPORT_CH = de_results.all_de
+                DE_OUTPUTS_CH = de_results.de_outputs // Collect this for results
+                DE_ALIGNMENT_STATS_CH = de_results.de_alignment_stats
+            } else {
+                 log.warn "Differential expression skipped due to missing inputs (reads, transcriptome, or GTF)."
+                 DE_REPORT_CH = Channel.value(OPTIONAL_FILE)
+                 DE_ALIGNMENT_STATS_CH = Channel.value(OPTIONAL_FILE)
+                 DE_OUTPUTS_CH = Channel.empty()
+            }
+
+        } else{ // Not params.de_analysis
+            DE_REPORT_CH = Channel.value(OPTIONAL_FILE)
+            DE_ALIGNMENT_STATS_CH = Channel.value(OPTIONAL_FILE)
+            DE_OUTPUTS_CH = Channel.empty()
+        }
+
+
+        // Prepare inputs for makeReport
+        // `stats` for makeReport comes from INGRESS_RESULTS_CH
+        INGRESS_RESULTS_CH.multiMap{ meta, f1, f2, stats ->
+            meta: meta
+            stats: stats
+        }.set { for_report_map }
+
+        metadata_for_report = for_report_map.meta.collect()
+        stats_for_report = for_report_map.stats.collect()
+        // Ensure stats_for_report is OPTIONAL_FILE if empty, as makeReport expects a path
+        if (stats_for_report.isEmpty()) {
+            stats_for_report = Channel.value(OPTIONAL_FILE)
+        }
+
+
+        makeReport(
+            metadata_for_report,
+            stats_for_report,
+            software_versions,
+            workflow.manifest.version,
+            workflow_params,
+            DE_ALIGNMENT_STATS_CH, // from de_analysis or OPTIONAL_FILE
+            PYCHOPPER_REPORT_CH,   // from FASTQ path or OPTIONAL_FILE
+            ASSEMBLY_STATS_CH,     // from FASTQ assembly path or OPTIONAL_FILE
+            GFFCOMPARE_DIR_CH.collect{ it ?: OPTIONAL_FILE }, // from assembly path or OPTIONAL_FILE, ensure collected
+            MERGED_GFF_COLLECTED_CH, // from assembly path or OPTIONAL_FILE
+            DE_REPORT_CH,          // from de_analysis or OPTIONAL_FILE
+            ISOFORMS_TABLE_CH,     // from assembly path or OPTIONAL_FILE
+            TRANSCRIPTOME_SUMMARY_CH) // from assembly path or OPTIONAL_FILE
+
+       report = makeReport.out.report
+       results = results.concat(report) // Initial result is the report itself
+
+       // Collect other results based on what ran
+       if (use_ref_ann_bool && params.transcriptome_source != "precomputed"){
+            // These results are only expected if reference annotation was used and assembly happened
+            if(!GFFCOMPARE_DIR_CH.isEmpty()){
+                 results = results.concat(GFFCOMPARE_DIR_CH.map { it[1] }) // Assuming it's [[id, path], ...]
+            }
+            if(!ASSEMBLY_STATS_CH.isEmpty() && ASSEMBLY_STATS_CH.getVal() != OPTIONAL_FILE){ // Check if it's not the placeholder
+                 results = results.concat(ASSEMBLY_STATS_CH)
+            }
+            if(!ISOFORMS_TABLE_CH.isEmpty() && ISOFORMS_TABLE_CH.getVal() != OPTIONAL_FILE){
+                 results = results.concat(ISOFORMS_TABLE_CH)
+            }
+            if(!TRANSCRIPTOME_FROM_ASSEMBLY_CH.isEmpty()){
+                 results = results.concat(TRANSCRIPTOME_FROM_ASSEMBLY_CH.flatMap(map_sample_ids_cls).map {it -> it[1]})
+            }
+       } else if (!use_ref_ann_bool && params.transcriptome_source == "reference-guided"){
+            // Results if no ref annotation but reference-guided assembly
+            if(!ASSEMBLY_STATS_CH.isEmpty() && ASSEMBLY_STATS_CH.getVal() != OPTIONAL_FILE){
+                 results = results.concat(ASSEMBLY_STATS_CH)
+            }
+            if(!TRANSCRIPTOME_FROM_ASSEMBLY_CH.isEmpty()){
+                results = results.concat(TRANSCRIPTOME_FROM_ASSEMBLY_CH.flatMap(map_sample_ids_cls).map {it -> it[1]})
+            }
+       }
+
+       // Add input files collected earlier (harmonized across BAM/FASTQ)
+       results = results.map{ [it, null] }.concat(input_files_for_report.map { [it, "input_files"] })
+
+
+        if (params.de_analysis){
+           de_results_to_publish = report.concat(
+            FINAL_TRANSCRIPTOME_FOR_DE_CH.ifEmpty(Channel.empty()), // ensure it doesn't fail if empty
+            DE_OUTPUTS_CH.flatten().ifEmpty(Channel.empty()),
+            makeReport.out.results_dge.ifEmpty(Channel.empty()),
+            makeReport.out.tpm.ifEmpty(Channel.empty()),
+            makeReport.out.filtered.ifEmpty(Channel.empty()),
+            makeReport.out.unfiltered.ifEmpty(Channel.empty()),
+            makeReport.out.gene_counts.ifEmpty(Channel.empty()))
+            // Output de_analysis results in the dedicated directory.
+            results = results.concat(de_results_to_publish.map{ [it, "de_analysis"] })
+        }
+
+        results = results.concat(workflow_params.map{ [it, null]})
+
+        // IGV config
+        // This part needs careful review if BAMS_FOR_SPLITTING is the source of BAMs for IGV
+        // or if it should use assembly.bam from the reference_assembly process when run.
+        // For now, assume BAMS_FOR_SPLITTING can be used if it contains the relevant BAMs.
+        // The original logic used `reads` channel which was the input fastq/bam.
+        // The `publish_prefix_bams` is "BAMS". IGV needs `sample_id_reads_aln_sorted.bam`
+        // If BAMS_FOR_SPLITTING is from xam_ingress, they are likely already named correctly by sample_id.
+        // If BAMS_FOR_SPLITTING is from reference_assembly, they are also named by sample_id.
+
+        if (params.transcriptome_source == "precomputed" && params.igv){
+            log.warn("IGV configuration might not be fully functional if transcriptome source is 'precomputed' and BAMs are not directly provided or generated in a standard way for IGV.")
+        }
+
+        if (params.igv && params.ref_genome && (is_fastq_input || is_bam_input || params.bam) ){ // Ensure there's a ref and some form of input
+            // Determine source of BAMs for IGV:
+            // If assembly ran (FASTQ -> BAM), use assembly.bam.
+            // If BAM input, use those BAMs.
+            // This logic needs to be robust. For now, let's assume BAMS_FOR_SPLITTING holds the necessary BAMs.
+            // However, original IGV logic used `reads | map { meta, sample, index, stats -> meta.alias }`
+            // which implies it needs the initial ingress channel structure.
+            // We'll use INGRESS_RESULTS_CH for meta and assume BAMs are in publish_prefix_bams.
+
+            is_compressed = ref_genome_file.extension == "gz"
+            String publish_ref_dir = "igv_reference" // Directory where reference and indexes will be published by faidx/gz_faidx
+
+            // Reference genome path for IGV (local path within container/execution)
+            igv_ref_uri_ch = ref_genome_ch | flatten | map { file(it).toUriString() }
+
+
+            Channel igv_fai_idx_ch = Channel.empty()
+            Channel igv_gzi_idx_ch = Channel.empty() // For .gz.gzi
+
+            if (is_compressed){
+                String input_fai_index = "${ref_genome_file}.fai"
+                String input_gzi_index = "${ref_genome_file}.gzi"
+                if (file(input_fai_index).exists() && file(input_gzi_index).exists()){
+                    igv_fai_idx_ch = Channel.fromPath(input_fai_index) | map { file(it).toUriString() }
+                    igv_gzi_idx_ch = Channel.fromPath(input_gzi_index) | map { file(it).toUriString() }
+                } else {
+                    gz_faidx_out = gz_faidx(ref_genome_ch) // Use the channel for ref_genome
+                    igv_fai_idx_ch = gz_faidx_out.map { fai, gzi -> "$publish_ref_dir/${file(fai).getName()}" }
+                    igv_gzi_idx_ch = gz_faidx_out.map { fai, gzi -> "$publish_ref_dir/${file(gzi).getName()}" }
+                    igv_fai_idx_ch | ifEmpty{ log.warn "Failed to generate .fai for compressed ref; IGV might be affected." }
+                    igv_gzi_idx_ch | ifEmpty{ log.warn "Failed to generate .gzi for compressed ref; IGV might be affected." }
+                }
+            } else { // Not compressed
+                if (file("${ref_genome_file}.fai").exists()){
+                    igv_fai_idx_ch = Channel.fromPath("${ref_genome_file}.fai") | map { file(it).toUriString() }
+                } else {
+                    fai_out = faidx(ref_genome_ch) // Use the channel for ref_genome
+                    igv_fai_idx_ch = fai_out.map { fai -> "$publish_ref_dir/${file(fai).getName()}" }
+                    igv_fai_idx_ch | ifEmpty{ log.warn "Failed to generate .fai for uncompressed ref; IGV might be affected." }
+                }
+            }
+
+
+            // Get list of sample aliases for BAM paths
+            // Assuming BAMs are published to `params.out_dir + / + publish_prefix_bams / + {sample_id}_reads_aln_sorted.bam`
+            // This was the pattern in reference_assembly. If input BAMs are used, their names need to match this
+            // or the paths need to be constructed from BAMS_FOR_SPLITTING.
+            // For simplicity, we use sample_ids and assume the published path structure.
+            igv_bam_paths_ch = sample_ids
+            | toSortedList
+            | map { list -> list.collect{ id ->
+                [
+                 // This path needs to be the final path where sorted indexed BAMs are expected for IGV
+                 // If direct BAM input, these might not be `_reads_aln_sorted.bam` unless explicitly named so.
+                 // This part is tricky if input BAMs are not processed by `reference_assembly`.
+                 // For now, assume this naming convention is achieved by upstream processes or direct input naming.
+                 "$publish_prefix_bams/${id}_reads_aln_sorted.bam",
+                 "$publish_prefix_bams/${id}_reads_aln_sorted.bam.bai"
+                ]
+            } }
+            | flatten
+
+
+            igv_all_files_ch = igv_bam_paths_ch
+            | concat (igv_ref_uri_ch.ifEmpty(Channel.empty()))
+            | concat (igv_fai_idx_ch.ifEmpty(Channel.empty()))
+            | concat (igv_gzi_idx_ch.ifEmpty(Channel.empty()))
+            | flatten
+            | collectFile(name: "igv-file-names.txt", newLine: true, sort: false)
+
+
+            igv_conf_ch = configure_igv(
+                igv_all_files_ch,
+                Channel.of(null), // igv locus
+                [displayMode: "SQUISHED", colorBy: "strand"], // bam extra opts
+                Channel.of(null), // vcf extra opts
+                )
+            results = results.concat(igv_conf_ch.map{ [it, null]})
+      } else if (params.igv) {
+            log.warn "IGV session generation skipped due to missing reference genome or input files."
+      }
+
+    emit:
+        results
+}
+
+// entrypoint workflow
+WorkflowMain.initialise(workflow, params, log)
+workflow {
+
+    Pinguscript.ping_start(nextflow, workflow, params)
+
+    error = null
+
+    // --- Parameter Validation ---
+    if (params.bam && params.fastq) {
+        error = "Parameters --bam and --fastq are mutually exclusive. Please specify only one."
+    }
+    if (params.bam_input_dir && params.fastq) {
+        error = "Parameters --bam_input_dir and --fastq are mutually exclusive. Please specify only one."
+    }
+    if (params.bam_input_dir && params.bam) {
+        error = "Parameters --bam_input_dir and --bam are mutually exclusive. Use --bam_input_dir with --sample_sheet."
+    }
+    if ((params.bam_input_dir || params.fastq) && !params.sample_sheet) {
+        error = "A sample sheet (--sample_sheet) is required when using --bam_input_dir or --fastq."
+    }
+    if (!params.bam && !params.fastq && !params.bam_input_dir) {
+        error = "No input specified. Please provide --bam, or --fastq with --sample_sheet, or --bam_input_dir with --sample_sheet."
+    }
+
+
+    if (params.containsValue("jaffal_refBase")) {
+        error = "JAFFAL fusion detection has been removed from this workflow."
+    }
+    if (params.containsKey("minimap_index_opts")) {
+        error = "`--minimap_index_opts` parameter is deprecated. Use parameter `--minimap2_index_opts` instead."
+    }
+
+    if (params.transcriptome_source == "precomputed" && !params.ref_transcriptome){
+        error = "As transcriptome source parameter is precomputed you must include a ref_transcriptome parameter"
+    }
+    // ref_genome is now optional if transcriptome_source is precomputed.
+    // However, if de_analysis is true and no ref_transcriptome is given, then ref_genome is needed for merge_transcriptomes.
+    // And if igv is true, ref_genome is needed.
+    if (params.transcriptome_source == "reference-guided" && !params.ref_genome){
+        error = "As transcriptome source is reference guided you must include a ref_genome parameter"
+    }
+    if (params.de_analysis && !params.ref_transcriptome && !params.ref_genome){
+        error = "For de_analysis without a precomputed ref_transcriptome, a ref_genome is required to build one."
+    }
+    if (params.igv && !params.ref_genome){
+        error = "IGV session generation requires a reference genome (--ref_genome)."
+    }
+
+
+    Channel ref_genome_file_ch
+    if (params.ref_genome){
+        ref_genome_file_ch = file(params.ref_genome, type: "file", checkIfExists: true)
+    }else {
+        ref_genome_file_ch = OPTIONAL_FILE // Pass as optional file if not provided
+    }
+
+    if (params.containsValue("denovo")) {
+        error = "Denovo transcriptome source is no longer supported. Please use the reference-guided or precomputed options."
+    }
+
+    boolean use_ref_ann_flag = false
+    Channel ref_annotation_file_ch
+    if (params.ref_annotation){
+        ref_annotation_file_ch = file(params.ref_annotation, type: "file", checkIfExists: true)
+        use_ref_ann_flag = true
+    }else{
+        ref_annotation_file_ch= OPTIONAL_FILE
+        use_ref_ann_flag = false
+    }
+
+    Channel ref_transcriptome_file_ch = OPTIONAL_FILE
+    if (params.ref_transcriptome){
+        log.info("Reference Transcriptome provided will be used for differential expression.")
+        ref_transcriptome_file_ch = file(params.ref_transcriptome, type:"file", checkIfExists: true)
+    }
+
+    if (params.de_analysis){
+        if (!params.ref_annotation){
+            error = "When running in --de_analysis mode you must provide a reference annotation (--ref_annotation)."
+        }
+        if (!params.sample_sheet){
+            error = "You must provide a sample_sheet (--sample_sheet) with at least alias and condition columns for DE analysis."
+        }
+        if (params.containsKey("condition_sheet")) {
+        error = "Condition sheets have been deprecated. Please add a 'condition' column to your sample sheet instead. Check the quickstart for more information."
+        }
+    } else{
+        if (!params.ref_annotation && params.transcriptome_source != "precomputed"){
+            log.info("Warning: As no --ref_annotation was provided and transcriptome_source is not 'precomputed', the output transcripts will not be annotated against a reference annotation.")
+        }
+    }
+    if (error){
+        throw new Exception(error)
+    }
+
+    // Input data ingress
+    // This `samples_ch` will be passed to the main pipeline workflow
+    // It should consistently provide [meta, file1, file2_or_null, stats_file_or_null]
+    // file1: fastq or bam
+    // file2_or_null: bam_index (bai) if file1 is bam
+    // stats_file_or_null: stats from ingress
+    Channel samples_ch
+
+    if (params.fastq) { // FASTQ input with sample sheet
+        samples_ch = fastq_ingress([
+            "input":params.fastq,
+            "sample":params.sample, // sample param might be redundant if sheet is comprehensive
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "stats": true,
+            "fastcat_extra_args": "",
+            "per_read_stats": true])
+        // fastq_ingress emits: [meta, concat_seqs, fastcat_stats]
+        // We need to adapt it to the [meta, file1, null, stats] structure for consistency
+        samples_ch = samples_ch.map { meta, concat_seqs, fastcat_stats ->
+            [meta, concat_seqs, null, fastcat_stats]
+        }
+    } else if (params.bam_input_dir) { // BAM input with sample sheet
+        samples_ch = xam_ingress([
+            "input":params.bam_input_dir, // xam_ingress needs to handle directory input based on sample sheet
+            "sample":params.sample,
+            "sample_sheet":params.sample_sheet,
+            "analyse_unclassified":params.analyse_unclassified,
+            "keep_unaligned": true, // Or make this configurable
+            "return_fastq": false,  // Ensure BAMs are output
+            "stats": true,
+            "per_read_stats": true])
+        // xam_ingress emits: [meta, bam, bai, stats] - this matches the target structure.
+    } else if (params.bam) { // Single BAM file input
+         samples_ch = xam_ingress([
+            "input":params.bam, // Single BAM path
+            "sample":params.sample, // Optional sample name for this single BAM
+            "sample_sheet":null, // No sample sheet for single BAM
+            "analyse_unclassified":params.analyse_unclassified,
+            "keep_unaligned": true,
+            "return_fastq": false,
+            "stats": true,
+            "per_read_stats": true])
+        // xam_ingress emits: [meta, bam, bai, stats]
+    }
+
+
+    pipeline(samples_ch, ref_genome_file_ch, ref_annotation_file_ch, ref_transcriptome_file_ch, use_ref_ann_flag)
+    publish_results(pipeline.out.results)
+}
 
             merge_gff_bundles(assemble_transcripts.out.gff_bundles.groupTuple())
             transcriptome_summary = merge_gff_bundles.out.summary.map {it[1]}.collect()
