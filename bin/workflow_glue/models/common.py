@@ -290,6 +290,10 @@ class WorkflowResult(WorkflowBaseModel):
             "title": "Analysis tool versions",
             "description": """Key-value pairs collecting the
             software used and the corresponding versions"""})
+    wf_version: str | None = field(
+        default=None, metadata={
+            "title": "Workflow version",
+            "description": "Version of the workflow used"})
     params: dict[str, Any] | None = field(
         default_factory=dict, metadata={
             "title": "Pertinent parameters",
