@@ -46,6 +46,9 @@ def is_excluded(Path p, Map margs) {
  * directory, into the metamap. If the path to the stats dir is `null`, add an empty list.
  *
  * @param ch: input channel of shape `[meta, reads, path-to-stats-dir | null]`
+ * @param allow_multiple_basecall_models: Boolean. If true, emit any sample to have been basecalled 
+    with more than one basecalling model. Multiple models are added as a list to the metadata map. 
+    If false, a warning is raised, and the sample is returned as `[meta, null, null]`.
  * @return: channel with lists of run IDs and basecall models added to the metamap
  */
 def add_run_IDs_and_basecall_models_to_meta(ch, boolean allow_multiple_basecall_models) {
@@ -81,7 +84,11 @@ def add_run_IDs_and_basecall_models_to_meta(ch, boolean allow_multiple_basecall_
     // bit grim but decouples ingress metadata from workflow main.nf
     // additionally no need to use CWUtil as we're not overriding any user params
     ch | subscribe(onComplete: {
-        params.wf["ingress.run_ids"] = ingressed_run_ids
+        if (params.wf["ingress.run_ids"] == null) {
+            params.wf["ingress.run_ids"] = ingressed_run_ids
+        } else {
+            params.wf["ingress.run_ids"] += ingressed_run_ids
+        }
     })
     return ch
 }
@@ -97,6 +104,8 @@ def add_run_IDs_and_basecall_models_to_meta(ch, boolean allow_multiple_basecall_
  * set the values to 0 when adding them.
  *
  * @param ch: input channel of shape `[meta, reads, path-to-stats-dir | null]`
+ * @param input_type_format: String. Indicates whether input files were 'fastq'. 
+ *        If not set to 'fastq', input is assumed to be 'bam'.
  * @return: channel with a list of number of reads added to the metamap
  */
 def add_number_of_reads_to_meta(ch, String input_type_format) {
@@ -147,11 +156,16 @@ def add_number_of_reads_to_meta(ch, String input_type_format) {
  *     files
  *  - "sample": string to name single sample
  *  - "sample_sheet": path to CSV sample sheet
- *  - "analyse_unclassified": boolean whether to keep unclassified reads
+ *  - "analyse_unclassified": boolean. Whether to ingress unclassified (failed to demux) reads
+ *  - "analyse_fail": boolean. Whether to ingress any sequence files contained in `*_fail`
+ *     directories.
  *  - "stats": boolean whether to write the `fastcat` stats
  *  - "fastcat_extra_args": string with extra arguments to pass to `fastcat`
- *  - "required_sample_types": list of required sample types in the sample sheet
+ *  - "required_sample_types": list of zero or more required sample types expected to be present 
+ *     in the sample sheet
  *  - "watch_path": boolean whether to use `watchPath` and run in streaming mode
+ *  - "per_read_stats": boolean. If true, output a bgzipped TSV containing a summary
+       of each read to fastcat_stats/per-read-stats.tsv.gz.
  *  - "fastq_chunk": null or a number of reads to place into chunked FASTQ files
  *  - "allow_multiple_basecall_models": emit data of samples that had more than one
  *     basecall model; if this is `false`, such samples will be emitted as `[meta, null,
@@ -249,14 +263,23 @@ def fastq_ingress(Map arguments)
  *    (u)BAM files
  *  - "sample": string to name single sample
  *  - "sample_sheet": path to CSV sample sheet
- *  - "analyse_unclassified": boolean whether to keep unclassified reads
+ *  - "analyse_unclassified": boolean. Whether to ingress unclassified (failed to demux) reads
+ *  - "analyse_fail": boolean. Whether to ingress any sequence files contained in `*_fail`
+ *    directories.
  *  - "stats": boolean whether to run `bamstats`
  *  - "keep_unaligned": boolean whether to include uBAM files
  *  - "return_fastq": boolean whether to convert to FASTQ (this will always run
  *    `fastcat`)
  *  - "fastcat_extra_args": string with extra arguments to pass to `fastcat`
- *  - "required_sample_types": list of required sample types in the sample sheet
+ *  - "required_sample_types": list of zero or more required sample types expected to be present 
+ *     in the sample sheet
  *  - "watch_path": boolean whether to use `watchPath` and run in streaming mode
+ *  - "per_read_stats": boolean. If true, output a bgzipped TSV containing a summary
+       of each read to fastcat_stats/per-read-stats.tsv.gz.
+ *  - "fastq_chunk": null or a number of reads to place into chunked FASTQ files
+ *  - "allow_multiple_basecall_models": boolean. If true, emit data of samples that had more than one
+ *     basecall model; if this is `false`, such samples will be emitted as `[meta, null,
+ *     null]`
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
  *  The first element is a map with metadata, the second is the path to the
  *  `.bam` file with the (potentially merged) sequences and the third is
@@ -912,6 +935,8 @@ process split_fq_file {
 /**
  * Parse input arguments for `fastq_ingress` or `xam_ingress`.
  *
+ * @param func_name: String name to set on `ArgumentParser`. Recommended to use the name of the 
+    function calling `parse_arguments`.
  * @param arguments: map with input arguments (see the corresponding ingress function
  *  for details)
  * @param extra_kwargs: map of extra keyword arguments and their defaults (this allows
@@ -1217,6 +1242,7 @@ Map create_metamap(Map arguments) {
  * @param dir: path to the target directory
  * @param extensions: list of valid extensions for the target file type
  * @param margs: ingress margs
+ * @param recursive: Boolean. If true, search nested directories for input files.
  * @return: list of found target files
  */
 ArrayList get_target_files_in_dir(Path dir, ArrayList extensions, Map margs, Boolean recursive = true) {
@@ -1231,6 +1257,8 @@ ArrayList get_target_files_in_dir(Path dir, ArrayList extensions, Map margs, Boo
  * Check the sample sheet and return a channel with its rows if it is valid.
  *
  * @param sample_sheet: path to the sample sheet CSV
+ * @param required_sample_types: list of zero or more required sample types expected to be present 
+ *     in the sample sheet
  * @return: channel of maps (with values in sample sheet header as keys)
  */
 def get_sample_sheet(Path sample_sheet, ArrayList required_sample_types) {
