@@ -1,0 +1,9 @@
+name: Issue Auto-Reply
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-reply:
+    uses: epi2me-labs/.github/.github/workflows/issue-autoreply.yml@main
