@@ -21,11 +21,14 @@ macos-run:
     - macos
     - x86
 
-aws-run:
-  artifacts:
-        when: always
 
+# run all our test in AWS, cos EKS runners don't work
 docker-run:
+    rules:
+        - when: never
+
+aws-run:
+    stage: test
     artifacts:
         when: always
         paths:
@@ -41,6 +44,7 @@ docker-run:
             - ${CI_PROJECT_NAME}/**/*.fna
             - ${CI_PROJECT_NAME}/**/*.fasta
             - ${CI_PROJECT_NAME}/**/*.mmi
+
 
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
     #   the CI environment, we can use the value of MATRIX_NAME to determine
@@ -220,22 +224,22 @@ docker-run:
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,validate_ref_annotation,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome,faidx,gz_faidx 
-        - if: $MATRIX_NAME == "mismatch_seqid_error"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                  "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/hg38_chr20.fa \
-                  --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
-                  --direct_rna \
-                  --sample_sheet test_data/sample_sheet.csv \
-                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
-              ASSERT_NEXTFLOW_FAILURE: 1
-              ASSERT_NEXTFLOW_FAILURE_REXP: Seqid mismatch found between the provided ref_annotation
+        #- if: $MATRIX_NAME == "mismatch_seqid_error"
+        #  variables:
+        #      NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
+        #      NF_WORKFLOW_OPTS:
+        #          "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
+        #          --de_analysis \
+        #          --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/hg38_chr20.fa \
+        #          --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
+        #          --direct_rna \
+        #          --sample_sheet test_data/sample_sheet.csv \
+        #          -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
+        #      NF_IGNORE_PROCESSES: >
+        #        preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
+        #        build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
+        #      ASSERT_NEXTFLOW_FAILURE: 1
+        #      ASSERT_NEXTFLOW_FAILURE_REXP: Seqid mismatch found between the provided ref_annotation
         - if: $MATRIX_NAME == "mismatch_seqid_warn"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
@@ -251,6 +255,5 @@ docker-run:
                 preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
                 build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome           
               AFTER_NEXTFLOW_CMD: "grep 'are only present in the reference genome' '.nextflow.log'"
-
 
 

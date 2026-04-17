@@ -72,10 +72,8 @@ process deAnalysis {
         path "de_analysis/results_dge.tsv", emit: dge
         path "de_analysis/results_dexseq.tsv", emit: dexseq
         path "de_analysis/results_dge.pdf", emit: dge_pdf
-        path "de_analysis/results_dge.tsv", emit: dge_tsv
         path "de_analysis/results_dtu_gene.tsv", emit: dtu_gene
         path "de_analysis/results_dtu_transcript.tsv", emit: dtu_transcript
-        path "de_analysis/results_dtu_stageR.tsv", emit: dtu_stageR
         path "de_analysis/results_dtu.pdf", emit: dtu_pdf
         path "de_analysis/cpm_gene_counts.tsv", emit: cpm
     script:
@@ -195,8 +193,8 @@ workflow differential_expression {
             analysis.gene_counts, analysis.dge, analysis.dexseq,
             analysis.stageR, sample_sheet, merged, ref_annotation, merged_TPM, analysis.unflt_counts).collect()
         // Concat files required to be output to user without any changes
-        de_outputs_concat = analysis.cpm.concat(analysis.dexseq, plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge_tsv,
-        analysis.dtu_gene, analysis.dtu_transcript, analysis.dtu_stageR, analysis.dtu_pdf, merged_TPM).collect()
+        de_outputs_concat = analysis.cpm.concat(analysis.dexseq, plotResults.out.dtu_plots, analysis.dge_pdf, analysis.dge,
+        analysis.dtu_gene, analysis.dtu_transcript, analysis.stageR, analysis.dtu_pdf, merged_TPM).collect()
         collected_de_alignment_stats = mapped.align_stats.collect()
 emit:
        all_de = de_report

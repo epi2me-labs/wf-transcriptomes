@@ -33,7 +33,7 @@ process configure_igv {
     script:
     // the locus argument just makes sure that the initial view in IGV shows something
     // interesting
-    String locus_arg = locus_str ? "--locus $locus_str" : ""
+    String locus_arg = locus_str ? "--locus '$locus_str'" : ""
     // extra options for alignment tracks
     def aln_opts_json_str = \
         aln_extra_opts ? new JsonBuilder(aln_extra_opts).toPrettyString() : ""

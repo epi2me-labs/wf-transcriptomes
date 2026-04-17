@@ -23,4 +23,28 @@ class CWUtil {
         nf_params.allowNames(s)
         nf_params.put0(key, value)
     }
+
+    /* Safely get the workflow entrypoint from the Nextflow params map 
+    *
+    * Our workflows support alternative "entrypoints". For example, a workflow
+    * may expose an entrypoint that can be used to validate parameters and
+    * dry run the workflow, or to automatically set different defaults or
+    * behaviours. This is controlled by setting `params.wf.entrypoint`.
+    *
+    * This util safely checks and extracts this parameter if set and avoids
+    * "Access to undefined parameter" errors otherwise raised during strict
+    * Nextflow execution.
+    * 
+    * Note that entrypoint is expected to be null for the "main" entrypoint.
+    */
+    public static def getEntrypoint(nf_params) {
+        def entrypoint = null
+        if( nf_params.containsKey('wf')
+            && nf_params.wf instanceof Map
+            && nf_params.wf.containsKey('entrypoint') )
+        {
+            entrypoint = nf_params.wf.entrypoint
+        }
+        return entrypoint
+    }
 }

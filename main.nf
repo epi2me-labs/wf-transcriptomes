@@ -450,8 +450,6 @@ process makeReport {
 
     output:
         path ("wf-transcriptomes-*.html"), emit: report
-        path ("results_dge.tsv"), emit: results_dge, optional: true
-        path ("unfiltered_tpm_transcript_counts.tsv"), emit: tpm, optional: true
         path ("unfiltered_transcript_counts_with_genes.tsv"), emit: unfiltered, optional: true
         path ("filtered_transcript_counts_with_genes.tsv"), emit: filtered, optional: true
         path ("all_gene_counts.tsv"), emit: gene_counts, optional: true
@@ -835,9 +833,11 @@ workflow pipeline {
        results = results.map{ [it, null] }.concat(fastq_ingress_results.map { [it, "fastq_ingress_results"] })
 
         if (params.de_analysis){
+           // `makeReport` stages copies of some DE files into its work dir; only publish
+           // the original `results_dge.tsv` and `unfiltered_tpm_transcript_counts.tsv`
+           // from `de_outputs` to avoid duplicate publish targets under `de_analysis/`.
            de_results = report.concat(
             transcriptome, de_outputs.flatten(),
-            makeReport.out.results_dge,  makeReport.out.tpm,
             makeReport.out.filtered,  makeReport.out.unfiltered,
             makeReport.out.gene_counts)
             // Output de_analysis results in the dedicated directory.
@@ -1004,7 +1004,6 @@ workflow {
             "sample":params.sample,
             "sample_sheet":params.sample_sheet,
             "analyse_unclassified":params.analyse_unclassified,
-            "stats": true,
             "fastcat_extra_args": "",
             "per_read_stats": true])
     } else {
@@ -1015,7 +1014,6 @@ workflow {
             "analyse_unclassified":params.analyse_unclassified,
             "keep_unaligned": true,
             "return_fastq": true,
-            "stats": true,
             "per_read_stats": true])
     }
 
