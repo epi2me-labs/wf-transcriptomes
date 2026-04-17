@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Updated to wf-template v5.6.3 to maintain compliance with our latest wf-template standard, changing:
+- Updated to wf-template v6.0.0 to maintain compliance with our latest wf-template standard, changing:
   - Pipeline overview now appears before pipeline parameters in README.
-  - ezCharts plotting library has been updated to 0.15.1, there are no user facing changes to plots.
   - Fastcat FASTQ pre-processing program has been updated to 0.24.2, it is more robust to malformed FASTQ input.
+
+### Added
+- Updated to wf-template v6.0.0, adding:
+    - Support for workflows to define non-main entrypoints for additional functionality.
+    - ezcharts 0.16.1, to provide UpSetPlot, BaseComposition and polya components
+
+### Fixed
+- Updated to wf-template v6.0.0, fixing:
+    - `configure_igv` process crashes when reference names include special characters.
 
 ## [v1.7.2]
 This patch release of wf-transcriptomes updates internal workflow naming, and does not affect any workflow outputs.
