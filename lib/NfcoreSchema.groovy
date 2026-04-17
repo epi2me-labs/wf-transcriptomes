@@ -40,8 +40,14 @@ class NfcoreSchema {
     //
     // Resolve Schema path relative to main workflow directory
     //
-    public static String getSchemaPath(workflow, schema_filename='nextflow_schema.json') {
-        return "${workflow.projectDir}/${schema_filename}"
+    public static String getSchemaPath(workflow, params, schema_filename='nextflow_schema.json') {
+        String entrypoint_prefix = ""  // default "main" prefix
+        // if our params.wf namespace defines an entrypoint, override the schema location
+        def wf_entrypoint = CWUtil.getEntrypoint(params)
+        if (wf_entrypoint) {
+            entrypoint_prefix = "entrypoints/${wf_entrypoint}/"
+        }
+        return "${workflow.projectDir}/${entrypoint_prefix}${schema_filename}"
     }
 
     //
@@ -53,7 +59,7 @@ class NfcoreSchema {
         def has_error = false
         //=====================================================================//
         // Check for nextflow core params and unexpected params
-        def json = new File(getSchemaPath(workflow, schema_filename=schema_filename)).text
+        def json = new File(getSchemaPath(workflow, params, schema_filename=schema_filename)).text
         def Map schemaParams = (Map) new JsonSlurper().parseText(json).get('definitions')
         def nf_params = [
             // Options for base `nextflow` command
@@ -160,7 +166,7 @@ class NfcoreSchema {
 
         //=====================================================================//
         // Validate parameters against the schema
-        InputStream input_stream = new File(getSchemaPath(workflow, schema_filename=schema_filename)).newInputStream()
+        InputStream input_stream = new File(getSchemaPath(workflow, params, schema_filename=schema_filename)).newInputStream()
         JSONObject raw_schema = new JSONObject(new JSONTokener(input_stream))
 
         // Remove anything that's in params.schema_ignore_params
@@ -215,7 +221,7 @@ class NfcoreSchema {
         String output  = ''
         output        += 'Typical pipeline command:\n\n'
         output        += "  ${colors.cyan}${command}${colors.reset}\n\n"
-        Map params_map = paramsLoad(getSchemaPath(workflow, schema_filename=schema_filename))
+        Map params_map = paramsLoad(getSchemaPath(workflow, params, schema_filename=schema_filename))
         Integer max_chars  = paramsMaxChars(params_map) + 1
         Integer type_pad = 10
         String param_prefix = "  --"
@@ -296,7 +302,7 @@ class NfcoreSchema {
         // Get pipeline parameters defined in JSON Schema
         def Map params_summary = [:]
         def blacklist  = ['hostnames']
-        def params_map = paramsLoad(getSchemaPath(workflow, schema_filename=schema_filename))
+        def params_map = paramsLoad(getSchemaPath(workflow, params, schema_filename=schema_filename))
         for (group in params_map.keySet()) {
             def sub_params = new LinkedHashMap()
             def group_params = params_map.get(group)  // This gets the parameters of that particular group

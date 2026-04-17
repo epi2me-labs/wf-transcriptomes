@@ -62,8 +62,6 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 - Bug where incorrect gene_id assigned in the DE tables.
 
 ## [v1.5.0]
-### Updated
-- Workflow report updated to use `ezcharts`.
 ### Fixed
 - Exons per isoforms histogram reporting incorrect numbers.
 - Output the `results_dexseq.tsv` file when `--de_analysis` enabled.
@@ -71,8 +69,8 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 - per-class gffcompare tracking files as there exists a combine tracking file. 
 
 ## [v1.4.0]
-## Added
-- `--igv` parameter (default: false) for outputting IGV config allowing visualisation of read alignments in the EPI2ME App.
+### Added
+- Added `--igv` parameter (default: false) for outputting IGV config allowing visualisation of read alignments in the EPI2ME App.
 - If required for IGV, reference indexes are output in to a `igv_reference` directory
 ### Changed
 - BAMS are output in to a BAMS directory.
@@ -83,8 +81,8 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 - Fusion detection subworkflow, as the functionality is not robust enough for general use at this time.
 ### Changed
 - Updated pychopper to 2.7.10
-## Added 
-- new `cdna_kit` options: PCS114 and PCB111/114
+### Added 
+- New `--cdna_kit` options: PCS114 and PCB111/114
 
 ## [v1.2.1]
 ### Changed

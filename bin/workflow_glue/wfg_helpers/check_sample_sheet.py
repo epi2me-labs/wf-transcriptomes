@@ -64,38 +64,49 @@ def main(args):
                  )
 
                 sys.exit()
-
             csv_reader = csv.DictReader(f)
-            n_row = 0
-            for row in csv_reader:
-                n_row += 1
-                if n_row == 1:
-                    n_cols = len(row)
-                else:
-                    # check we got the same number of fields
-                    if len(row) != n_cols:
-                        sys.stdout.write(
-                            f"Unexpected number of cells in row number {n_row}"
-                        )
-                        sys.exit()
-                try:
-                    barcodes.append(row["barcode"])
-                except KeyError:
-                    sys.stdout.write("'barcode' column missing")
+            columns = csv_reader.fieldnames
+            alias_field = "alias"
+            required_fields = ["barcode"]
+            prohibited_fields = []
+
+            if args.no_barcode:
+                alias_field = "sample_name"
+                required_fields = []
+                prohibited_fields = ["alias", "barcode"]
+
+            required_fields.append(alias_field)
+
+            for field in prohibited_fields:
+                if field in columns:
+                    sys.stdout.write(
+                        f"'{field}' column must not be present with --no_barcode"
+                    )
                     sys.exit()
-                try:
-                    aliases.append(row["alias"])
-                except KeyError:
-                    sys.stdout.write("'alias' column missing")
+
+            for field in required_fields:
+                if field not in columns:
+                    sys.stdout.write(f"'{field}' column missing")
                     sys.exit()
-                try:
-                    sample_types.append(row["type"])
-                except KeyError:
-                    pass
-                try:
-                    analysis_groups.append(row["analysis_group"])
-                except KeyError:
-                    pass
+
+            # Skip header row for n_row
+            for n_row, row in enumerate(csv_reader, start=1):
+                if len(row) != len(columns):
+                    sys.stdout.write(
+                        f"Unexpected number of cells in row number {n_row}"
+                    )
+                    sys.exit()
+                if not args.no_barcode:
+                    barcodes.append(row.get("barcode"))
+                aliases.append(row.get(alias_field))
+
+                # Optional fields check for not None, empty strings are falsey
+                sample_type = row.get("type")
+                if sample_type is not None:
+                    sample_types.append(sample_type)
+                analysis_group = row.get("analysis_group")
+                if analysis_group is not None:
+                    analysis_groups.append(analysis_group)
     except Exception as e:
         sys.stdout.write(f"Parsing error: {e}")
         sys.exit()
@@ -110,22 +121,25 @@ def main(args):
     # for now we have decided they may not start with "barcode"
     for alias in aliases:
         if alias.startswith("barcode"):
-            sys.stdout.write("values in 'alias' column must not begin with 'barcode'")
+            sys.stdout.write(
+                f"values in '{alias_field}' column must "
+                "not begin with 'barcode'")
             sys.exit()
 
     # check barcodes are all the same length
-    first_length = len(barcodes[0])
-    for barcode in barcodes[1:]:
-        if len(barcode) != first_length:
-            sys.stdout.write("values in 'barcode' column are different lengths")
-            sys.exit()
+    if barcodes:
+        first_length = len(barcodes[0])
+        for barcode in barcodes[1:]:
+            if len(barcode) != first_length:
+                sys.stdout.write("values in 'barcode' column are different lengths")
+                sys.exit()
 
     # check barcode and alias values are unique
     if len(barcodes) > len(set(barcodes)):
         sys.stdout.write("values in 'barcode' column not unique")
         sys.exit()
     if len(aliases) > len(set(aliases)):
-        sys.stdout.write("values in 'alias' column not unique")
+        sys.stdout.write(f"values in '{alias_field}' column not unique")
         sys.exit()
 
     if sample_types:
@@ -169,5 +183,11 @@ def argparser():
         help="List of required sample types. Each sample type provided must "
              "appear at least once in the sample sheet",
         nargs="*"
+    )
+    parser.add_argument(
+        "--no_barcode",
+        action="store_true",
+        help="Allow sample sheets without a barcode column "
+        "and match rows by sample_name only",
     )
     return parser
