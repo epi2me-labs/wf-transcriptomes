@@ -423,11 +423,23 @@ workflow {
             ]
         }
 
+    analysis_samples = decorated_samples
+        .filter { meta, sample_reads, stats ->
+            if (meta.n_seqs == 0) {
+                log.warn("Sample ${meta.alias} has no reads - excluded from transcriptome analysis.")
+                return false
+            }
+            true
+        }
+        .ifEmpty {
+            throw new Exception("No samples with reads were available for transcriptome analysis.")
+        }
+
     pychopper_results = Channel.empty()
-    processed_samples = decorated_samples
+    processed_samples = analysis_samples
 
     if (params.cdna_preprocess) {
-        grouped_samples = decorated_samples.branch { meta, sample_reads, stats ->
+        grouped_samples = analysis_samples.branch { meta, sample_reads, stats ->
             to_process: sample_reads != null
             passthrough: sample_reads == null
         }
