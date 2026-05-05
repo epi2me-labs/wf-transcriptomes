@@ -179,7 +179,7 @@ process runJointBambu {
         String sample_sheet_arg = sample_sheet.name == OPTIONAL_FILE.name ? "" : "--sample_sheet ${sample_sheet}"
         String ndr_arg = params.ndr != null ? "--ndr ${params.ndr}" : ""
     """
-    run_bambu.R \
+    supeRglue bambu \
         --bam_dir bams \
         ${sample_sheet_arg} \
         --annotation "${annotation}" \
@@ -210,7 +210,7 @@ process runPerSampleBambu {
         tuple val(meta), path("${meta.alias}/transcript_metadata.tsv"), emit: transcript_metadata
     script:
     """
-    run_bambu.R \
+    supeRglue bambu \
         --bam_path "${bam}" \
         --sample_alias "${meta.alias}" \
         --annotation "${annotation}" \

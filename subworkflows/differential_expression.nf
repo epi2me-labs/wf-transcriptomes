@@ -37,7 +37,7 @@ process runDifferentialAnalysis {
         String covariates_arg = params.covariates ? "--covariates '${params.covariates}'" : ""
         String reference_arg = params.reference_level ? "--reference_level '${params.reference_level}'" : ""
     """
-    run_de_analysis.R \
+    supeRglue de_analysis \
         --transcript_rds "${transcript_rds}" \
         --gene_rds "${gene_rds}" \
         --sample_sheet "${sample_sheet}" \

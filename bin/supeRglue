@@ -1,0 +1,24 @@
+#!/usr/bin/env Rscript
+
+supeRglue_script_dir <- function() {
+    file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+    if (length(file_arg) > 0) {
+        return(dirname(normalizePath(sub("^--file=", "", file_arg[[1]]), mustWork = TRUE)))
+    }
+
+    frame_files <- vapply(sys.frames(), function(frame) {
+        path <- frame$ofile
+        if (is.null(path)) "" else path
+    }, character(1))
+    frame_files <- frame_files[nzchar(frame_files)]
+    if (length(frame_files) > 0) {
+        return(dirname(normalizePath(frame_files[[length(frame_files)]], mustWork = TRUE)))
+    }
+
+    stop("Unable to locate supeRglue on disk.", call. = FALSE)
+}
+
+script_dir <- supeRglue_script_dir()
+source(file.path(script_dir, "workflow_glue_r", "load.R"))
+workflow_glue_r_load(file.path(script_dir, "workflow_glue_r"))
+workflow_glue_r_cli()
