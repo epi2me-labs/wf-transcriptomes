@@ -99,10 +99,9 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 ## [v1.2.0]
 ### Added
 - Workflow now accepts BAM or FASTQ files as input (using the --bam or --fastq parameters, respectively).
+- Error message when running in `de_analysis` mode and `ref_annotation` input file contains unstranded annotations.
 ### Changed
 - MA plot in the `results_dge.pdf` has been updated to match the MA plot in the report.
-### Added
-- Error message when running in `de_analysis` mode and `ref_annotation` input file contains unstranded annotations.
 
 ## [v1.1.1]
 ### Changed
@@ -119,6 +118,8 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
   -  `de_analysis/all_counts_filtered.tsv` to `de_analysis/filtered_transcript_counts_with_genes.tsv`
   -  `de_analysis/de_tpm_transcript_counts.tsv` to `de_analysis/unfiltered_tpm_transcript_counts.tsv`
 - Minimum memory requirements to `32 GB`.
+- More memory assigned to the fusion detection process.
+- When no `--ref_annotation` is provided the workflow will still run but the output transcripts will not be annotated. However `--de_analysis` mode still requires a `--ref_annotation`.
 ### Added
 - Published isoforms table to output directory.
 - Output additional `de_analysis/cpm_gene_counts.tsv` with counts per million gene counts.
@@ -126,9 +127,6 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 - Add gene name column to the de_analysis counts TSV files.
 ### Fixed
 - Mapping stage using a single thread only.
-### Changed
-- More memory assigned to the fusion detection process.
-- When no `--ref_annotation` is provided the workflow will still run but the output transcripts will not be annotated. However `--de_analysis` mode still requires a `--ref_annotation`.
 
 ## [v1.0.0]
 ### Added

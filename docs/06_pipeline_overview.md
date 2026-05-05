@@ -1,72 +1,141 @@
-### 1. Concatenate input files and generate per read stats.
-The [fastcat](https://github.com/epi2me-labs/fastcat) tool is used to concatenate multifile samples to be processed by the workflow. It will also output per read stats including average read lengths and qualities.
+### 0. Background.
 
-### 2. Preprocess cDNA.
-If input sequences are cDNA [Pychopper](https://github.com/epi2me-labs/pychopper) is used to orient, trim and rescue full length cDNA reads and associated statistics. If the `direct_rna` parameter is selected this step will be skipped.
+The methodology implemented within the wf-transcriptomics workflow follows from the largest independent long-read RNA benchmark to date.
+The [Systematic assessment of long-read RNA-seq methods for transcript identification and quantification](https://www.nature.com/articles/s41592-024-02298-3) concluded that, in well-annotated genomes, reference-based methods perform best.
+Our own previous research, benchmarking, and support of community members has shown that an automated, hands-off de-novo discovery pipeline to be bothersome for many use cases.
+The wf-transcriptomes workflow therefore focuses on a reference-guided approach rather than a novelty-first one.
 
-### 3. Build transcriptome.
-If the `transcriptome_source` parameter is "reference-guided" a transcriptome will be built for each sample as outlined below. If the `transcriptome_source` is "precomputed" and the `reference_transcriptome` parameter is provided the workflow will skip step 3.
+The benchmark paper above explicitly recommends `bambu` for identifying sample-specific transcriptomes in well-annotated organisms when only limited novelty is expected.
+The paper also names `bambu` as one of the best options when quantification is important, which supports using it as the core engine for downstream DGE and DTU analyses.
 
-#### 3.1 Align reads with reference genome.
-The reference genome will be indexed and aligned using [Minimap2](https://github.com/lh3/minimap2). The output is sorted and converted to a BAM file using [Samtools](https://www.htslib.org/). Alignment stats are created from these using [Seqkit BAM](https://bioinf.shenwei.me/seqkit/usage/#bam).
+In spike-in evaluations, `bambu` generally showed high precision and was among the better F1 performers.
+This is an acceptable tradeoff for a production workflow where false transcript calls might be confound downstream analysis.
+Users interested more in novel discovery may wish to amend the parameters of the workflow away from their defaults.
+`bambu` also performed especially well on long non-spliced SIRVs, which supports its use on long-read datasets where transcript-end definition matters.
 
-Additionally, the workflow will generate an IGV configuration file if `--igv` is selected. This file allows the user to view the aligned BAM in the EPI2ME Desktop Application in the Viewer tab.
+The workflow's choice of SQANTI3 as a companion QC and annotation layer matches the benchmark paper, which used SQANTI3 categories and metrics as its transcript assessment framework; so our outputs align with the field’s standard reporting language.
 
-#### 3.2 Chunk BAM
-The aligned BAMs are split into chunks using the bundle_min_reads parameter (default: 50000).
 
-#### 3.3 Assemble transcripts
-[StringTie](https://ccb.jhu.edu/software/stringtie/) is then used to assemble the transcripts using the aligned segments in the chunked BAM files. The assembled transcript will be output as a [GFF file](https://www.ensembl.org/info/website/upload/gff3.html). If a `ref_annotation` file is provided this will also be included in the GFF.
 
-#### 3.4 Merge Chunks
-Transcript GFF files from the chunks with the same sample aliases will then be merged.
+### 1. Getting your files into the workflow
 
-#### 3.5 Annnotate
-[GffCompare](https://ccb.jhu.edu/software/stringtie/gffcompare.html) is then used to compare query and reference annotations, merging records where appropriate and then annotating them. This also creates estimates of accuracy of the GFF files output in a stats file per sample.
+The shared EPI2ME input handling collects FASTQ or BAM inputs, works out
+whether you have a single sample or a multiplexed run, and produces per-sample
+FASTQ files plus read statistics. These files are published under
+`ingress_results/<alias>/` and are used in the downstream report.
 
-#### 3.6 Create transcriptomes
-[Gffread](https://github.com/gpertea/gffread) is used to create a transcriptome FASTA file from the final GFF as well as a merged transcriptome that includes annotations in the FASTA headers where available.
+### 2. Sample sheet formulation
 
-### 4. Differential expression analysis
+The sample sheet is optional for simple single-sample runs, but it becomes the
+main source of sample names for multiplexed runs and is required for
+`--de_analysis`.
 
-Differential gene expression (DGE) and differential transcript usage (DTU) analyses aim to identify genes and transcripts that show statistically altered expression patterns.
++ Every row must contain `barcode` and `alias`.
++ `barcode` must use the usual ONT-style naming such as `barcode01`,
+  `barcode02`, and the values must be unique.
++ `alias` is the user-facing sample name, must be unique, and must not begin
+  with the word `barcode`.
++ If a `type` column is present, it must use one of:
+  `test_sample`, `positive_control`, `negative_control`, or
+  `no_template_control`.
++ If an `analysis_group` column is present, every row must have a value.
++ For `--de_analysis`, the sheet must also contain the primary condition
+  column, `condition` by default, plus any columns named in `--covariates`.
 
-Differential Expression requires at least 2 replicates of each sample to compare (but we recommend three). You can see an example sample_sheet.csv below.
+When multiplexed input folders are named by barcode, the workflow matches those
+folder names against the `barcode` column. If the folders are named by alias,
+the workflow can match them against `alias`, but the sample sheet still needs a
+`barcode` column because the shared validator expects it.
 
-#### Sample sheet condition column
-The sample sheet should be a comma separated values file (.csv) and include at least three columns named `barcode`, `alias` and `condition`.
-- Each `barcode` should refer to a directory of the same name in the input FASTQ directory (in the example below `barcode01` to `barcode06` reflect the `test_data` directory).
-- The `alias` column allows you to rename each barcode to an alias that will be used in the report and other output files.
-- The condition column will need to contain one of two keys to indicate the two samples being compared. Control must be one of the keys, used to indicate which samples will be used as the reference in the differential expression analysis.
+Example sample sheet:
 
-eg. sample_sheet.csv
+```csv
+barcode,alias,type,condition,batch
+barcode01,control_rep1,test_sample,control,b1
+barcode02,control_rep2,test_sample,control,b2
+barcode03,treated_rep1,test_sample,treated,b1
+barcode04,treated_rep2,test_sample,treated,b2
 ```
-barcode,alias,condition
-barcode01,sample01,control
-barcode02,sample02,control
-barcode03,sample03,control
-barcode04,sample04,treated
-barcode05,sample05,treated
-barcode06,sample06,treated
-```
 
-#### 4.1 Merge cross sample transcriptomes
-If a `ref_transcriptome` is not provided, the transcriptomes created by the workflow will be used for DE analysis. To do this, the GFF outputs of GffCompare are merged using StringTie. A final non redundant FASTA file of the transcripts is created using the merged GFF file and the reference genome using seqkit.
+This example is suitable for a multiplexed run and also satisfies the minimum
+requirements for a two-group DE/DTU comparison.
 
-#### 4.2 Create a final non redundant transcriptome
-The reads from all the samples will be aligned with the final non redundant transcriptome using Minimap2 in a splice aware manner.
+### 3. Optional cDNA preprocessing
 
-#### 4.3 Count genes and transcripts
-[Salmon](https://github.com/COMBINE-lab/salmon) is used for transcript quantification, giving gene and transcript counts.
+When `--cdna_preprocess` is enabled for cDNA libraries, the workflow runs
+`pychopper` before alignment to classify, orient, and trim full-length reads.
+This preprocessing stage is controlled by `--cdna_kit`,
+`--pychopper_backend`, and optional extra `--pychopper_opts`, and its outputs
+are published alongside the ingress results for each sample.
 
-#### 4.4 edgeR based differential expression analysis
-A statistical analysis is first performed using [edgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html) to identify the subset of differentially expressed genes using the gene counts as input. A normalisation factor is calculated for each sequence library using the default TMM method (see [McCarthy et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3378882/) for further details). The defined experimental design is used to calculate estimates of dispersion for each of the gene features. Statistical tests are calculated using the contrasts defined in the experimental design. The differentially expressed genes are corrected for false discovery (FDR) using the method of Benjamini & Hochberg ([Benjamini and Hochberg (1995)](https://www.jstor.org/stable/2346101))
+### 4. Genome alignment
 
-#### 4.5 Pre-filtering of quantitative data using DRIMSeq
-[DRIMSeq](https://bioconductor.org/packages/release/bioc/html/DRIMSeq.html) is used to filter the transcript count data from the Salmon analysis for differential transcript usage (DTU) analysis. The filter step will be used to select for genes and transcripts that satisfy rules for the number of samples in which a gene or transcript must be observed, and minimum threshold levels for the number of observed reads. The parameters used for filtering are `min_samps_gene_expr`, `min_samps_feature_expr`, `min_gene_expr`, and `min_feature_expr`. By default, any transcripts with zero expression or one transcript in all samples are filtered out at this stage.
+Each sample is aligned to the supplied reference genome with
+[`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
+[`samtools`](https://www.htslib.org/). The aligned BAMs under
+`cohort/alignments/` are the main alignment files used for transcriptome
+analysis, optional `SQANTI3` QC, and optional IGV viewing.
 
-#### 4.6 Differential transcript usage using DEXSeq
-Differential transcript usage analysis is performed using the R [DEXSeq](https://bioconductor.org/packages/release/bioc/html/DEXSeq.html) package ([Anders et al. (2012)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3460195/)). Similar to the edgeR package, DEXSeq estimates the variance between the biological replicates and applies generalised linear models for the statistical testing. The key difference is that the DEXSeq method looks for differences at the exon count level. DEXSeq uses the filtered transcript count data prepared earlier in this analysis. 
+### 5. Cohort transcriptome construction
 
-#### 4.7 StageR stage-wise analysis of DGE and DTU
-The final component of this isoform analysis is a stage-wise statistical test using the R software package [stageR](https://bioconductor.org/packages/release/bioc/html/stageR.html)([Van den Berge and Clement (2018)](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1277-0)). stageR uses (1) the raw p-values for DTU from the DEXSeq analysis in the previous section and (2) a false-discovery corrected set of p-values from testing whether individual genes contain at least one exon showing DTU. A hierarchical two-stage statistical testing evaluates the set of genes for DTU.
+All aligned samples are analysed together with `bambu` to produce the primary
+cohort transcriptome, transcript counts, gene counts, and the `RDS` objects used
+for downstream differential analysis. This shared model is the main cohort-level
+result and is published under `cohort/`.
+
+### 6. Independent per-sample transcriptomes
+
+Each sample is also processed separately with `bambu` so the workflow produces
+sample-specific GTF, FASTA, count tables, and metadata under
+`samples/<alias>/`. These per-sample outputs are useful for inspecting sample
+specific transcript models without changing the shared cohort transcriptome used
+for DE/DTU.
+
+### 7. Transcript sequence generation and QC
+
+Transcript FASTA files are derived from GTF plus genome using `gffread`.
+When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
+transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
+results live under `cohort/sqanti_cohort/`, while per-sample `SQANTI3`
+directories are published under `samples/<alias>/<alias>_sqanti/`.
+
+### 8. Optional DE and DTU analysis
+
+When `--de_analysis` is enabled, the workflow checks the experimental design,
+runs `DESeq2` for differential gene expression, and runs `DEXSeq` for
+differential transcript usage. These analyses use the shared `bambu` outputs
+and the design columns in the sample sheet, and each comparison is written to
+its own subdirectory under `de_analysis/<contrast>/`.
+
+### 9. What you need to provide
+
+The workflow's analysis is controlled by a user provided genome, annotation, and
+`bambu` mode.
+
+* use `--transcriptome_mode` to choose between `discover` and
+  `fixed_annotation`
+* `--transcriptome_source` has been removed; use `--transcriptome_mode` instead
+* both `--ref_genome` and `--ref_annotation` are required in both modes
+* `--ref_transcriptome` has been removed; if you want annotation-based
+  quantification, use `--transcriptome_mode fixed_annotation` together with
+  `--ref_genome` and `--ref_annotation`
+* `--cdna_preprocess` enables the `pychopper` cDNA preprocessing stage, and
+  `--cdna_kit`, `--pychopper_backend`, and `--pychopper_opts` control that stage
+* when `--de_analysis` is enabled, the sample sheet must contain `alias`, the
+  primary condition column, and any requested columns named in `--covariates`
+* `--cdna_preprocess` must not be combined with `--direct_rna`
+
+### 10. How to read the output folder
+
+The published outputs are organised around a small number of top-level
+directories:
+
++ `ingress_results/<alias>/` contains prepared reads, read statistics, sample
+  metadata, and optional `pychopper` outputs for each sample
++ `cohort/` contains the primary joint `bambu` transcriptome, count tables,
+  alignments, and optional cohort `SQANTI3` outputs
++ `samples/<alias>/` contains the independent per-sample `bambu` outputs and
+  optional per-sample `SQANTI3` outputs
++ `de_analysis/<contrast>/` contains DE and DTU results for each contrast when
+  differential analysis is enabled
++ `igv_reference/` contains the published reference indexes used for IGV

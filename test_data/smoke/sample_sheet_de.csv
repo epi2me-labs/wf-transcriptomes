@@ -1,0 +1,5 @@
+barcode,alias,condition,batch
+barcode01,control_rep1,control,b1
+barcode02,control_rep2,control,b2
+barcode03,treated_rep1,treated,b1
+barcode04,treated_rep2,treated,b2

@@ -1,3 +1,6 @@
-+ [How to align your data](https://labs.epi2me.io/how-to-align/)
++ See the [EPI2ME website](https://epi2me.nanoporetech.com/) for more workflow resources and blog posts.
 
-See the [EPI2ME website](https://labs.epi2me.io/) for lots of other resources and blog posts.
+### References
+
+[Systematic assessment of long-read RNA-seq methods for transcript identification and quantification
+](https://www.nature.com/articles/s41592-024-02298-3)

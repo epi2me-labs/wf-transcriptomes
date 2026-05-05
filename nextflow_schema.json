@@ -1,398 +1,327 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema",
-    "$id": "https://raw.githubusercontent.com/./master/nextflow_schema.json",
-    "title": "epi2me-labs/wf-transcriptomes",
-    "workflow_title": "Transcriptomes",
-    "description": "Transcriptome analysis of cDNA and direct RNA sequencing data.",
-    "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
-    "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/aws.nextflow.config",
-    "url": "https://github.com/epi2me-labs/wf-transcriptomes",
-    "type": "object",
-    "definitions": {
-        "input_options": {
-            "title": "Input Options",
-            "type": "object",
-            "fa_icon": "fas fa-terminal",
-            "description": "Parameters for finding and handling input data for analysis.",
-            "properties": {
-                "fastq": {
-                    "type": "string",
-                    "format": "path",
-                    "title": "FASTQ",
-                    "demo_data": "${projectDir}/test_data/fastq",
-                    "description": "FASTQ files to use in the analysis.",
-                    "help_text": "This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`."
-                },
-                "bam": {
-                    "type": "string",
-                    "format": "path",
-                    "description": "BAM or unaligned BAM (uBAM) files to use in the analysis.",
-                    "help_text": "This accepts one of three cases: (i) the path to a single BAM file; (ii) the path to a top-level directory containing BAM files; (iii) the path to a directory containing one level of sub-directories which in turn contain BAM files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`."
-                },
-                "transcriptome_source": {
-                    "type": "string",
-                    "enum": [
-                        "precomputed",
-                        "reference-guided"
-                    ],
-                    "default": "reference-guided",
-                    "description": "Select how the transcriptome used for analysis should be prepared.",
-                    "help_text": "For differential expression analysis, use of an existing transcriptome may be preferred and so 'precomputed' should be selected. In this case the 'ref_transcriptome' parameter should be specified. To create a reference transcriptome using an existing reference genome, select 'reference guided' and specify the 'ref_genome' parameter."
-                },
-                "ref_genome": {
-                    "type": "string",
-                    "title": "Reference genome",
-                    "format": "file-path",
-                    "demo_data": "${projectDir}/test_data/SIRV_150601a.fasta",
-                    "description": "Path to reference genome sequence [.fa/.fq/.fa.gz/fq.gz]. Required for reference-based workflow.",
-                    "help_text": "A reference genome is required for reference-based assembly of a transcriptome."
-                },
-                "ref_transcriptome": {
-                    "type": "string",
-                    "title": "Reference transcriptome",
-                    "format": "file-path",
-                    "description": "Transcriptome reference file. Required for precomputed transcriptome calculation and for differential expression analysis.",
-                    "help_text": "A reference transcriptome related to the sample under study. Must be supplied when the 'Transcriptome source' parameter has been set to 'precomputed' or to perform differential expression."
-                },
-                "ref_annotation": {
-                    "type": "string",
-                    "title": "Reference annotation",
-                    "format": "file-path",
-                    "demo_data": "${projectDir}/test_data/SIRV_isoforms.gtf",
-                    "description": "A reference annotation in GFF2 or GFF3 format (extensions .gtf(.gz), .gff(.gz), .gff3(.gz)). Only annotation files from [Encode](https://www.encodeproject.org), [Ensembl](https://www.ensembl.org/index.html) and [NCBI](https://www.ncbi.nlm.nih.gov/) are supported.",
-                    "help_text": "This will be used for guiding the transcriptome assembly and to label transcripts with their corresponding gene identifiers. Note: If in de_analysis mode transcript strands must be only + or -."
-                },
-                "direct_rna": {
-                    "type": "boolean",
-                    "default": false,
-                    "title": "direct RNA",
-                    "description": "Set to true for direct RNA sequencing.",
-                    "help_text": " Omits the pychopper step."
-                },
-                "analyse_unclassified": {
-                    "type": "boolean",
-                    "default": false,
-                    "title": "Analyse unclassified",
-                    "description": "Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory.",
-                    "help_text": "If selected and if the input is a multiplex directory the workflow will also process the unclassified directory."
-                }
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/epi2me-labs/wf-transcriptomes/master/nextflow_schema.json",
+  "title": "epi2me-labs/wf-transcriptomes",
+  "workflow_title": "Transcriptomes",
+  "description": "Long-read transcriptome analysis using bambu with optional SQANTI3 QC, DESeq2, and DEXSeq.",
+  "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz",
+  "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/aws.nextflow.config",
+  "url": "https://github.com/epi2me-labs/wf-transcriptomes",
+  "type": "object",
+  "definitions": {
+    "input_options": {
+      "title": "Input Options",
+      "type": "object",
+      "description": "Parameters for ingesting read data.",
+      "properties": {
+        "fastq": {
+          "type": "string",
+          "format": "path",
+          "title": "FASTQ",
+          "demo_data": "${projectDir}/test_data/smoke/reads.fastq",
+          "description": "FASTQ reads to analyse.",
+          "help_text": "You can provide a single FASTQ, a folder of FASTQs, or a multiplexed folder containing one sub-folder per sample or barcode."
+        },
+        "bam": {
+          "type": "string",
+          "format": "path",
+          "description": "BAM or uBAM reads to analyse.",
+          "help_text": "You can provide a single BAM or uBAM, a folder of BAMs, or a multiplexed folder containing one sub-folder per sample or barcode."
+        },
+        "analyse_unclassified": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include unclassified reads from multiplexed input directories."
+        },
+        "analyse_fail": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include fail reads from multiplexed input directories."
+        },
+        "fastq_chunk": {
+          "type": "integer",
+          "description": "Maximum number of reads per ingress chunk.",
+          "help_text": "Useful mainly for testing or for splitting very large inputs into smaller pieces."
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "fastq"
+              ]
             },
-            "allOf": [
-                {
-                    "required": [
-                        "transcriptome_source"
-                    ]
-                },
-                {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "fastq"
-                            ]
-                        },
-                        {
-                            "required": [
-                                "bam"
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        "output_options": {
-            "title": "Output Options",
-            "type": "object",
-            "description": "Parameters for saving and naming workflow outputs.",
-            "default": "",
-            "properties": {
-                "out_dir": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "default": "output",
-                    "description": "Directory for output of all user-facing files."
-                },
-                "igv": {
-                    "title": "Show in IGV",
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Visualize outputs in the EPI2ME IGV visualizer.",
-                    "help_text": "Enabling this option will visualize the output alignment files in the EPI2ME Desktop App IGV visualizer."
-                }
+            {
+              "required": [
+                "bam"
+              ]
             }
-        },
-        "sample_options": {
-            "title": "Sample Options",
-            "type": "object",
-            "description": "Parameters that relate to samples such as sample sheets and sample names.",
-            "default": "",
-            "properties": {
-                "sample_sheet": {
-                    "type": "string",
-                    "title": "Sample and condition sheet",
-                    "format": "file-path",
-                    "description": "A CSV file used to map barcodes to sample aliases. The sample sheet can be provided when the input data is a directory containing sub-directories with FASTQ files. If you are running the differential expression workflow, there must be an additional column `condition` with two labels, one of which must be `control` (e.g. `control` and `treated`). Control will indicate which samples will be used as the reference. There should be at least 3 repeats for each condition.",
-                    "help_text": "The sample sheet is a CSV file with, minimally, columns named `barcode` and `alias`. Extra columns are allowed."
-                },
-                "sample": {
-                    "type": "string",
-                    "description": "A single sample name for non-multiplexed data. Permissible if passing a single .fastq(.gz) file or directory of .fastq(.gz) files."
-                }
-            }
-        },
-        "options_for_reference_based_workflow": {
-            "title": "Options for reference-based workflow",
-            "type": "object",
-            "description": "Parameters that are used solely for the reference-guided workflow",
-            "properties": {
-                "plot_gffcmp_stats": {
-                    "type": "boolean",
-                    "default": true,
-                    "title": "Plot gffcompare statistics",
-                    "description": "Create a PDF of plots from showing gffcompare results",
-                    "help_text": "If set to true, a PDF file containing detailed gffcompare reults will be output"
-                },
-                "gffcompare_opts": {
-                    "type": "string",
-                    "title": "Plot gffcompare options",
-                    "description": "Extra command-line options to give to gffcompare -r",
-                    "default": "-R",
-                    "help_text": "For a list of possible options see [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml)."
-                },
-                "minimap2_index_opts": {
-                    "type": "string",
-                    "title": "Minimap2 index options",
-                    "description": "Extra command-line options for minimap2 indexing.",
-                    "default": "-k 14",
-                    "help_text": "See [minimap2 index options](https://lh3.github.io/minimap2/minimap2.html#4) for more information. These will only be relevant in the reference based transcriptome assembly."
-                },
-                "minimap2_opts": {
-                    "type": "string",
-                    "title": "Minimap2 options",
-                    "description": "Additional command-line options for minimap2 alignment.",
-                    "default": "-uf",
-                    "help_text": "See [minimap2 options](https://lh3.github.io/minimap2/minimap2.html#5) for further information. These will only be relevant in the reference based transcriptome assembly."
-                },
-                "minimum_mapping_quality": {
-                    "type": "integer",
-                    "description": "filter aligned reads by MAPQ quality.",
-                    "default": 40,
-                    "help_text": "Reads that do not meet this mapping quality after minimap2 alignment, will be filtered out."
-                },
-                "poly_context": {
-                    "type": "integer",
-                    "description": "Region size at end of reads to apply poly(A) filter.",
-                    "help_text": "Mispriming of polyT primers can occur when, instead of priming transcription from a polyA tail, it is primed from internal polyA rich regions in the genome. In these cases the 3` end of the transcript will not be captured and should be discarded. This parameter defines the size of a genomic region centered around the 3` alignment position from which to search for polyA rich regions.",
-                    "hidden": true,
-                    "default": 24
-                },
-                "max_poly_run": {
-                    "type": "integer",
-                    "title": "Maximum poly run",
-                    "description": "Max poly(A) region allowed with poly_context-sized end regions.",
-                    "help_text": "See `poly_context` parameter. This parameter defines the maximum allowed polyA tract within a `poly_context` defined genomic region.",
-                    "hidden": true,
-                    "default": 8
-                },
-                "stringtie_opts": {
-                    "type": "string",
-                    "title": "Stringtie options",
-                    "description": "Extra command-line options for stringtie transcript assembly.",
-                    "default": "--conservative",
-                    "help_text": "For additional String tie options see [here](https://github.com/gpertea/stringtie#stringtie-options)."
-                }
-            }
-        },
-        "differential_expression_options": {
-            "title": "Differential Expression Options",
-            "type": "object",
-            "description": "Options relevant to the differential expression section of the workflow, only need to set if running DE.",
-            "default": "",
-            "properties": {
-                "de_analysis": {
-                    "type": "boolean",
-                    "default": false,
-                    "title": "Differential expression analysis",
-                    "description": "Run DE anaylsis",
-                    "help_text": "Running this requires you to provide at least two replicates for a control and treated sample as well as a sample sheet param."
-                },
-                "min_gene_expr": {
-                    "type": "integer",
-                    "title": "Minimum gene expression",
-                    "default": 10,
-                    "description": "The minimum number of total mapped sequence reads required for a gene to be considered in differential transcript usage analysis.",
-                    "help_text": "Filtering at the gene level ensures that the observed transcript ratios are calculated with a minimum number of counts per gene."
-                },
-                "min_feature_expr": {
-                    "type": "integer",
-                    "title": "Minimum feature expression",
-                    "default": 3,
-                    "description": "The minimum number of reads assigned to a transcript for it to be considered in differential transcript usage analysis.",
-                    "help_text": "Filter out transcripts that do not have this minimum number of transcript expression, reducing noise."
-                },
-                "min_samps_gene_expr": {
-                    "type": "integer",
-                    "title": "Minimum samples with gene expression",
-                    "description": "Set the minimum number of samples in which a gene is expressed to be included in the differential transcript usage analysis.",
-                    "default": 3,
-                    "help_text": "A gene must be expressed in at least this number of samples for the gene be included in the differential transcript usage analysis. Filtering at the gene level improves the reliability of the observed transcript ratios."
-                },
-                "min_samps_feature_expr": {
-                    "type": "integer",
-                    "title": "Minimum samples with feature expression",
-                    "default": 1,
-                    "description": "Set the minimum number of samples in which a transcript is expressed to be included in the differential transcript usage analysis.",
-                    "help_text": "A transcript must expressed in at least this minimum number of samples to be included in the analysis. Should be equal to the number of replicates per sample you have."
-                }
-            }
-        },
-        "advanced_options": {
-            "title": "Advanced Options",
-            "type": "object",
-            "description": "Advanced options for configuring processes inside the workflow.",
-            "properties": {
-                "threads": {
-                    "type": "integer",
-                    "default": 4,
-                    "description": "Number of CPU threads.",
-                    "help_text": "Only provided to processes including alignment and and assembly that benefit from multiple threads."
-                },
-                "cdna_kit": {
-                    "type": "string",
-                    "title": "Kit used for cDNA synthesis.",
-                    "enum": [
-                        "SQK-PCS109",
-                        "SQK-PCS110",
-                        "SQK-PCS111",
-                        "SQK-PCS114",
-                        "SQK-PCB111",
-                        "SQK-PCB114",
-                        "SQK-LSK114"
-                    ],
-                    "description": "If cDNA reads are used, select the kit used.",
-                    "default": "SQK-PCS109",
-                    "help_text": "This will be used by pychopper to preprocess the reads for downstream analysis."
-                },
-                "pychopper_backend": {
-                    "type": "string",
-                    "enum": [
-                        "edlib",
-                        "phmm"
-                    ],
-                    "title": "Pychopper backend",
-                    "description": "Pychopper can use one of two available backends for identifying primers in the raw reads",
-                    "default": "edlib",
-                    "help_text": "'edlib' is set by default due to its high performance. However, it may be less sensitive than 'phmm'."
-                },
-                "pychopper_opts": {
-                    "type": "string",
-                    "title": "Pychopper options",
-                    "description": "Extra pychopper opts",
-                    "help_text": "See available options (here)[https://github.com/epi2me-labs/pychopper#usage]"
-                },
-                "bundle_min_reads": {
-                    "type": "integer",
-                    "default": 50000,
-                    "title": "Bundle minimum reads",
-                    "description": "Minimum size of bam bundle for parallel processing."
-                },
-                "isoform_table_nrows": {
-                    "type": "integer",
-                    "title": "Isoform table number of rows",
-                    "description": "Maximum rows to dispay in the isoform report table",
-                    "default": 5000
-                }
-            }
-        },
-        "miscellaneous_options": {
-            "title": "Miscellaneous Options",
-            "type": "object",
-            "description": "Everything else.",
-            "default": "",
-            "properties": {
-                "help": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Display help text.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
-                },
-                "store_dir": {
-                    "type": "string",
-                    "hidden": true,
-                    "format" : "directory-path"
-                },
-                "disable_ping": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Enable to prevent sending a workflow ping.",
-                    "overrides": {
-                        "epi2mecloud": {
-                            "hidden": true
-                        }
-                    }
-                },
-                "version": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Display version and exit.",
-                    "hidden": true
-                }
-            }
+          ]
         }
+      ]
     },
-    "allOf": [
-        {
-            "$ref": "#/definitions/input_options"
+    "reference_options": {
+      "title": "Reference Options",
+      "type": "object",
+      "description": "Reference files and transcriptome construction mode.",
+      "properties": {
+        "ref_genome": {
+          "type": "string",
+          "format": "file-path",
+          "title": "Reference genome",
+          "demo_data": "${projectDir}/test_data/smoke/reference.fa",
+          "description": "Reference genome FASTA.",
+          "help_text": "Required in both discover and fixed_annotation modes."
         },
-        {
-            "$ref": "#/definitions/output_options"
+        "ref_annotation": {
+          "type": "string",
+          "format": "file-path",
+          "title": "Reference annotation",
+          "demo_data": "${projectDir}/test_data/smoke/annotation.gtf",
+          "description": "Reference transcript annotation in GTF or GFF format.",
+          "help_text": "Required in both discover and fixed_annotation modes."
         },
-        {
-            "$ref": "#/definitions/sample_options"
+        "transcriptome_mode": {
+          "type": "string",
+          "default": "discover",
+          "enum": [
+            "discover",
+            "fixed_annotation"
+          ],
+          "description": "How bambu should prepare the transcriptome model.",
+          "help_text": "Use discover for reference-guided transcript discovery and quantification, or fixed_annotation for quantification only against the supplied annotation."
         },
-        {
-            "$ref": "#/definitions/options_for_reference_based_workflow"
+        "direct_rna": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set this for direct RNA sequencing libraries."
         },
-        {
-            "$ref": "#/definitions/differential_expression_options"
-        },
-        {
-            "$ref": "#/definitions/advanced_options"
-        },
-        {
-            "$ref": "#/definitions/miscellaneous_options"
+        "cdna_preprocess": {
+          "type": "boolean",
+          "default": false,
+          "description": "Apply the optional cDNA preprocessing stage before alignment.",
+          "help_text": "This is only relevant for cDNA libraries and must not be combined with `--direct_rna`."
         }
-    ],
-    "properties": {
-        "aws_image_prefix": {
-            "type": "string",
-            "hidden": true
-        },
-        "aws_queue": {
-            "type": "string",
-            "hidden": true
-        },
-        "monochrome_logs": {
-            "type": "boolean"
-        },
-        "validate_params": {
-            "type": "boolean",
-            "default": true
-        },
-        "show_hidden_params": {
-            "type": "boolean"
-        }
+      },
+      "required": [
+        "ref_genome",
+        "ref_annotation",
+        "transcriptome_mode"
+      ]
     },
-    "resources": {
-        "recommended": {
-            "cpus": 16,
-            "memory": "64GB"
+    "sample_options": {
+      "title": "Sample Options",
+      "type": "object",
+      "description": "Parameters that control sample naming and experimental design.",
+      "properties": {
+        "sample_sheet": {
+          "type": "string",
+          "format": "file-path",
+          "title": "Sample sheet",
+          "demo_data": "${projectDir}/test_data/smoke/sample_sheet.csv",
+          "description": "CSV file describing barcodes, aliases, and optional experimental design columns.",
+          "help_text": "For multiplexed runs, the sample sheet should contain both barcode and alias. For differential analysis it must also contain alias, the condition column, and any extra columns named in `--covariates`."
         },
-        "minimum": {
-            "cpus": 8,
-            "memory": "32GB"
+        "sample": {
+          "type": "string",
+          "description": "Single sample name for singleplexed input or to restrict multiplexed analysis to one sample."
+        }
+      }
+    },
+    "analysis_options": {
+      "title": "Analysis Options",
+      "type": "object",
+      "description": "Parameters controlling DGE and DTU analyses.",
+      "properties": {
+        "de_analysis": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run differential gene expression and differential transcript usage analyses."
         },
-        "run_time": "15 minutes per sample, with 1 million reads and recommended resources.",
-        "arm_support": false
+        "condition_column": {
+          "type": "string",
+          "default": "condition",
+          "description": "Main comparison column in the sample sheet."
+        },
+        "covariates": {
+          "type": "string",
+          "description": "Comma-separated extra sample-sheet columns to adjust for, for example batch.",
+          "help_text": "Each listed name must exist as a column in the sample sheet."
+        },
+        "reference_level": {
+          "type": "string",
+          "description": "Baseline group for the main comparison column.",
+          "help_text": "If omitted, the workflow will use control when that level exists."
+        }
+      }
+    },
+    "output_options": {
+      "title": "Output Options",
+      "type": "object",
+      "description": "Parameters controlling workflow outputs.",
+      "properties": {
+        "out_dir": {
+          "type": "string",
+          "format": "directory-path",
+          "default": "output",
+          "description": "Directory for user-facing workflow outputs."
+        },
+        "igv": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate an IGV configuration file for the aligned BAM outputs."
+        }
+      }
+    },
+    "advanced_options": {
+      "title": "Advanced Options",
+      "type": "object",
+      "description": "Performance tuning and tool-specific advanced parameters.",
+      "properties": {
+        "threads": {
+          "type": "integer",
+          "default": 4,
+          "description": "Thread count to use for the core workflow processes."
+        },
+        "minimap2_index_opts": {
+          "type": "string",
+          "default": "",
+          "hidden": true,
+          "description": "Legacy compatibility parameter forwarded to minimap2 index generation."
+        },
+        "minimap2_opts": {
+          "type": "string",
+          "default": "",
+          "description": "Extra command-line options to pass to minimap2."
+        },
+        "ndr": {
+          "type": "number",
+          "description": "Optional bambu novel discovery rate override."
+        },
+        "cdna_kit": {
+          "type": "string",
+          "default": "SQK-PCS109",
+          "description": "ONT cDNA kit identifier used for pychopper preprocessing.",
+          "help_text": "Only used when `--cdna_preprocess` is enabled. The workflow derives the pychopper kit code from this value."
+        },
+        "pychopper_backend": {
+          "type": "string",
+          "default": "edlib",
+          "enum": [
+            "edlib",
+            "phmm"
+          ],
+          "description": "Primer-detection backend to use for pychopper preprocessing."
+        },
+        "pychopper_opts": {
+          "type": "string",
+          "default": "",
+          "description": "Extra command-line options to pass to pychopper."
+        },
+        "skip_sqanti": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip SQANTI3 transcript classification and QC."
+        },
+        "sqanti_skip_orf": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip ORF prediction during SQANTI3 QC."
+        },
+        "sqanti_extra_args": {
+          "type": "string",
+          "default": "",
+          "description": "Extra command-line options to pass to SQANTI3."
+        }
+      }
+    },
+    "misc": {
+      "title": "Miscellaneous Options",
+      "type": "object",
+      "description": "Everything else.",
+      "default": "",
+      "properties": {
+        "disable_ping": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable to prevent sending a workflow ping.",
+          "overrides": {
+            "epi2mecloud": {
+              "hidden": true
+            }
+          }
+        },
+        "help": {
+          "type": "boolean",
+          "description": "Display help text.",
+          "fa_icon": "fas fa-question-circle",
+          "default": false,
+          "hidden": true
+        },
+        "version": {
+          "type": "boolean",
+          "description": "Display version and exit.",
+          "fa_icon": "fas fa-question-circle",
+          "default": false,
+          "hidden": true
+        }
+      }
     }
+  },
+  "allOf": [
+    {
+      "$ref": "#/definitions/input_options"
+    },
+    {
+      "$ref": "#/definitions/reference_options"
+    },
+    {
+      "$ref": "#/definitions/sample_options"
+    },
+    {
+      "$ref": "#/definitions/analysis_options"
+    },
+    {
+      "$ref": "#/definitions/output_options"
+    },
+    {
+      "$ref": "#/definitions/advanced_options"
+    },
+    {
+      "$ref": "#/definitions/misc"
+    }
+  ],
+  "properties": {
+    "aws_image_prefix": {
+      "type": "string",
+      "hidden": true
+    },
+    "aws_queue": {
+      "type": "string",
+      "hidden": true
+    },
+    "monochrome_logs": {
+      "type": "boolean"
+    },
+    "validate_params": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_hidden_params": {
+      "type": "boolean"
+    }
+  },
+  "resources": {
+    "recommended": {
+      "cpus": 16,
+      "memory": "64GB"
+    },
+    "minimum": {
+      "cpus": 8,
+      "memory": "32GB"
+    },
+    "run_time": "Varies with read depth and sample count; expect a small single-sample run to finish in under 30 minutes with the recommended resources.",
+    "arm_support": false
+  }
 }
