@@ -31,6 +31,7 @@ process runDifferentialAnalysis {
         path transcript_rds
         path gene_rds
         path sample_sheet
+        path validation_token
     output:
         path "de_analysis", emit: dir
     script:
@@ -55,8 +56,8 @@ workflow differential_expression {
         gene_rds
         sample_sheet
     main:
-        checkExperimentDesign(sample_sheet)
-        results = runDifferentialAnalysis(transcript_rds, gene_rds, sample_sheet)
+        validated = checkExperimentDesign(sample_sheet)
+        results = runDifferentialAnalysis(transcript_rds, gene_rds, sample_sheet, validated.ok)
     emit:
         dir = results.dir
 }

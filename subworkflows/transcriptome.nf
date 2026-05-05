@@ -209,6 +209,7 @@ process runPerSampleBambu {
         tuple val(meta), path("${meta.alias}/bambu_genes.rds"), emit: gene_rds
         tuple val(meta), path("${meta.alias}/transcript_metadata.tsv"), emit: transcript_metadata
     script:
+        String ndr_arg = params.ndr != null ? "--ndr ${params.ndr}" : ""
     """
     supeRglue bambu \
         --bam_path "${bam}" \
@@ -217,6 +218,7 @@ process runPerSampleBambu {
         --genome "${reference}" \
         --transcriptome_mode "${params.transcriptome_mode}" \
         --threads ${task.cpus} \
+        ${ndr_arg} \
         --out_dir "${meta.alias}"
     """
 }
