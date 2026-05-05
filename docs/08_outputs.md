@@ -2,32 +2,32 @@ Output files may be aggregated including information for all samples or provided
 
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
-| workflow report | wf-transcriptomes-report.html | a HTML report document detailing the primary findings of the workflow | aggregated |
-| Per file read stats | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-file-stats.tsv | A TSV with per file read stats, including all samples. | aggregated |
-| Read stats | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/per-read-stats.tsv | A TSV with per read stats, including all samples. | aggregated |
-| Run ID's | fastq_ingress_results/{{ alias }}//reads/fastcat_stats/run_ids | List of run IDs present in reads. | aggregated |
-| Meta map json | fastq_ingress_results/{{ alias }}//reads/metamap.json | Metadata used in workflow presented in a JSON. | aggregated |
-| Concatenated sequence data | fastq_ingress_results/{{ alias }}//reads/{{ alias }}.fastq.gz | Per sample reads concatenated in to one FASTQ file. | per-sample |
-| Assembled transcriptome | {{ alias }}_transcriptome.fas | Per sample assembled transcriptome.  Not output if a reference annotation was supplied | per-sample |
-| Annotated assembled transcriptome | {{ alias }}_merged_transcriptome.fas | Per sample annotated assembled transcriptome. Only output if a reference annotation was supplied | per-sample |
-| Alignment summary statistics | {{ alias }}_read_aln_stats.tsv | Per sample alignment summary statistics. | per-sample |
-| GFF compare results. | {{ alias }}_gffcompare | All GFF compare output files. | per-sample |
-| Differential gene expression results | de_analysis/results_dge.tsv | This is a gene-level result file that describes genes and their probability of showing differential expression between experimental conditions. | aggregated |
-| Differential gene expression report | de_analysis/results_dge.pdf | Summary report of differential gene expression analysis as a PDF. | aggregated |
-| Differential transcript usage gene TSV | de_analysis/results_dtu_gene.tsv | This is a gene-level result file from DEXSeq that lists annotated genes and their probabilities of differential expression. | aggregated |
-| Differential transcript usage report | de_analysis/results_dtu.pdf | Summary report of differential transcript usage results as a PDF. | aggregated |
-| Differential transcript usage TSV | de_analysis/results_dtu_transcript.tsv | This is a transcript-level result file from DEXSeq that lists annotated genes and their probabilities of differential expression. | aggregated |
-| Differential transcript usage stageR TSV | de_analysis/results_dtu_stageR.tsv  | This is the output from StageR and it shows both gene and transcript probabilities of differential expression | aggregated |
-| Differential transcript usage DEXSeq TSV | de_analysis/results_dexseq.tsv | The complete output from the DEXSeq-analysis, shows both gene and transcript probabilities of differential expression. | aggregated |
-| Gene counts | de_analysis/all_gene_counts.tsv | Raw gene counts created by the Salmon tool, before filtering. | aggregated |
-| Gene counts per million | de_analysis/cpm_gene_counts.tsv | This file shows counts per million (CPM) of the raw gene counts to facilitate comparisons across samples. | aggregated |
-| Transcript counts | de_analysis/unfiltered_transcript_counts_with_genes.tsv | Raw transcript counts created by the Salmon tool, before filtering. Includes reference to the associated gene ID. | aggregated |
-| Transcript per million counts | de_analysis/unfiltered_tpm_transcript_counts.tsv | This file shows transcripts per million (TPM) of the raw counts to facilitate comparisons across samples. | aggregated |
-| Transcript counts filtered | de_analysis/filtered_transcript_counts_with_genes.tsv | Filtered transcript counts, used for differential transcript usage analysis. Includes a reference to the associated gene ID. | aggregated |
-| Transcript info table | {{ alias }}_transcripts_table.tsv | This file details each isoform that was reconstructed from the input reads. It contains a subset of columns from the .tmap output from [gffcompare](https://ccb.jhu.edu/software/stringtie/gffcompare.shtml) | per-sample |
-| Final non redundant transcriptome | de_analysis/final_non_redundant_transcriptome.fasta | Transcripts that were used for differential expression analysis including novel transcripts with the identifiers used for DE analysis. Only applicable when the ref_transcriptome parameter is not provided. | aggregated |
-| Index of reference FASTA file | igv_reference/{{ ref_genome_file }}.fai | Reference genome index of the FASTA file required for IGV config. | aggregated |
-| GZI index of the reference FASTA file | igv_reference/{{ ref_genome_file }}.gzi | GZI Index of the reference FASTA file. | aggregated |
-| JSON configuration file for IGV browser | igv.json | JSON configuration file to be loaded in IGV for visualising alignments against the reference. | aggregated |
-| BAM file (minimap2) | BAMS/{{ alias }}.reads_aln_sorted.bam | BAM file generated from mapping input reads to the reference. | per-sample |
-| BAM index file (minimap2) | BAMS/{{ alias }}.reads_aln_sort.bam.bai | Index file generated from mapping input reads to the reference. | per-sample |
+| Workflow report | wf-transcriptomes-report.html | HTML report summarising transcript discovery, quantification, optional SQANTI3 classification, and optional differential analysis results. | aggregated |
+| Per-file read stats | ingress_results/{{ alias }}/fastcat_stats/per-file-stats.tsv | Read statistics for each input FASTQ file in a sample, when FASTQ read stats are available. | per-sample |
+| Per-read stats | ingress_results/{{ alias }}/fastcat_stats/per-read-stats.tsv.gz | Read statistics for individual reads in a sample, when this output is enabled. | per-sample |
+| Ingress reads | ingress_results/{{ alias }}/seqs.fastq.gz | Reads prepared from the input data for downstream analysis. | per-sample |
+| Ingress metadata | ingress_results/{{ alias }}/metamap.json | Per-sample metadata used by the workflow. | per-sample |
+| Aligned BAM | cohort/alignments/{{ alias }}.aligned.sorted.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
+| Aligned BAM index | cohort/alignments/{{ alias }}.aligned.sorted.bam.bai | Index for the aligned BAM. | per-sample |
+| Alignment summary | cohort/alignments/{{ alias }}.flagstat.txt | samtools flagstat output for the aligned BAM. | per-sample |
+| Cohort transcriptome GTF | cohort/transcripts.gtf | Joint bambu transcript model used as the primary cohort transcriptome. | aggregated |
+| Cohort transcriptome FASTA | cohort/cohort.transcriptome.fa | Transcript sequences derived from the joint cohort GTF. | aggregated |
+| Cohort transcript counts | cohort/transcript_counts.tsv | Transcript-level count matrix produced by bambu. | aggregated |
+| Cohort gene counts | cohort/gene_counts.tsv | Gene-level count matrix derived from bambu output. | aggregated |
+| Cohort transcript metadata | cohort/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the cohort model. | aggregated |
+| Cohort SQANTI3 summary | cohort/sqanti_cohort/classification_summary.tsv | SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled. | aggregated |
+| Per-sample transcriptome GTF | samples/{{ alias }}/transcripts.gtf | Independent bambu transcript model for an individual sample. | per-sample |
+| Per-sample transcriptome FASTA | samples/{{ alias }}/{{ alias }}.transcriptome.fa | Transcript sequences derived from the per-sample GTF. | per-sample |
+| Per-sample transcript counts | samples/{{ alias }}/transcript_counts.tsv | Transcript-level abundance estimates for the per-sample bambu model. | per-sample |
+| Per-sample gene counts | samples/{{ alias }}/gene_counts.tsv | Gene-level abundance estimates for the per-sample bambu model. | per-sample |
+| Per-sample transcript metadata | samples/{{ alias }}/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the per-sample model. | per-sample |
+| Per-sample SQANTI3 summary | samples/{{ alias }}/{{ alias }}_sqanti/classification_summary.tsv | SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled. | per-sample |
+| Differential gene expression results | de_analysis/{{ contrast }}/results_dge.tsv | DESeq2 gene-level differential expression results for one contrast. | aggregated |
+| Differential gene expression plots | de_analysis/{{ contrast }}/results_dge.pdf | PDF plots generated during DESeq2 analysis for one contrast. | aggregated |
+| Differential transcript usage results | de_analysis/{{ contrast }}/results_dtu_transcript.tsv | Transcript-level DTU results for one contrast. | aggregated |
+| Differential transcript usage gene summary | de_analysis/{{ contrast }}/results_dtu_gene.tsv | Gene-level DTU summary for one contrast. | aggregated |
+| DEXSeq results | de_analysis/{{ contrast }}/results_dexseq.tsv | Full DEXSeq result table for one contrast. | aggregated |
+| Differential transcript usage plots | de_analysis/{{ contrast }}/results_dtu.pdf | PDF plots generated during DEXSeq analysis for one contrast. | aggregated |
+| IGV configuration | igv.json | JSON configuration for viewing the aligned BAMs in IGV. | aggregated |
+| Reference FASTA index | igv_reference/{{ ref_genome_file }}.fai | FAI index for the reference genome published for IGV. | aggregated |
+| Reference GZI index | igv_reference/{{ ref_genome_file }}.gzi | GZI index for a compressed reference genome published for IGV. | aggregated |

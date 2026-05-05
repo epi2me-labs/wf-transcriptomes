@@ -1,403 +1,682 @@
-#!/usr/bin/env python
-"""Create workflow report."""
+"""Create workflow report for wf-transcriptomes."""
 
 import json
 from pathlib import Path
-import pickle
 
-from bokeh.models import HoverTool, Range1d
-from bokeh.models.tickers import AdaptiveTicker
-from dominate.tags import li, ul
+from dominate.tags import div, h3, p, pre, strong
 from dominate.util import raw
-import ezcharts as ezc
 from ezcharts.components import fastcat
-from ezcharts.components.ezchart import EZChart
-from ezcharts.components.reports.labs import LabsReport
-from ezcharts.components.theme import LAB_head_resources
-from ezcharts.layout.snippets import DataTable, Grid, Tabs
-from ezcharts.plots.categorical import barplot
-from ezcharts.util import get_named_logger
+from ezcharts.components.reports import labs
+from ezcharts.layout.snippets import Tabs
+from ezcharts.layout.snippets.table import DataTable
 import pandas as pd
-from . import de_plots  # noqa: ABS101
-from .util import wf_parser  # noqa: ABS101
+
+from .util import get_named_logger, wf_parser  # noqa: ABS101
 
 
-def argparser():
-    """Argument parser for entrypoint."""
-    parser = wf_parser("report")
-    parser.add_argument("--report", help="Report output file")
-    parser.add_argument(
-        "--metadata", default='metadata.json', required=True,
-        help="sample metadata")
-    parser.add_argument(
-        "--stats", nargs='+',
-        help="Fastcat per-read stats, ordered as per entries in --metadata.")
-    parser.add_argument(
-        "--versions", required=True,
-        help="directory containing CSVs containing name,version.")
-    parser.add_argument(
-        "--params", default=None, required=True,
-        help="A JSON file containing the workflow parameter key/values")
-    parser.add_argument(
-        "--wf_version", default='unknown',
-        help="version of the executed workflow")
-    parser.add_argument(
-        "--alignment_stats", required=False, default=None, type=Path,
-        help="TSV summary file of alignment statistics")
-    parser.add_argument(
-        "--gff_annotation", required=False, type=Path,
-        help="transcriptome annotation gff file")
-    parser.add_argument(
-        "--gffcompare_dir", required=False, default=None, type=Path,
-        help="gffcompare outout dir")
-    parser.add_argument(
-        "--pychop_report", required=False, default=None, type=Path,
-        help="TSV summary file of pychopper statistics")
-    parser.add_argument(
-        "--isoform_table", required=False, type=Path,
-        help="Path to directory of TSV files with isoform summaries")
-    parser.add_argument(
-        "--isoform_table_nrows", required=False, type=int, default=5000,
-        help="Maximum rows to display in isoforms table")
-    parser.add_argument(
-        "--transcriptome_summary", required=False, type=Path,
-        help="Path to dir containing transcriptome summary results ")
-    parser.add_argument(
-        "--de_report", required=False, type=Path, default=None,
-        help="Differential expression report optional")
-    parser.add_argument(
-        "--de_stats", required=False, type=Path, default=None,
-        help="Differential expression report optional")
-    parser.add_argument(
-        "--pval_threshold", required=False, type=float, default=0.01,
-        help=(
-            "pvalue theshold for inclusion of differentially expressed genes"
-            " transcripts in plots "))
-
-    return parser
+def _find_table(directory, pattern):
+    matches = sorted(Path(directory).glob(pattern))
+    return matches[0] if matches else None
 
 
-def gff_compare_plots(report, gffcompare_outdirs):
-    """Create various sections and plots in a WfReport.
-
-    :param gffcompare_outdirs: List of output directories from run_gffcompare
-    :return: None
-
-    """
-    # Plot overview panel:
-    with report.add_section("Annotation summary", "Annotation"):
-
-        raw("""The following plots summarize some of the output from
-        <a href="https://ccb.jhu.edu/software/stringtie/gffcompare.shtml">gffcompare</a>
-        """)
-
-        raw("""<ul>
-            <li><b>Totals:</b> Comparison of the number of stringtie-generated
-            transcripts, multiexonic transcripts and loci between reference and
-            query</li>
-            <li><b>Performance:</b> How accurate are the query transcript annotations
-            with respect to the reference at various levels</li>
-            <li><b>Missed:</b> Features present in the reference, but absent in the
-            query</li>
-            <li><b>Novel</b>: Features present in the query transcripts,
-            but absent in the reference</li>""")
-
-        # Create the 4 bar plots of gffcompare summaries
-        gffcomp_fnames = ['Totals.tsv', 'Performance.tsv', 'Missed.tsv', 'Novel.tsv']
-        sample_tabs = Tabs()
-
-        for dir_ in sorted(gffcompare_outdirs):
-            sample_id = dir_.name  # Get sample ids from the folder name
-            with sample_tabs.add_tab(sample_id):
-                with Grid(columns=2):
-                    for name in gffcomp_fnames:
-                        df = pd.read_csv(dir_ / name, sep='\t')
-                        if df.empty:
-                            raw("""No gffcompare summary for this sample.
-                            This could be due to  incompatible reference fasta and gff
-                            files""")
-                            break
-                        plot = barplot(data=df, x='source', y='counts', hue='type')
-                        plot._fig.title = name.replace('.tsv', '')
-                        EZChart(plot, height='250px')
-
-    # Plot overlaps panel:
-    with report.add_section('Query transfrag classification', 'Classes'):
-
-        raw("""Summaries of the classes assigned by
-        <a href="https://ccb.jhu.edu/software/stringtie/gffcompare.shtml">
-        gffcompare</a>, which describe the relationship between query transfrag and
-        the most similar reference transcript.
-
-        <a href="https://ccb.jhu.edu/software/stringtie/gffcompare_codes.png">
-        This diagram</a> illustrates the different classes.
-        """)
-        tabs = Tabs()
-        for dir_ in sorted(gffcompare_outdirs):
-            sample_id = dir_.name  # Get sample ids from the folder name
-            with tabs.add_tab(sample_id):
-                with Grid(columns=2):
-                    track_file = dir_ / 'tracking_summary.tsv'
-
-                    df_tracking = (
-                        pd.read_csv(track_file, sep="\t", index_col=0)
-                        .sort_values('Count', ascending=True))
-                    df_tracking.columns = [x.capitalize() for x in df_tracking.columns]
-                    # Save class name for table
-                    df_tracking.rename(columns={'Class': 'Class_tmp'}, inplace=True)
-                    # Create new class name for barplot Description:Class
-                    df_tracking['Class'] = \
-                        df_tracking['Description'] + ":" + df_tracking['Class_tmp']
-                    plot = barplot(
-                        data=df_tracking, x='Count', y='Class',  orient='h')
-                    # revert to original class name
-                    df_tracking = (
-                        df_tracking
-                        .drop(columns=['Class'])
-                        .rename(columns={'Class_tmp': 'Class'}))
-                    plot._fig.title.text = sample_id
-                    plot._fig.yaxis.major_label_text_font_size = "10pt"
-                    # Should the height of the plot be based on number of plot rows?
-                    EZChart(plot, height='550px')
-
-                    DataTable.from_pandas(
-                        df_tracking.sort_values('Count', ascending=False),
-                        use_index=False, paging=False, searchable=False)
+def _read_table(path, **kwargs):
+    if path is None or not Path(path).exists():
+        return None
+    return pd.read_csv(path, sep="\t", **kwargs)
 
 
-def pychopper_plots(report, pychop_report):
-    """Make plots from pychopper output.
+def _cohort_summary(cohort_dir):
+    tx_meta = _read_table(Path(cohort_dir) / "transcript_metadata.tsv")
+    if tx_meta is None:
+        return None, None
 
-    :param report: ezcharts report
-    :param pychop_report: path to pychopper stats file
-    """
-    with report.add_section("Pychopper summary statisitcs", "Pychopper"):
-        raw("""The following plots summarize
-        <a href="https://github.com/epi2me-labs/pychopper">pychopper</a> output""")
+    summary = {
+        "Transcripts": len(tx_meta),
+        "Genes": (
+            tx_meta["GENEID"].nunique() if "GENEID" in tx_meta.columns else "N/A"
+        ),
+    }
+    for column in ("newTxClass", "newGeneClass"):
+        if column in tx_meta.columns:
+            counts = tx_meta[column].fillna("NA").value_counts().head(10)
+            class_df = counts.rename_axis(column).reset_index(name="count")
+            return (
+                pd.DataFrame(summary.items(), columns=["Metric", "Value"]),
+                class_df,
+            )
 
-        ul(
-            li("""Full length: Reads with primers found in correct orientation at
-            both ends."""),
-            li("""Rescued: subreads extracted from chimeric reads"""),
-            li("""Unusable: Reads with missing or incorrect primer orientation"""),
-            li(""""+/-: Orientation of reads relative to the mRNA""")
+    return pd.DataFrame(summary.items(), columns=["Metric", "Value"]), None
+
+
+def _sample_summaries(samples_dir):
+    summaries = {}
+    for sample_dir in sorted(Path(samples_dir).iterdir()):
+        if not sample_dir.is_dir():
+            continue
+        tx_meta = _read_table(sample_dir / "transcript_metadata.tsv")
+        if tx_meta is None:
+            continue
+        summaries[sample_dir.name] = pd.DataFrame(
+            [
+                ("Transcripts", len(tx_meta)),
+                (
+                    "Genes",
+                    (
+                        tx_meta["GENEID"].nunique()
+                        if "GENEID" in tx_meta.columns
+                        else "N/A"
+                    ),
+                ),
+            ],
+            columns=["Metric", "Value"],
         )
-
-        df = pd.read_csv(pychop_report, sep='\t', index_col=0)
-
-        with Grid(columns=2):
-            for sample, df in df.groupby('sample_id'):
-                df = df.set_index('Name', drop=True)
-                df = df.loc[['Primers_found', 'Rescue', 'Unusable', '+', '-']]
-                df = df.rename(
-                    index={
-                        'Primers_found': 'full length',
-                        'Rescue': 'Rescued'
-                    },
-                    columns={
-                        'Value': 'n_reads'
-                    }
-                ).reset_index(drop=False)
-                plot = barplot(
-                    data=df, x='Name', y='n_reads')
-                plot._fig.title.text = f'{sample}'
-                plot._fig.xaxis.axis_label = ""
-                EZChart(plot, height="300px")
+    return summaries
 
 
-def transcript_table(report, isoform_table, max_rows):
-    """Create searchable table of transcripts.
-
-    :param isoform_table: path to folder of isoform table files
-    """
-    with report.add_section("Isoforms", "Isoforms"):
-        raw("""
-        This table details each isoforms identified per sample.
-
-        Table interactivity can be slow if too many isoforms are loaded.
-        The number of isoform rows to load in this table can be set with
-        <b>isoform_table_nrows</b>. It is currently set to {}.
-        """.format(max_rows))
-        tabs = Tabs()
-        # drop some columns for the big table and do some filtering
-
-        dfs = [pd.read_csv(x, sep='\t') for x in Path(isoform_table).iterdir()]
-        df = pd.concat(dfs)
-        for sample, df in df.groupby('sample_id'):
-            with tabs.add_tab(sample):
-                # Keep top n rows with most coverage
-                df.sort_values('cov', ascending=False, inplace=True)
-                df['cov'] = df['cov'].astype(int)
-                df = df.iloc[0: max_rows, :]
-
-                # Sort by transcripts with the highest isoform diversity
-                df.sort_values('parent gene iso num', inplace=True, ascending=False)
-                DataTable.from_pandas(df, use_index=False)
+def _sqanti_tables(sqanti_dir):
+    tables = {}
+    for summary in sorted(Path(sqanti_dir).rglob("classification_summary.tsv")):
+        label = summary.parent.name
+        tables[label] = _read_table(summary)
+    return tables
 
 
-def transcriptome_summary(report, summaries_dir):
-    """Plot transcriptome summaries.
-
-    This section consists of four plots
-    1: Isoforms per gene histogram
-    2: Exons per transcript histogram
-    3: Transcript lengths box plot
-    4: Transcriptome summary table
-    """
-    with report.add_section("Transcriptome summary", 'Summary'):
-
-        plot_height = "300px"
-        tabs = Tabs()
-        data = {}
-        # Load all the dataframes upfront to get sample_id for sorting.
-        for summ_file in summaries_dir.glob('summary_*.pkl'):
-            with open(summ_file, 'rb') as fh:
-                summ = pickle.load(fh)
-            sample_id = summ['sample_id']
-            data[sample_id] = summ
-
-        for sample_id in sorted(data):
-            summ = data[sample_id]
-            with tabs.add_tab(sample_id):
-                with Grid(columns=4):
-
-                    df_isoforms_per_gene = pd.DataFrame(
-                        summ['isoforms_per_gene'].items(),
-                        columns=['n_isoforms', 'count'])
-                    iso_per_gene_plt = ezc.histplot(
-                        data=df_isoforms_per_gene['n_isoforms'],
-                        weights=df_isoforms_per_gene['count'],
-                        discrete=df_isoforms_per_gene['n_isoforms'].max() < 20,
-                        bins=20)
-                    iso_per_gene_plt._fig.title = "Isoforms per gene"
-                    iso_per_gene_plt._fig.xaxis.axis_label = 'Number of isoforms'
-                    iso_per_gene_plt._fig.yaxis.axis_label = 'Number of genes'
-                    iso_per_gene_plt._fig.xaxis.ticker = \
-                        AdaptiveTicker(min_interval=1)
-                    EZChart(iso_per_gene_plt, height=plot_height)
-
-                    df_exons_per_transcript = pd.DataFrame(
-                        summ['exons_per_transcript'].items(),
-                        columns=['n_exons', 'count'])
-                    exons_per_tr_plt = ezc.histplot(
-                        data=df_exons_per_transcript['n_exons'],
-                        weights=df_exons_per_transcript['count'],
-                        discrete=df_exons_per_transcript['n_exons'].max() < 20,
-                        bins=20)
-                    exons_per_tr_plt._fig.title = "Exons per transcript"
-                    exons_per_tr_plt._fig.xaxis.axis_label = 'Number of exons'
-                    exons_per_tr_plt._fig.yaxis.axis_label = 'Number of transcripts'
-                    exons_per_tr_plt._fig.xaxis.ticker = \
-                        AdaptiveTicker(min_interval=1)
-                    EZChart(exons_per_tr_plt, height=plot_height)
-
-                    df_tr_len = pd.DataFrame.from_dict({
-                        'transcript_lengths': summ['transcript_lengths']})
-                    df_tr_len['group'] = sample_id
-                    tr_lens_plt = ezc.boxplot(
-                        data=df_tr_len, x='group', y='transcript_lengths')
-                    tr_lens_plt._fig.title = "Transcript lengths"
-                    tr_lens_plt._fig.y_range = (
-                        Range1d(0, df_tr_len['transcript_lengths'].max()))
-
-                    # Disable hover tool as ezcharts sometimes produces strange
-                    # results for boxplots
-                    hover_tools = tr_lens_plt._fig.select(dict(type=HoverTool))
-                    for hover_tool in hover_tools:
-                        tr_lens_plt._fig.tools.remove(hover_tool)
-                    EZChart(tr_lens_plt, height=plot_height)
-
-                    df_table = pd.DataFrame.from_dict(summ['summaries']).T
-                    df_table = df_table.reset_index(drop=False)
-                    df_table.columns = ['Transcriptome summary',  '']
-                    DataTable.from_pandas(
-                        df_table, use_index=False, searchable=False, paging=False)
+def _pychopper_tables(pychopper_dir):
+    tables = {}
+    for summary in sorted(Path(pychopper_dir).rglob("pychopper_summary.tsv")):
+        table = _read_table(summary)
+        if table is None or table.empty:
+            continue
+        label = summary.parent.name.replace("_pychopper_output", "")
+        tables[label] = table
+    return tables
 
 
-def de_section(report, de_report_dir, flagstats_dir, pval_threshold):
-    """Make differential transcript expression section."""
-    dexseq = de_report_dir / "results_dexseq.tsv"
-    dge = de_report_dir / "results_dge.tsv"
-    dtu = de_report_dir / "results_dtu_stageR.tsv"
-    # GFF file can have gtf or gff extension.
-    # Will be the original (transcriptome_source=precomputed) or wf-assembled annotation
-    annotation = next(de_report_dir.glob("*.g*f*"))
-    tpm = de_report_dir / "unfiltered_tpm_transcript_counts.tsv"
-    filtered = de_report_dir / "filtered_transcript_counts_with_genes.tsv"
-    unfiltered = de_report_dir / "unfiltered_transcript_counts_with_genes.tsv"
-    gene_counts = de_report_dir / "all_gene_counts.tsv"
-    # This will also add a gene name column to the above counts tsv files
-    de_plots.de_section(
-        annotation=annotation,
-        dexseq=dexseq,
-        dge=dge,
-        dtu=dtu,
-        tpm=tpm,
-        report=report,
-        filtered=filtered,
-        unfiltered=unfiltered,
-        gene_counts=gene_counts,
-        flagstats_dir=flagstats_dir,
-        pval_threshold=pval_threshold
+def _top_results(de_dir, filename, n=20):
+    tables = {}
+    for contrast_dir in sorted(Path(de_dir).iterdir()):
+        if not contrast_dir.is_dir():
+            continue
+        table = _read_table(contrast_dir / filename)
+        if table is None or table.empty:
+            continue
+        tables[contrast_dir.name] = table.head(n)
+    return tables
+
+
+def _load_bambu_qc(cohort_dir):
+    """Load bambu QC statistics JSON."""
+    qc_file = Path(cohort_dir) / "bambu_qc_stats.json"
+    if qc_file.exists():
+        with open(qc_file) as f:
+            return json.load(f)
+    return None
+
+
+def _load_de_qc(de_dir):
+    """Load DE/DTU QC statistics JSON."""
+    qc_file = Path(de_dir) / "de_qc_stats.json"
+    if qc_file.exists():
+        with open(qc_file) as f:
+            return json.load(f)
+    return None
+
+
+def _create_warning_banner(message, level="warning"):
+    """Create a styled warning banner."""
+    colors = {
+        "warning": "#fff3cd",
+        "danger": "#f8d7da",
+        "info": "#d1ecf1",
+    }
+    border_colors = {
+        "warning": "#ffc107",
+        "danger": "#dc3545",
+        "info": "#0dcaf0",
+    }
+    style = (
+        "padding: 15px; margin: 10px 0; "
+        "background-color: {}; "
+        "border-left: 4px solid {}; "
+        "border-radius: 4px;".format(
+            colors.get(level, colors["warning"]),
+            border_colors.get(level, border_colors["warning"]),
+        )
     )
+    with div(style=style):
+        with strong():
+            raw(
+                "⚠️ "
+                if level == "warning"
+                else "❌ "
+                if level == "danger"
+                else "ℹ️ "
+            )
+        raw(message)
 
 
 def main(args):
-    """Run the entry point."""
+    """Run the report entry point."""
     logger = get_named_logger("Report")
-    logger.info('Building report')
+    report = labs.LabsReport(
+        "Transcriptomes Sequencing report",
+        "wf-transcriptomes",
+        args.params,
+        args.versions,
+        args.wf_version,
+    )
 
-    report = LabsReport(
-        'Workflow transcriptomes report', 'wf-transcriptomes',
-        args.params, args.versions, args.wf_version,
-        head_resources=[*LAB_head_resources])
+    with open(args.metadata, "r") as handle:
+        metadata = json.load(handle)
 
-    with open(args.metadata) as metadata:
-        sample_details = [{
-            'sample': d['alias'],
-            'type': d['type'],
-            'barcode': d['barcode']
-        } for d in json.load(metadata)]
+    with report.add_section("Workflow overview", "Overview"):
+        p(
+            "This report summarises joint bambu transcript discovery "
+            "and quantification, per-sample transcriptomes, optional "
+            "SQANTI3 structural classification, and optional "
+            "differential analysis outputs."
+        )
 
-    with report.add_section('Read summary', 'Read summary'):
-        names = tuple(d['sample'] for d in sample_details)
-        stats = tuple(args.stats)
-        if len(stats) == 1:
-            stats = stats[0]
-            names = names[0]
-        fastcat.SeqSummary(stats, sample_names=names)
+    if args.stats:
+        with report.add_section("Read summary", "Reads"):
+            stats = tuple(args.stats)
+            sample_names = tuple(
+                item["alias"] for item in metadata if item.get("has_stats")
+            )
+            if len(stats) == 1:
+                stats = stats[0]
+                sample_names = sample_names[0] if sample_names else None
+            fastcat.SeqSummary(stats, sample_names=sample_names)
 
-    if args.alignment_stats is not None:
-        with report.add_section('Alignment summary', 'Alignment'):
-            raw("""Reference genome alignment statistics. These were generated using
-              <a href="https://bioinf.shenwei.me/seqkit/">seqkit</a> )
-              `seqkit bam -s` """)
+    with report.add_section("Sample metadata", "Samples"):
+        tabs = Tabs()
+        for item in sorted(metadata, key=lambda value: value["alias"]):
+            with tabs.add_tab(item["alias"]):
+                DataTable.from_pandas(
+                    pd.DataFrame.from_dict(item, orient="index", columns=["Value"])
+                    .reset_index()
+                    .rename(columns={"index": "Field"})
+                )
 
-            stats_dfs = []
-            for stats_file in args.alignment_stats.iterdir():
-                df = pd.read_csv(stats_file, sep='\\s+')
-                stats_dfs.append(df)
-            aln_stats_df = pd.concat(stats_dfs).sort_values(by='sample_id')
-            DataTable.from_pandas(aln_stats_df, use_index=False, export=True)
+    # Load bambu QC statistics
+    bambu_qc = _load_bambu_qc(args.cohort_dir)
 
-    if args.pychop_report is not None:
-        # report is single file concatenated for all samples
-        pychopper_plots(report, next(args.pychop_report.iterdir()))
+    # Add Bambu QC section with warnings
+    if bambu_qc:
+        with report.add_section("Bambu Quality Control", "Bambu QC"):
+            # Check for warnings
+            if bambu_qc.get("library_size_warning"):
+                _create_warning_banner(
+                    f"Library Size Variation: {bambu_qc['library_size_warning']}. "
+                    "Large variation (>3x) may affect CPM normalization. "
+                    "Consider reviewing per-sample library sizes.",
+                    level="warning",
+                )
 
-    # Do upstream
-    if args.gff_annotation is not None:
-        transcriptome_summary(report, args.transcriptome_summary)
+            # Library size statistics
+            with h3("Library Size Statistics"):
+                lib_stats = pd.DataFrame(
+                    [
+                        ("Samples analyzed", bambu_qc.get("samples", "N/A")),
+                        (
+                            "Median library size",
+                            "{} reads".format(
+                                format(
+                                    bambu_qc.get("median_library_size", 0),
+                                    ",",
+                                )
+                            ),
+                        ),
+                        (
+                            "Min library size",
+                            "{} reads".format(
+                                format(
+                                    bambu_qc.get("min_library_size", 0),
+                                    ",",
+                                )
+                            ),
+                        ),
+                        (
+                            "Max library size",
+                            "{} reads".format(
+                                format(
+                                    bambu_qc.get("max_library_size", 0),
+                                    ",",
+                                )
+                            ),
+                        ),
+                        (
+                            "Library size ratio (max/min)",
+                            "{:.2f}x".format(
+                                bambu_qc.get("library_size_ratio", 1.0)
+                            ),
+                        ),
+                    ],
+                    columns=["Metric", "Value"],
+                )
+                DataTable.from_pandas(lib_stats, paging=False, searchable=False)
 
-    if args.gffcompare_dir is not None:
-        gff_compare_plots(
-            report,
-            [x for x in Path(args.gffcompare_dir).iterdir()])
+            # Transcript discovery statistics
+            with h3("Transcript Discovery"):
+                discovery_stats = pd.DataFrame(
+                    [
+                        (
+                            "Transcriptome mode",
+                            bambu_qc.get("transcriptome_mode", "N/A"),
+                        ),
+                        ("NDR used", str(bambu_qc.get("ndr_used", "N/A"))),
+                        (
+                            "Transcripts before filtering",
+                            bambu_qc.get("total_transcripts_before_filter", 0),
+                        ),
+                        (
+                            "Transcripts after filtering",
+                            bambu_qc.get("total_transcripts_after_filter", 0),
+                        ),
+                        (
+                            "Transcripts removed",
+                            bambu_qc.get("transcripts_filtered", 0),
+                        ),
+                        (
+                            "Median transcripts per sample",
+                            bambu_qc.get("median_transcripts_detected", 0),
+                        ),
+                        (
+                            "Unique genes (after filter)",
+                            bambu_qc.get("total_genes_after_filter", 0),
+                        ),
+                    ],
+                    columns=["Metric", "Value"],
+                )
+                DataTable.from_pandas(discovery_stats, paging=False, searchable=False)
 
-    if args.isoform_table is not None:
-        transcript_table(report, args.isoform_table, args.isoform_table_nrows)
+            # Per-sample library sizes
+            if "library_sizes" in bambu_qc and bambu_qc["library_sizes"]:
+                with h3("Per-Sample Library Sizes"):
+                    lib_size_data = []
+                    for sample, size in bambu_qc["library_sizes"].items():
+                        lib_size_data.append(
+                            {
+                                "Sample": sample,
+                                "Library Size": format(size, ","),
+                                "Reads": size,
+                            }
+                        )
+                    lib_df = pd.DataFrame(lib_size_data).sort_values(
+                        "Reads", ascending=False
+                    )
+                    DataTable.from_pandas(
+                        lib_df[["Sample", "Library Size"]],
+                        paging=False,
+                        use_index=False,
+                    )
 
-    if args.de_report:
-        de_section(report, args.de_report, args.de_stats, pval_threshold=0.01)
+    with report.add_section("Cohort transcriptome", "Cohort"):
+        cohort_metrics, cohort_classes = _cohort_summary(args.cohort_dir)
+        if cohort_metrics is not None:
+            DataTable.from_pandas(cohort_metrics, paging=False, searchable=False)
+        if cohort_classes is not None:
+            DataTable.from_pandas(cohort_classes, paging=False, searchable=False)
+
+        tx_counts = _read_table(Path(args.cohort_dir) / "transcript_counts.tsv")
+        if tx_counts is not None and not tx_counts.empty:
+            p("Top transcript rows from the cohort abundance table.")
+            DataTable.from_pandas(tx_counts.head(20), use_index=False)
+
+    with report.add_section("Per-sample transcriptomes", "Per sample"):
+        tabs = Tabs()
+        for sample, summary_df in _sample_summaries(args.samples_dir).items():
+            with tabs.add_tab(sample):
+                DataTable.from_pandas(summary_df, paging=False, searchable=False)
+
+    if args.alignment_stats_dir and Path(args.alignment_stats_dir).exists():
+        with report.add_section("Alignment statistics", "Alignments"):
+            tabs = Tabs()
+            for stats_file in sorted(
+                Path(args.alignment_stats_dir).glob("*.flagstat.txt")
+            ):
+                with tabs.add_tab(stats_file.stem.replace(".flagstat", "")):
+                    pre(stats_file.read_text())
+
+    pychopper_tables = {}
+    if args.pychopper_dir and Path(args.pychopper_dir).exists():
+        pychopper_tables = _pychopper_tables(args.pychopper_dir)
+    if pychopper_tables:
+        with report.add_section("Pychopper preprocessing", "Pychopper"):
+            tabs = Tabs()
+            for label, table in pychopper_tables.items():
+                with tabs.add_tab(label):
+                    DataTable.from_pandas(table, use_index=False)
+
+    sqanti_tables = _sqanti_tables(args.sqanti_dir)
+    if sqanti_tables:
+        with report.add_section("SQANTI3 classification", "SQANTI3"):
+            tabs = Tabs()
+            for label, table in sqanti_tables.items():
+                with tabs.add_tab(label):
+                    DataTable.from_pandas(table, use_index=False)
+
+    if args.de_dir and Path(args.de_dir).exists():
+        # Load DE QC statistics
+        de_qc = _load_de_qc(args.de_dir)
+
+        # Add DE/DTU QC section with warnings
+        if de_qc:
+            with report.add_section(
+                "Differential Analysis Quality Control",
+                "DE/DTU QC",
+            ):
+                # Check for critical warnings
+                has_warnings = False
+
+                if (
+                    de_qc.get("sample_size_warnings")
+                    and de_qc["sample_size_warnings"] != "none"
+                ):
+                    _create_warning_banner(
+                        f"Sample Size Warning: {de_qc['sample_size_warnings']}. "
+                        "Underpowered designs may have reduced statistical "
+                        "power and increased false negative rate.",
+                        level="warning",
+                    )
+                    has_warnings = True
+
+                if de_qc.get("multiple_testing_note"):
+                    _create_warning_banner(
+                        de_qc["multiple_testing_note"]
+                        + ". See MULTIPLE_TESTING_WARNING.txt for details.",
+                        level="info",
+                    )
+
+                # Check for dispersion fallbacks
+                dispersion_fallbacks = []
+                for contrast_name, contrast_data in de_qc.get(
+                    "contrasts", {}
+                ).items():
+                    dispersion_file = (
+                        Path(args.de_dir)
+                        / f"DESeq2_dispersion_fallback_{contrast_name}.txt"
+                    )
+                    if dispersion_file.exists():
+                        dispersion_fallbacks.append(contrast_name)
+
+                if dispersion_fallbacks:
+                    _create_warning_banner(
+                        "Dispersion Estimation Fallback: "
+                        f"{len(dispersion_fallbacks)} contrast(s) used "
+                        "gene-wise dispersion (reduced power). "
+                        f"Affected: {', '.join(dispersion_fallbacks)}",
+                        level="warning",
+                    )
+                    has_warnings = True
+
+                # Check for failed DTU analyses
+                failed_dtu = []
+                for contrast_name, contrast_data in de_qc.get(
+                    "contrasts", {}
+                ).items():
+                    if contrast_data.get("dtu_status") == "FAILED":
+                        failed_dtu.append(contrast_name)
+
+                if failed_dtu:
+                    _create_warning_banner(
+                        "DTU Analysis Failed: "
+                        f"{len(failed_dtu)} contrast(s) could not perform "
+                        "DTU testing. "
+                        f"Affected: {', '.join(failed_dtu)}. "
+                        "See DTU_ANALYSIS_FAILED.txt files for details.",
+                        level="danger",
+                    )
+                    has_warnings = True
+
+                # Experimental design summary
+                with h3("Experimental Design"):
+                    covariates = de_qc.get("covariates", [])
+                    covariates_value = (
+                        ", ".join(covariates)
+                        if de_qc.get("covariates") != "none"
+                        else "none"
+                    )
+                    design_stats = pd.DataFrame(
+                        [
+                            ("Total samples", de_qc.get("total_samples", 0)),
+                            (
+                                "Condition column",
+                                de_qc.get("condition_column", "N/A"),
+                            ),
+                            (
+                                "Reference level",
+                                de_qc.get("reference_level", "N/A"),
+                            ),
+                            ("Covariates", covariates_value),
+                            (
+                                "Number of contrasts",
+                                de_qc.get("num_contrasts", 0),
+                            ),
+                        ],
+                        columns=["Parameter", "Value"],
+                    )
+                    DataTable.from_pandas(design_stats, paging=False, searchable=False)
+
+                # Sample sizes per group
+                if "samples_per_group" in de_qc:
+                    with h3("Sample Sizes per Group"):
+                        sample_size_data = []
+                        for group, count in de_qc["samples_per_group"].items():
+                            status = (
+                                "✓" if count >= 3 else "⚠️" if count >= 2 else "❌"
+                            )
+                            note = (
+                                "OK"
+                                if count >= 3
+                                else "Low power"
+                                if count >= 2
+                                else "Too few"
+                            )
+                            sample_size_data.append(
+                                {
+                                    "Group": group,
+                                    "Samples": count,
+                                    "Status": status,
+                                    "Note": note,
+                                }
+                            )
+                        sample_df = pd.DataFrame(sample_size_data)
+                        DataTable.from_pandas(
+                            sample_df,
+                            paging=False,
+                            use_index=False,
+                        )
+
+                # Per-contrast summary
+                if "contrasts" in de_qc:
+                    with h3("Results Summary by Contrast"):
+                        contrast_summary_data = []
+                        for contrast_name, contrast_data in de_qc["contrasts"].items():
+                            dtu_genes = (
+                                contrast_data.get("dtu_significant_genes", 0)
+                                if contrast_data.get("dtu_status") == "SUCCESS"
+                                else "N/A"
+                            )
+                            contrast_summary_data.append(
+                                {
+                                    "Contrast": contrast_name,
+                                    "Samples": (
+                                        f"{contrast_data.get('n_target', 0)} "
+                                        f"vs "
+                                        f"{contrast_data.get('n_reference', 0)}"
+                                    ),
+                                    "DGE Significant (FDR<0.05)": (
+                                        contrast_data.get(
+                                            "dge_significant_fdr05", 0
+                                        )
+                                    ),
+                                    "DGE Up": contrast_data.get(
+                                        "dge_upregulated", 0
+                                    ),
+                                    "DGE Down": contrast_data.get(
+                                        "dge_downregulated", 0
+                                    ),
+                                    "DTU Status": contrast_data.get(
+                                        "dtu_status", "N/A"
+                                    ),
+                                    "DTU Genes (q<0.05)": dtu_genes,
+                                }
+                            )
+                        contrast_summary_df = pd.DataFrame(contrast_summary_data)
+                        DataTable.from_pandas(
+                            contrast_summary_df,
+                            paging=False,
+                            use_index=False,
+                        )
+
+                # Warnings summary table
+                if has_warnings:
+                    with h3("Quality Warnings Summary"):
+                        warnings_data = []
+                        if (
+                            de_qc.get("sample_size_warnings")
+                            and de_qc["sample_size_warnings"] != "none"
+                        ):
+                            warnings_data.append(
+                                {
+                                    "Warning Type": "Sample Size",
+                                    "Details": de_qc["sample_size_warnings"],
+                                }
+                            )
+                        if dispersion_fallbacks:
+                            warnings_data.append(
+                                {
+                                    "Warning Type": "Dispersion Estimation",
+                                    "Details": (
+                                        f"{len(dispersion_fallbacks)} "
+                                        "contrasts affected"
+                                    ),
+                                }
+                            )
+                        if failed_dtu:
+                            warnings_data.append(
+                                {
+                                    "Warning Type": "DTU Failure",
+                                    "Details": (
+                                        f"{len(failed_dtu)} contrasts failed"
+                                    ),
+                                }
+                            )
+
+                        warnings_df = pd.DataFrame(warnings_data)
+                        DataTable.from_pandas(
+                            warnings_df,
+                            paging=False,
+                            use_index=False,
+                        )
+
+        with report.add_section("Differential gene expression", "DGE"):
+            tabs = Tabs()
+            for contrast, table in _top_results(args.de_dir, "results_dge.tsv").items():
+                with tabs.add_tab(contrast):
+                    # Check for contrast-specific warnings
+                    if de_qc and contrast in de_qc.get("contrasts", {}):
+                        contrast_data = de_qc["contrasts"][contrast]
+                        if contrast_data.get("dtu_power_warning"):
+                            with div(
+                                style=(
+                                    "padding: 10px; margin-bottom: 10px; "
+                                    "background-color: #fff3cd; "
+                                    "border-radius: 4px;"
+                                )
+                            ):
+                                with p():
+                                    strong("Note: ")
+                                    raw(contrast_data["dtu_power_warning"])
+
+                    DataTable.from_pandas(table, use_index=False)
+
+        with report.add_section("Differential transcript usage", "DTU"):
+            tabs = Tabs()
+            dtu_tables = _top_results(args.de_dir, "results_dtu_transcript.tsv")
+
+            for contrast in sorted(Path(args.de_dir).iterdir()):
+                if not contrast.is_dir():
+                    continue
+                contrast_name = contrast.name
+
+                with tabs.add_tab(contrast_name):
+                    # Check if DTU failed for this contrast
+                    if de_qc and contrast_name in de_qc.get("contrasts", {}):
+                        contrast_data = de_qc["contrasts"][contrast_name]
+                        if contrast_data.get("dtu_status") == "FAILED":
+                            _create_warning_banner(
+                                "DTU analysis failed for this contrast. "
+                                f"See {contrast_name}/"
+                                "DTU_ANALYSIS_FAILED.txt for detailed "
+                                "explanation.",
+                                level="danger",
+                            )
+                            p(
+                                "Empty results indicate analysis failure, "
+                                "not 'no DTU detected'."
+                            )
+                        elif contrast_data.get("dtu_power_warning"):
+                            _create_warning_banner(
+                                contrast_data["dtu_power_warning"],
+                                level="warning",
+                            )
+
+                    # Show table if available
+                    if contrast_name in dtu_tables:
+                        DataTable.from_pandas(
+                            dtu_tables[contrast_name],
+                            use_index=False,
+                        )
+                    else:
+                        p("No DTU results available for this contrast.")
 
     report.write(args.report)
-    logger.info('Report writing finished')
+    logger.info("Report written to %s.", args.report)
+
+
+def argparser():
+    """Argument parser for the report entry point."""
+    parser = wf_parser("report")
+    parser.add_argument("report", help="Report output file.")
+    parser.add_argument("--metadata", required=True, help="Sample metadata JSON.")
+    parser.add_argument("--stats", nargs="+", help="Per-read stats paths.")
+    parser.add_argument(
+        "--alignment_stats_dir",
+        default=None,
+        help="Alignment stats directory.",
+    )
+    parser.add_argument(
+        "--cohort_dir",
+        required=True,
+        help="Cohort output directory.",
+    )
+    parser.add_argument(
+        "--samples_dir",
+        required=True,
+        help="Per-sample output directory.",
+    )
+    parser.add_argument(
+        "--pychopper_dir",
+        default=None,
+        help="Pychopper output directory.",
+    )
+    parser.add_argument(
+        "--sqanti_dir",
+        required=True,
+        help="SQANTI output directory.",
+    )
+    parser.add_argument(
+        "--de_dir",
+        default=None,
+        help="Differential analysis directory.",
+    )
+    parser.add_argument("--versions", required=True, help="Versions directory.")
+    parser.add_argument("--params", required=True, help="Workflow params JSON.")
+    parser.add_argument(
+        "--wf_version",
+        default="unknown",
+        help="Workflow version.",
+    )
+    return parser
