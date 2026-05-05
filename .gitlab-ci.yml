@@ -13,6 +13,8 @@ variables:
               CI_FLAVOUR: "new"
               PYTEST_CONTAINER_NAME: "wf-common"
               PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
+              RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
+              RTEST_CONTAINER_CONFIG_KEY: "container_sha"
 
 macos-run:
   # Let's avoid those ARM64 runners for now

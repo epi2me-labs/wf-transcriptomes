@@ -1,0 +1,20 @@
+Package: workflowGlueR
+Title: Local R Helpers for wf-transcriptomes
+Version: 0.0.1.0000
+Authors@R:
+    person("Oxford Nanopore Technologies", role = c("aut", "cre"))
+Description: Local R helper functions used by wf-transcriptomes.
+License: Proprietary
+Encoding: UTF-8
+LazyData: false
+Imports:
+    argparser,
+    bambu,
+    DESeq2,
+    DEXSeq,
+    jsonlite,
+    Rsamtools,
+    S4Vectors,
+    SummarizedExperiment
+Suggests:
+    testthat
