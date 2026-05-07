@@ -377,6 +377,8 @@ Output files may be aggregated including information for all samples or provided
 | Aligned BAM | cohort/alignments/{{ alias }}.aligned.sorted.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
 | Aligned BAM index | cohort/alignments/{{ alias }}.aligned.sorted.bam.bai | Index for the aligned BAM. | per-sample |
 | Alignment summary | cohort/alignments/{{ alias }}.flagstat.txt | samtools flagstat output for the aligned BAM. | per-sample |
+| Reference and annotation preparation summary | cohort/reference/annotation_reference_summary.json | Summary of reference and annotation preparation, including seqname overlap, build/provider hints, and excluded unstranded annotation counts. | aggregated |
+| Excluded unstranded annotation records | cohort/reference/unstranded_annotation.gtf | Full set of annotation records excluded because their strand was not '+' or '-'. Present only when unstranded records are found. | aggregated |
 | Cohort transcriptome GTF | cohort/transcripts.gtf | Joint bambu transcript model used as the primary cohort transcriptome. | aggregated |
 | Cohort transcriptome FASTA | cohort/cohort.transcriptome.fa | Transcript sequences derived from the joint cohort GTF. | aggregated |
 | Cohort transcript counts | cohort/transcript_counts.tsv | Transcript-level count matrix produced by bambu. | aggregated |

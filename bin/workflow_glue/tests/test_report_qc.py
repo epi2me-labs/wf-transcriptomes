@@ -77,6 +77,48 @@ def test_load_de_qc_missing(tmp_path):
     assert result is None
 
 
+def test_load_annotation_reference_summary_exists(tmp_path):
+    """Test loading reference/annotation prep summary when file exists."""
+    from workflow_glue.report import _load_annotation_reference_summary
+
+    summary_dir = tmp_path / "cohort" / "reference"
+    summary_dir.mkdir(parents=True)
+    summary_data = {
+        "seqname_overlap": ["chr1"],
+        "only_in_annotation": ["chrMissing"],
+        "only_in_reference": ["chrExtra"],
+        "warnings": ["Warning: test"],
+    }
+
+    with open(summary_dir / "annotation_reference_summary.json", "w") as f:
+        json.dump(summary_data, f)
+
+    result = _load_annotation_reference_summary(tmp_path / "cohort")
+    assert result is not None
+    assert result["seqname_overlap"] == ["chr1"]
+    assert result["only_in_annotation"] == ["chrMissing"]
+
+
+def test_load_annotation_reference_summary_missing(tmp_path):
+    """Test loading reference/annotation prep summary when file is missing."""
+    from workflow_glue.report import _load_annotation_reference_summary
+
+    cohort_dir = tmp_path / "cohort"
+    cohort_dir.mkdir()
+
+    result = _load_annotation_reference_summary(cohort_dir)
+    assert result is None
+
+
+def test_format_hint_values():
+    """Build/provider hints should be compactly formatted for the report."""
+    from workflow_glue.report import _format_hint_values
+
+    assert _format_hint_values([]) == "None detected"
+    assert _format_hint_values(["GRCh38"]) == "GRCh38"
+    assert _format_hint_values(["GRCh38", "GENCODE"]) == "GRCh38, GENCODE"
+
+
 def test_warning_banner_creation():
     """Test that warning banner can be created."""
     from workflow_glue.report import _create_warning_banner

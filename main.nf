@@ -275,6 +275,8 @@ workflow pipeline {
             .concat(report.report.map { [it, null] })
             .concat(workflow_params.map { [it, null] })
             .concat(pychopper_dirs.map { meta, pychopper_dir -> [pychopper_dir, "ingress_results/${meta.alias}"] })
+            .concat(transcriptome.annotation_reference_summary.map { [it, "cohort/reference"] })
+            .concat(transcriptome.unstranded_annotation.map { [it, "cohort/reference"] })
             .concat(transcriptome.joint_gtf.map { [it, "cohort"] })
             .concat(transcriptome.joint_fasta.map { [it, "cohort"] })
             .concat(transcriptome.joint_transcript_counts.map { [it, "cohort"] })
