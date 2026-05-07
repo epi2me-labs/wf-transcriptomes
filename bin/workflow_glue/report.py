@@ -122,6 +122,22 @@ def _load_de_qc(de_dir):
     return None
 
 
+def _load_annotation_reference_summary(cohort_dir):
+    """Load reference/annotation preparation summary JSON."""
+    summary_file = Path(cohort_dir) / "reference" / "annotation_reference_summary.json"
+    if summary_file.exists():
+        with open(summary_file) as f:
+            return json.load(f)
+    return None
+
+
+def _format_hint_values(hints):
+    """Format provenance hints for a compact table cell."""
+    if not hints:
+        return "None detected"
+    return ", ".join(hints)
+
+
 def _create_warning_banner(message, level="warning"):
     """Create a styled warning banner."""
     colors = {
@@ -200,6 +216,93 @@ def main(args):
 
     # Load bambu QC statistics
     bambu_qc = _load_bambu_qc(args.cohort_dir)
+    annotation_reference_summary = _load_annotation_reference_summary(args.cohort_dir)
+
+    if annotation_reference_summary:
+        with report.add_section("Reference and Annotation Checks", "Reference"):
+            for warning in annotation_reference_summary.get("warnings", []):
+                _create_warning_banner(warning, level="warning")
+
+            seqname_rows = [
+                (
+                    "Overlapping seqnames",
+                    len(annotation_reference_summary.get("seqname_overlap", [])),
+                ),
+                (
+                    "Seqnames only in annotation",
+                    len(annotation_reference_summary.get("only_in_annotation", [])),
+                ),
+                (
+                    "Seqnames only in reference",
+                    len(annotation_reference_summary.get("only_in_reference", [])),
+                ),
+            ]
+            annotation_summary = annotation_reference_summary.get("annotation", {})
+            seqname_rows.extend([
+                (
+                    "Annotation records retained",
+                    annotation_summary.get("kept_records", "N/A"),
+                ),
+                (
+                    "Unstranded records excluded",
+                    annotation_summary.get("excluded_unstranded_records", "N/A"),
+                ),
+                (
+                    "Annotation attributes sanitised",
+                    annotation_summary.get("sanitised_attribute_records", "N/A"),
+                ),
+            ])
+            DataTable.from_pandas(
+                pd.DataFrame(seqname_rows, columns=["Check", "Value"]),
+                paging=False,
+                searchable=False,
+            )
+
+            with h3("Build and Provider Hints"):
+                hint_rows = [
+                    (
+                        "Reference build",
+                        _format_hint_values(
+                            annotation_reference_summary.get(
+                                "reference_build_hints", []
+                            )
+                        ),
+                    ),
+                    (
+                        "Annotation build",
+                        _format_hint_values(
+                            annotation_reference_summary.get(
+                                "annotation_build_hints", []
+                            )
+                        ),
+                    ),
+                    (
+                        "Reference provider",
+                        _format_hint_values(
+                            annotation_reference_summary.get(
+                                "reference_provider_hints", []
+                            )
+                        ),
+                    ),
+                    (
+                        "Annotation provider",
+                        _format_hint_values(
+                            annotation_reference_summary.get(
+                                "annotation_provider_hints", []
+                            )
+                        ),
+                    ),
+                ]
+                DataTable.from_pandas(
+                    pd.DataFrame(hint_rows, columns=["Evidence", "Hints"]),
+                    paging=False,
+                    searchable=False,
+                )
+
+            examples = annotation_summary.get("unstranded_examples") or []
+            if examples:
+                with h3("Unstranded Annotation Examples"):
+                    pre("\n".join(examples))
 
     # Add Bambu QC section with warnings
     if bambu_qc:

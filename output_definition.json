@@ -64,6 +64,22 @@
       "optional": false,
       "type": "per-sample"
     },
+    "annotation-reference-summary": {
+      "filepath": "cohort/reference/annotation_reference_summary.json",
+      "title": "Reference and annotation preparation summary",
+      "description": "Summary of reference and annotation preparation, including seqname overlap, build/provider hints, and excluded unstranded annotation counts.",
+      "mime-type": "application/json",
+      "optional": false,
+      "type": "aggregated"
+    },
+    "unstranded-annotation": {
+      "filepath": "cohort/reference/unstranded_annotation.gtf",
+      "title": "Excluded unstranded annotation records",
+      "description": "Full set of annotation records excluded because their strand was not '+' or '-'. Present only when unstranded records are found.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
     "cohort-gtf": {
       "filepath": "cohort/transcripts.gtf",
       "title": "Cohort transcriptome GTF",

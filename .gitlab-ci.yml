@@ -56,15 +56,9 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "differential_expression", "isoforms", "isoforms_bam",
-                "only_differential_expression", "differential_expression_gff3",
-                "ncbi_gzip", "ncbi_no_gene_id", "ensembl_with_versions",
-                "differential_expression_mouse", "no_ref_annotation",
-                "unstranded_annotation_warn", "igv", "igv_fai_gz",
-                "mismatch_seqid_error","mismatch_seqid_warn",
-                "codex_discover", "codex_fixed_annotation", "codex_direct_rna",
-                "codex_de_analysis", "codex_invalid_mode",
-                "codex_conflicting_library_flags"
+                "de", "discover", "igv",
+                "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
+                "no_annotation", "invalid_mode", "conflicting_flags"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -72,20 +66,13 @@ docker-run:
         #   being incorrectly scheduled for "detached merge request pipelines" etc.
         - if: ($CI_COMMIT_BRANCH == null || $CI_COMMIT_BRANCH == "dev-template")
           when: never
-        - if: $MATRIX_NAME == "isoforms"
+        - if: $MATRIX_NAME == "discover"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
                   --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --cdna_preprocess --pychopper_backend phmm"
               NF_IGNORE_PROCESSES: preprocess_reads,filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "isoforms_bam"
-          variables:
-            NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-            NF_WORKFLOW_OPTS: "--bam  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.bam \
-                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --cdna_preprocess --pychopper_backend phmm \
-                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-            NF_IGNORE_PROCESSES: preprocess_reads,filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "no_ref_annotation"
+        - if: $MATRIX_NAME == "no_annotation"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
@@ -94,7 +81,7 @@ docker-run:
               NF_IGNORE_PROCESSES: preprocess_reads
               ASSERT_NEXTFLOW_FAILURE: "1"
               ASSERT_NEXTFLOW_FAILURE_REXP: "Missing required parameter: --ref_annotation"
-        - if: $MATRIX_NAME == "differential_expression"
+        - if: $MATRIX_NAME == "de"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
@@ -108,101 +95,6 @@ docker-run:
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                  --transcriptome_mode fixed_annotation \
-                  --de_analysis \
-                  --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gff \
-                --direct_rna --minimap2_index_opts '-k 15' \
-                --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,validate_ref_annotation,gz_faidx,merge_transcriptomes,merge_gff_bundles,assemble_transcripts,decompress_annotation,decompress_ref,
-                build_minimap_index,get_transcriptome,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "differential_expression_gff3"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS: "--fastq   ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                  --transcriptome_mode fixed_annotation \
-                  --de_analysis \
-                  --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-                --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gff3 \
-                --direct_rna --minimap2_index_opts '-k 15' \
-                --sample_sheet test_data/sample_sheet.csv \
-                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "ncbi_gzip"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                  "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
-                --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
-                --direct_rna --minimap2_index_opts '-w 25' \
-               --sample_sheet test_data/sample_sheet.csv \
-               -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "ncbi_no_gene_id"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                "--fastq ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                --transcriptome_mode fixed_annotation --de_analysis \
-                --ref_genome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
-                --direct_rna \
-                --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,validate_ref_annotation,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "ensembl_with_versions"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                --de_analysis \
-                --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
-                --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression/Homo_sapiens.GRCh38.109.gtf.gz \
-                --direct_rna --transcriptome_mode fixed_annotation \
-                --sample_sheet test_data/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "differential_expression_mouse"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_mouse.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_mouse.tar.gz -C ${CI_PROJECT_NAME}/data/&&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                "--fastq  ${CI_PROJECT_NAME}/data/differential_expression_mouse/differential_expression_fastq \
-                --transcriptome_mode fixed_annotation --de_analysis \
-                --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_mouse/GRCm39.genome.fa.gz \
-                --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_mouse/gencode.vM33.annotation.gtf \
-                --direct_rna \
-                --sample_sheet  ${CI_PROJECT_NAME}/data/differential_expression_mouse/sample_sheet.csv \
-                -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam
-        - if: $MATRIX_NAME == "unstranded_annotation_warn"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/unstranded_annotation.gtf \
-                --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: preprocess_reads,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-              AFTER_NEXTFLOW_CMD: "grep 'Unstranded entries found and excluded from differential expression analysis.' '.nextflow.log'"
-        - if: $MATRIX_NAME == "igv"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
                   --de_analysis \
                   --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gff \
@@ -213,53 +105,7 @@ docker-run:
               NF_IGNORE_PROCESSES: >
                 preprocess_reads,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,validate_ref_annotation,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "igv_fai_gz"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config  https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                "--fastq ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                --transcriptome_mode fixed_annotation --de_analysis \
-                --ref_genome ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.fna.gz \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GCF_000001405.40_GRCh38.p14_genomic.gff.gz \
-                --direct_rna \
-                --sample_sheet test_data/sample_sheet.csv \
-                --igv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,validate_ref_annotation,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome,faidx,gz_faidx
-        - if: $MATRIX_NAME == "mismatch_seqid_error"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                  "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/hg38_chr20.fa \
-                  --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
-                  --direct_rna \
-                  --sample_sheet test_data/sample_sheet.csv \
-                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-              ASSERT_NEXTFLOW_FAILURE: 1
-              ASSERT_NEXTFLOW_FAILURE_REXP: No overlapping seqnames were found between the reference annotation and the reference genome
-        - if: $MATRIX_NAME == "mismatch_seqid_warn"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression_ncbi.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/differential_expression_ncbi.tar.gz -C  ${CI_PROJECT_NAME}/data/ &&  wget -nv -O  ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS:
-                  "--fastq   ${CI_PROJECT_NAME}/data/differential_expression_ncbi/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14.NCBI_test.fna.gz \
-                  --ref_annotation  ${CI_PROJECT_NAME}/data/differential_expression_ncbi/GRCh38.p14_NCBI_test.gtf.gz \
-                  --direct_rna \
-                  --sample_sheet test_data/sample_sheet.csv --minimap2_index_opts '-w 25' \
-                  -c  ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: >
-                preprocess_reads,faidx,gz_faidx,merge_transcriptomes,assemble_transcripts,
-                build_minimap_index,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
-              AFTER_NEXTFLOW_CMD: "grep 'Some seqnames are present in the genome but not the annotation' '.nextflow.log'"
-        - if: $MATRIX_NAME == "codex_discover"
+        - if: $MATRIX_NAME == "smoke_discover"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf"
@@ -268,7 +114,7 @@ docker-run:
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/cohort.transcriptome.fa &&
                   test -f ${CI_PROJECT_NAME}/samples/sampleA/transcripts.gtf
-        - if: $MATRIX_NAME == "codex_fixed_annotation"
+        - if: $MATRIX_NAME == "smoke_fixed"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode fixed_annotation"
@@ -276,7 +122,7 @@ docker-run:
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/transcript_counts.tsv
-        - if: $MATRIX_NAME == "codex_direct_rna"
+        - if: $MATRIX_NAME == "smoke_direct_rna"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna"
@@ -284,7 +130,7 @@ docker-run:
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA.aligned.sorted.bam &&
                   test -f ${CI_PROJECT_NAME}/cohort/sqanti_cohort/classification_summary.tsv
-        - if: $MATRIX_NAME == "codex_de_analysis"
+        - if: $MATRIX_NAME == "smoke_de"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --de_analysis --reference_level control --covariates batch"
@@ -292,14 +138,14 @@ docker-run:
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv
-        - if: $MATRIX_NAME == "codex_invalid_mode"
+        - if: $MATRIX_NAME == "invalid_mode"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode nonsense"
               NF_IGNORE_PROCESSES: preprocess_reads
               ASSERT_NEXTFLOW_FAILURE: "1"
               ASSERT_NEXTFLOW_FAILURE_REXP: "nonsense is not a valid choice"
-        - if: $MATRIX_NAME == "codex_conflicting_library_flags"
+        - if: $MATRIX_NAME == "conflicting_flags"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna --cdna_preprocess"

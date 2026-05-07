@@ -3,114 +3,26 @@ nextflow.enable.dsl = 2
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
 
-process decompressReference {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "2 GB"
-    input:
-        path compressed_ref
-    output:
-        path "${compressed_ref.baseName}", emit: decompressed_ref
-    script:
-    """
-    gzip -dc "${compressed_ref}" > "${compressed_ref.baseName}"
-    """
-}
-
-
-process decompressAnnotation {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "2 GB"
-    input:
-        path compressed_annotation
-    output:
-        path "${compressed_annotation.baseName}", emit: decompressed_annotation
-    script:
-    """
-    gzip -dc "${compressed_annotation}" > "${compressed_annotation.baseName}"
-    """
-}
-
-
-process normaliseAnnotationToGtf {
+process prepareAnnotationReference {
     label "wf_transcriptomes"
     cpus 1
     memory "4 GB"
     input:
-        path annotation
-    output:
-        path "annotation.gtf", emit: gtf
-    script:
-    """
-    gffread -T "${annotation}" -o annotation.gtf
-    """
-}
-
-
-process filterUnstrandedAnnotation {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "2 GB"
-    input:
-        path "annotation.gtf"
-    output:
-        tuple stdout, path("annotation_stranded.gtf"), emit: filtered
-    script:
-    """
-    awk '
-        BEGIN { OFS = "\\t" }
-        /^#/ { print; next }
-        (\$7 == "+" || \$7 == "-") { print; next }
-        { print \$0 >> "unstranded.gtf" }
-    ' annotation.gtf > annotation_stranded.gtf
-
-    if [ -s unstranded.gtf ]; then
-        echo "Warning: Unstranded entries found and excluded from differential expression analysis."
-        echo "If running with reference-guided transcriptome source, consider increasing read depth to reduce unstranded annotations."
-        echo "If running with precomputed transcriptome source, ensure your ref_annotation gtf file contains only '+' or '-' strand entries."
-        echo "A sample of unstranded entries:"
-        head -n 20 unstranded.gtf
-    fi
-    """
-}
-
-
-process validateReferenceAnnotation {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "2 GB"
-    input:
-        path "annotation.gtf"
-        path "reference.fasta"
+        path ref_annotation
+        path ref_genome
     output:
         stdout emit: warnings
+        path "annotation.gtf", emit: annotation
+        path "reference.fasta", emit: reference
+        path "annotation_reference_summary.json", emit: summary
+        path "unstranded_annotation.gtf", optional: true, emit: unstranded
     script:
     """
-    grep -v '^#' annotation.gtf | cut -f1 | sort -u > annotation_ids.txt
-    awk '/^>/ {print substr(\$1,2)}' reference.fasta | sort -u > reference_ids.txt
-    matches=\$(comm -12 annotation_ids.txt reference_ids.txt || true)
-    only_in_annotation=\$(comm -23 annotation_ids.txt reference_ids.txt || true)
-    only_in_reference=\$(comm -13 annotation_ids.txt reference_ids.txt || true)
-
-    if [[ -z "\$matches" ]]; then
-        echo "ERROR: No overlapping seqnames were found between the reference annotation and the reference genome." >&2
-        echo "Annotation ID examples:" >&2
-        head -n 5 annotation_ids.txt >&2
-        echo "Reference ID examples:" >&2
-        head -n 5 reference_ids.txt >&2
-        exit 78
-    fi
-
-    if [[ -n "\$only_in_annotation" ]]; then
-        echo "Warning: Some seqnames are present in the annotation but not the genome:"
-        echo "\$only_in_annotation" | head -n 5
-    fi
-
-    if [[ -n "\$only_in_reference" ]]; then
-        echo "Warning: Some seqnames are present in the genome but not the annotation:"
-        echo "\$only_in_reference" | head -n 5
-    fi
+    workflow-glue prepare_annotation_reference \
+        --annotation "${ref_annotation}" \
+        --reference "${ref_genome}" \
+        --out_dir prepared
+    mv prepared/* .
     """
 }
 
@@ -272,14 +184,9 @@ process runJointSqanti {
         String skip_orf = params.sqanti_skip_orf ? "--skipORF" : ""
     """
     mkdir sqanti_cohort
-    awk '
-        BEGIN { OFS = "\\t" }
-        /^#/ { print; next }
-        (\$7 == "+" || \$7 == "-") { print; next }
-    ' "${annotation}" > reference_annotation_stranded.gtf
     sqanti3_qc.py \
         --isoforms "${gtf}" \
-        --refGTF "reference_annotation_stranded.gtf" \
+        --refGTF "${annotation}" \
         --refFasta "${reference}" \
         ${skip_orf} \
         --force_id_ignore \
@@ -310,14 +217,9 @@ process runPerSampleSqanti {
         String skip_orf = params.sqanti_skip_orf ? "--skipORF" : ""
     """
     mkdir "${meta.alias}_sqanti"
-    awk '
-        BEGIN { OFS = "\\t" }
-        /^#/ { print; next }
-        (\$7 == "+" || \$7 == "-") { print; next }
-    ' "${annotation}" > reference_annotation_stranded.gtf
     sqanti3_qc.py \
         --isoforms "${gtf}" \
-        --refGTF "reference_annotation_stranded.gtf" \
+        --refGTF "${annotation}" \
         --refFasta "${reference}" \
         ${skip_orf} \
         --force_id_ignore \
@@ -370,34 +272,14 @@ workflow transcriptome_analysis {
         ref_annotation
         sample_sheet
     main:
-        analysis_reference = ref_genome
-        if (params.ref_genome.toLowerCase().endsWith("gz")) {
-            decompressed_reference = decompressReference(ref_genome)
-            analysis_reference = decompressed_reference.decompressed_ref
-        }
-
-        analysis_annotation = ref_annotation
-        if (params.ref_annotation.toLowerCase().endsWith("gz")) {
-            decompressed_annotation = decompressAnnotation(ref_annotation)
-            analysis_annotation = decompressed_annotation.decompressed_annotation
-        }
-        if (params.ref_annotation.toLowerCase() ==~ /.*\.gff3?(\.gz)?$/) {
-            normalised_annotation = normaliseAnnotationToGtf(analysis_annotation)
-            analysis_annotation = normalised_annotation.gtf
-        }
-        filtered_annotation = filterUnstrandedAnnotation(analysis_annotation)
-        analysis_annotation = filtered_annotation.filtered.map { warning_text, annotation ->
-            if (warning_text?.trim()) {
-                log.warn(warning_text.trim())
-            }
-            annotation
-        }
-
-        validateReferenceAnnotation(analysis_annotation, analysis_reference).map { stdoutput ->
+        prepared_reference_annotation = prepareAnnotationReference(ref_annotation, ref_genome)
+        prepared_reference_annotation.warnings.map { stdoutput ->
             if (stdoutput) {
-                log.warn(stdoutput)
+                log.warn(stdoutput.trim())
             }
         }
+        analysis_annotation = prepared_reference_annotation.annotation
+        analysis_reference = prepared_reference_annotation.reference
 
         genome_index = buildMinimapIndex(analysis_reference)
 
@@ -442,6 +324,8 @@ workflow transcriptome_analysis {
     emit:
         reference = ref_genome
         annotation = ref_annotation
+        annotation_reference_summary = prepared_reference_annotation.summary
+        unstranded_annotation = prepared_reference_annotation.unstranded
         alignments = aligned.bam
         joint_dir = joint_bambu.dir
         joint_gtf = joint_bambu.gtf

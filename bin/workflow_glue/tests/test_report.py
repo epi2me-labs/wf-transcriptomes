@@ -44,15 +44,17 @@ def _write(path, text):
 
 def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     """The report entry point should tolerate null-object sentinel files."""
+    tables = []
     monkeypatch.setattr(report.labs, "LabsReport", _FakeReport)
     monkeypatch.setattr(report, "Tabs", _FakeTabs)
     monkeypatch.setattr(report, "p", lambda *args, **kwargs: None)
     monkeypatch.setattr(report, "pre", lambda *args, **kwargs: None)
+    monkeypatch.setattr(report, "_create_warning_banner", lambda *args, **kwargs: None)
     monkeypatch.setattr(report.fastcat, "SeqSummary", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         report.DataTable,
         "from_pandas",
-        staticmethod(lambda *args, **kwargs: None),
+        staticmethod(lambda table, *args, **kwargs: tables.append(table.copy())),
     )
 
     metadata = _write(
@@ -66,6 +68,27 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
 
     cohort = tmp_path / "cohort"
     cohort.mkdir()
+    reference = cohort / "reference"
+    reference.mkdir()
+    _write(
+        reference / "annotation_reference_summary.json",
+        json.dumps({
+            "seqname_overlap": ["chr1"],
+            "only_in_annotation": ["chrMissing"],
+            "only_in_reference": ["chrExtra"],
+            "annotation": {
+                "kept_records": 10,
+                "excluded_unstranded_records": 2,
+                "sanitised_attribute_records": 1,
+                "unstranded_examples": ["chr1\tsim\ttranscript\t1\t4\t.\t.\t."],
+            },
+            "reference_build_hints": ["GRCh38"],
+            "annotation_build_hints": [],
+            "reference_provider_hints": [],
+            "annotation_provider_hints": [],
+            "warnings": ["Warning: Some seqnames are present in the annotation."],
+        }),
+    )
 
     samples = tmp_path / "samples"
     samples.mkdir()
@@ -103,6 +126,11 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     report.main(args)
 
     assert out_report.exists()
+    assert any("Overlapping seqnames" in table.to_string() for table in tables)
+    assert any(
+        "Annotation attributes sanitised" in table.to_string() for table in tables
+    )
+    assert any("GRCh38" in table.to_string() for table in tables)
 
 
 def test_pychopper_tables_uses_sample_directory_names(tmp_path):
