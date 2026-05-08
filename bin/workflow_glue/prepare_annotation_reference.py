@@ -250,8 +250,9 @@ class Annotation:
                     if part
                 )
                 raise ValueError(
-                    "Failed to convert annotation to GTF with "
-                    "gffread:\n" + details
+                    "Failed to convert annotation to GTF with gffread.\n"
+                    f"Return code: {result.returncode}\n"
+                    "Error message:" + details
                 )
 
             if not dest.exists() or dest.stat().st_size < 1:

@@ -6,7 +6,7 @@ OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 process prepareAnnotationReference {
     label "wf_transcriptomes"
     cpus 1
-    memory "4 GB"
+    memory "6 GB"
     input:
         path ref_annotation
         path ref_genome
