@@ -1,0 +1,7 @@
+alias,condition,batch
+control_rep1,control,b1
+control_rep2,control,b2
+control_rep3,control,b1
+treated_rep1,treated,b1
+treated_rep2,treated,b2
+treated_rep3,treated,b1

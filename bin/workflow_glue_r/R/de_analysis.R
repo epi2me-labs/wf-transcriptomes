@@ -76,6 +76,9 @@ de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
     if (is.null(gene_counts)) {
         stop("Gene RDS must contain a 'counts' assay.", call. = FALSE)
     }
+    if (!is.numeric(tx_counts) || !is.numeric(gene_counts)) {
+        stop("Count matrices must be numeric.", call. = FALSE)
+    }
     if (anyNA(tx_counts) || anyNA(gene_counts)) {
         stop("Count matrices must not contain NA values.", call. = FALSE)
     }
