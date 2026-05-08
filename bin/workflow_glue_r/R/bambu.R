@@ -182,7 +182,11 @@ bambu_filter_transcripts <- function(se) {
         keep_idx <- rowSums(full_length_mat) > 0
     }
     if (!any(keep_idx)) {
-        keep_idx <- rowSums(counts_mat) >= 0
+        stop(
+            "All transcripts have zero counts after filtering. ",
+            "This suggests a problem with the bambu analysis or input data. ",
+            "Check bambu logs and verify input quality."
+        )
     }
 
     qc_stats$transcripts_filtered <- sum(!keep_idx)
