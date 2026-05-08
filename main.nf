@@ -95,6 +95,8 @@ process preprocess_reads {
 process makeReport {
     label "wf_common"
     publishDir "${params.out_dir}", mode: 'copy', pattern: "wf-transcriptomes-report.html"
+    cpus 1
+    memory 8.GB
     input:
         tuple val(metadata), path(stats, stageAs: "stats_*")
         path "versions/*"
@@ -135,6 +137,8 @@ process makeReport {
 
 process publishResults {
     label "wf_common"
+    memory 2.GB
+    cpus 1
     publishDir (
         params.out_dir,
         mode: "copy",
@@ -144,6 +148,7 @@ process publishResults {
         tuple path(fname), val(dirname)
     output:
         path fname
+    script:
     """
     """
 }
