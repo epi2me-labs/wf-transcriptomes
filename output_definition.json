@@ -224,6 +224,54 @@
       "optional": true,
       "type": "aggregated"
     },
+    "de-qc-stats": {
+      "filepath": "de_analysis/de_qc_stats.json",
+      "title": "Differential analysis QC summary",
+      "description": "Structured DE/DTU QC summary. Use analysis_fallbacks for aggregate counts, and each contrast's deseq2_dispersion_fallback, dexseq_dispersion_method, and dexseq_covariates_dropped fields for interpretation.",
+      "mime-type": "application/json",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "de-overall-summary": {
+      "filepath": "de_analysis/de_overall_summary.txt",
+      "title": "Differential analysis text summary",
+      "description": "Human-readable DE/DTU run summary across all contrasts.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "de-contrast-qc-summary": {
+      "filepath": "de_analysis/{{ contrast }}/contrast_qc_summary.txt",
+      "title": "Per-contrast QC summary",
+      "description": "Human-readable per-contrast DE/DTU QC summary including sample counts and key significance totals.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "deseq2-dispersion-fallback-diagnostic": {
+      "filepath": "de_analysis/DESeq2_dispersion_fallback_{{ contrast }}.txt",
+      "title": "DESeq2 fallback diagnostic",
+      "description": "Diagnostic details when DESeq2 falls back to gene-wise dispersion estimation.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "dtu-analysis-failed-diagnostic": {
+      "filepath": "de_analysis/{{ contrast }}/DTU_ANALYSIS_FAILED.txt",
+      "title": "DTU failure diagnostic",
+      "description": "Diagnostic details when DEXSeq fails for a contrast.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "multiple-testing-warning": {
+      "filepath": "de_analysis/MULTIPLE_TESTING_WARNING.txt",
+      "title": "Multiple-testing warning",
+      "description": "Family-wise error-rate note generated when multiple contrasts are tested.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
     "igv-config": {
       "filepath": "igv.json",
       "title": "IGV configuration",
