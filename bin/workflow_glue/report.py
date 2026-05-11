@@ -171,6 +171,64 @@ def _create_warning_banner(message, level="warning"):
         raw(message)
 
 
+def _as_string_list(value):
+    """Normalize optional values to a compact list of strings."""
+    if value is None or value == "none":
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if item not in (None, "")]
+    if isinstance(value, str):
+        return [value] if value else []
+    return [str(value)]
+
+
+def _collect_de_method_rows(de_qc):
+    """Build per-contrast method rows and warning metadata."""
+    rows = []
+    deseq2_gene_wise = []
+    dexseq_gene_wise = []
+    dexseq_covariate_drops = []
+
+    for contrast_name, contrast_data in de_qc.get("contrasts", {}).items():
+        fallback = contrast_data.get("deseq2_dispersion_fallback") or {}
+        fallback_applied = bool(fallback.get("applied", False))
+        deseq2_method = fallback.get("method_used")
+
+        if not deseq2_method:
+            deseq2_method = "gene-wise" if fallback_applied else "parametric"
+
+        if deseq2_method == "gene-wise":
+            deseq2_gene_wise.append(contrast_name)
+
+        dexseq_method = contrast_data.get("dexseq_dispersion_method") or "parametric"
+        if dexseq_method == "gene-wise":
+            dexseq_gene_wise.append(contrast_name)
+
+        dropped_covariates = _as_string_list(
+            contrast_data.get("dexseq_covariates_dropped")
+        )
+        if dropped_covariates:
+            dexseq_covariate_drops.append((contrast_name, dropped_covariates))
+
+        rows.append(
+            {
+                "Contrast": contrast_name,
+                "DESeq2 dispersion": (
+                    f"{deseq2_method} (fallback)"
+                    if fallback_applied
+                    else deseq2_method
+                ),
+                "DEXSeq dispersion": dexseq_method,
+                "DEXSeq covariates dropped": (
+                    ", ".join(dropped_covariates) if dropped_covariates else "none"
+                ),
+                "DTU status": contrast_data.get("dtu_status", "N/A"),
+            }
+        )
+
+    return rows, deseq2_gene_wise, dexseq_gene_wise, dexseq_covariate_drops
+
+
 def main(args):
     """Run the report entry point."""
     logger = get_named_logger("Report")
@@ -471,13 +529,21 @@ def main(args):
             ):
                 # Check for critical warnings
                 has_warnings = False
-
-                if (
+                sample_size_warnings = _as_string_list(
                     de_qc.get("sample_size_warnings")
-                    and de_qc["sample_size_warnings"] != "none"
-                ):
+                )
+                (
+                    method_rows,
+                    deseq2_gene_wise,
+                    dexseq_gene_wise,
+                    dexseq_covariate_drops,
+                ) = _collect_de_method_rows(de_qc)
+
+                if sample_size_warnings:
                     _create_warning_banner(
-                        f"Sample Size Warning: {de_qc['sample_size_warnings']}. "
+                        "Sample Size Warning: "
+                        + "; ".join(sample_size_warnings)
+                        + ". "
                         "Underpowered designs may have reduced statistical "
                         "power and increased false negative rate.",
                         level="warning",
@@ -491,24 +557,31 @@ def main(args):
                         level="info",
                     )
 
-                # Check for dispersion fallbacks
-                dispersion_fallbacks = []
-                for contrast_name, contrast_data in de_qc.get(
-                    "contrasts", {}
-                ).items():
-                    dispersion_file = (
-                        Path(args.de_dir)
-                        / f"DESeq2_dispersion_fallback_{contrast_name}.txt"
-                    )
-                    if dispersion_file.exists():
-                        dispersion_fallbacks.append(contrast_name)
-
-                if dispersion_fallbacks:
+                if deseq2_gene_wise or dexseq_gene_wise:
+                    gene_wise_details = []
+                    if deseq2_gene_wise:
+                        gene_wise_details.append(
+                            "DESeq2: " + ", ".join(sorted(deseq2_gene_wise))
+                        )
+                    if dexseq_gene_wise:
+                        gene_wise_details.append(
+                            "DEXSeq: " + ", ".join(sorted(dexseq_gene_wise))
+                        )
                     _create_warning_banner(
-                        "Dispersion Estimation Fallback: "
-                        f"{len(dispersion_fallbacks)} contrast(s) used "
-                        "gene-wise dispersion (reduced power). "
-                        f"Affected: {', '.join(dispersion_fallbacks)}",
+                        "Gene-wise dispersion fallback used (reduced power). "
+                        + " ".join(gene_wise_details),
+                        level="warning",
+                    )
+                    has_warnings = True
+
+                if dexseq_covariate_drops:
+                    drop_details = [
+                        f"{contrast} ({', '.join(columns)})"
+                        for contrast, columns in sorted(dexseq_covariate_drops)
+                    ]
+                    _create_warning_banner(
+                        "DEXSeq covariates dropped due to rank-deficient design. "
+                        f"Affected: {'; '.join(drop_details)}",
                         level="warning",
                     )
                     has_warnings = True
@@ -534,12 +607,8 @@ def main(args):
 
                 # Experimental design summary
                 with h3("Experimental Design"):
-                    covariates = de_qc.get("covariates", [])
-                    covariates_value = (
-                        ", ".join(covariates)
-                        if de_qc.get("covariates") != "none"
-                        else "none"
-                    )
+                    covariates = _as_string_list(de_qc.get("covariates"))
+                    covariates_value = ", ".join(covariates) if covariates else "none"
                     design_stats = pd.DataFrame(
                         [
                             ("Total samples", de_qc.get("total_samples", 0)),
@@ -591,6 +660,17 @@ def main(args):
                             use_index=False,
                         )
 
+                with h3("Statistical Methods & Warnings"):
+                    if method_rows:
+                        method_df = pd.DataFrame(method_rows)
+                        DataTable.from_pandas(
+                            method_df,
+                            paging=False,
+                            use_index=False,
+                        )
+                    else:
+                        p("No contrast-level QC metadata was found.")
+
                 # Per-contrast summary
                 if "contrasts" in de_qc:
                     with h3("Results Summary by Contrast"):
@@ -637,22 +717,35 @@ def main(args):
                 if has_warnings:
                     with h3("Quality Warnings Summary"):
                         warnings_data = []
-                        if (
-                            de_qc.get("sample_size_warnings")
-                            and de_qc["sample_size_warnings"] != "none"
-                        ):
+                        if sample_size_warnings:
                             warnings_data.append(
                                 {
                                     "Warning Type": "Sample Size",
-                                    "Details": de_qc["sample_size_warnings"],
+                                    "Details": "; ".join(sample_size_warnings),
                                 }
                             )
-                        if dispersion_fallbacks:
+                        if deseq2_gene_wise or dexseq_gene_wise:
+                            engines = []
+                            if deseq2_gene_wise:
+                                engines.append(
+                                    f"DESeq2 ({len(deseq2_gene_wise)} contrasts)"
+                                )
+                            if dexseq_gene_wise:
+                                engines.append(
+                                    f"DEXSeq ({len(dexseq_gene_wise)} contrasts)"
+                                )
                             warnings_data.append(
                                 {
-                                    "Warning Type": "Dispersion Estimation",
+                                    "Warning Type": "Gene-wise Dispersion Fallback",
+                                    "Details": "; ".join(engines),
+                                }
+                            )
+                        if dexseq_covariate_drops:
+                            warnings_data.append(
+                                {
+                                    "Warning Type": "DEXSeq Covariates Dropped",
                                     "Details": (
-                                        f"{len(dispersion_fallbacks)} "
+                                        f"{len(dexseq_covariate_drops)} "
                                         "contrasts affected"
                                     ),
                                 }

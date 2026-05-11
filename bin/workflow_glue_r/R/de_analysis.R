@@ -145,8 +145,23 @@ de_set_dispersions <- function(object, value) {
     setter(object, value = value)
 }
 
-de_run_deseq_with_fallback <- function(dds, contrast_name, out_dir) {
-    tryCatch(
+de_extract_disp_gene_est <- function(object) {
+    S4Vectors::mcols(object)$dispGeneEst
+}
+
+de_run_deseq_with_fallback <- function(
+    dds,
+    contrast_name,
+    out_dir
+) {
+    fallback_info <- list(
+        applied = FALSE,
+        method_used = "parametric",
+        reason = NULL,
+        diagnostic_file = NULL
+    )
+
+    de_out <- tryCatch(
         DESeq2::DESeq(dds, quiet = TRUE),
         error = function(err) {
             if (!grepl(
@@ -171,7 +186,19 @@ de_run_deseq_with_fallback <- function(dds, contrast_name, out_dir) {
 
             dds <- DESeq2::estimateSizeFactors(dds)
             dds <- DESeq2::estimateDispersionsGeneEst(dds)
-            dds <- de_set_dispersions(dds, S4Vectors::mcols(dds)$dispGeneEst)
+            dds <- de_set_dispersions(dds, de_extract_disp_gene_est(dds))
+
+            dispersion_values <- suppressWarnings(as.numeric(DESeq2::dispersions(dds)))
+            dispersion_values <- dispersion_values[is.finite(dispersion_values)]
+            dispersion_range <- if (length(dispersion_values) > 0) {
+                sprintf(
+                    "Dispersion range: %.3f to %.3f",
+                    min(dispersion_values),
+                    max(dispersion_values)
+                )
+            } else {
+                "Dispersion range: unavailable"
+            }
 
             diag_content <- c(
                 "DESeq2 Dispersion Estimation Fallback Applied",
@@ -181,11 +208,7 @@ de_run_deseq_with_fallback <- function(dds, contrast_name, out_dir) {
                 sprintf("Contrast: %s", contrast_name),
                 sprintf("Samples: %d", ncol(dds)),
                 sprintf("Genes tested: %d", nrow(dds)),
-                sprintf(
-                    "Dispersion range: %.3f to %.3f",
-                    min(DESeq2::dispersions(dds)),
-                    max(DESeq2::dispersions(dds))
-                ),
+                dispersion_range,
                 "",
                 "WHAT HAPPENED:",
                 "  Curve fitting failed. Using gene-wise dispersion estimates.",
@@ -215,15 +238,31 @@ de_run_deseq_with_fallback <- function(dds, contrast_name, out_dir) {
                 )
             )
             writeLines(diag_content, diag_file)
+            fallback_info <<- list(
+                applied = TRUE,
+                method_used = "gene-wise",
+                reason = conditionMessage(err),
+                diagnostic_file = basename(diag_file)
+            )
 
             DESeq2::nbinomWaldTest(dds)
         }
     )
+    list(dds = de_out, deseq2_dispersion_fallback = fallback_info)
 }
 
-de_estimate_dispersions_with_fallback <- function(object, context_label, allow_gene_est = TRUE) {
+de_estimate_dispersions_with_fallback <- function(
+    object,
+    context_label,
+    allow_gene_est = TRUE
+) {
     tryCatch(
-        DESeq2::estimateDispersions(object),
+        list(
+            object = DESeq2::estimateDispersions(object),
+            method_used = "parametric",
+            fallback_applied = FALSE,
+            reason = NULL
+        ),
         error = function(err) {
             if (!grepl(
                 "all gene-wise dispersion estimates are within 2 orders of magnitude",
@@ -233,9 +272,18 @@ de_estimate_dispersions_with_fallback <- function(object, context_label, allow_g
                 stop(err)
             }
 
-            message(context_label, " dispersion fitting failed; retrying with fitType='local'.")
+            primary_reason <- conditionMessage(err)
+            message(
+                context_label,
+                " dispersion fitting failed; retrying with fitType='local'."
+            )
             tryCatch(
-                DESeq2::estimateDispersions(object, fitType = "local"),
+                list(
+                    object = DESeq2::estimateDispersions(object, fitType = "local"),
+                    method_used = "local",
+                    fallback_applied = TRUE,
+                    reason = primary_reason
+                ),
                 error = function(local_err) {
                     if (!grepl(
                         "all gene-wise dispersion estimates are within 2 orders of magnitude",
@@ -245,9 +293,17 @@ de_estimate_dispersions_with_fallback <- function(object, context_label, allow_g
                         stop(local_err)
                     }
 
-                    message(context_label, " local-fit dispersion retry failed; retrying with fitType='mean'.")
+                    message(
+                        context_label,
+                        " local-fit dispersion retry failed; retrying with fitType='mean'."
+                    )
                     tryCatch(
-                        DESeq2::estimateDispersions(object, fitType = "mean"),
+                        list(
+                            object = DESeq2::estimateDispersions(object, fitType = "mean"),
+                            method_used = "mean",
+                            fallback_applied = TRUE,
+                            reason = primary_reason
+                        ),
                         error = function(mean_err) {
                             if (!grepl(
                                 "all gene-wise dispersion estimates are within 2 orders of magnitude",
@@ -265,8 +321,13 @@ de_estimate_dispersions_with_fallback <- function(object, context_label, allow_g
                                 " mean-fit dispersion retry failed; falling back to gene-wise dispersion estimates."
                             )
                             object <- DESeq2::estimateDispersionsGeneEst(object)
-                            object <- de_set_dispersions(object, S4Vectors::mcols(object)$dispGeneEst)
-                            object
+                            object <- de_set_dispersions(object, de_extract_disp_gene_est(object))
+                            list(
+                                object = object,
+                                method_used = "gene-wise",
+                                fallback_applied = TRUE,
+                                reason = primary_reason
+                            )
                         }
                     )
                 }
@@ -315,13 +376,19 @@ de_run_deseq2_result <- function(
         colData = coldata,
         design = design_formula
     )
-    dds <- de_run_deseq_with_fallback(dds, contrast_name, out_dir)
+    deseq_run <- de_run_deseq_with_fallback(dds, contrast_name, out_dir)
+    dds <- deseq_run$dds
+    deseq2_dispersion_fallback <- deseq_run$deseq2_dispersion_fallback
     result <- DESeq2::results(
         dds,
         contrast = c(condition_column, target_level, reference_level),
         independentFiltering = TRUE
     )
-    list(dds = dds, result = result)
+    list(
+        dds = dds,
+        result = result,
+        deseq2_dispersion_fallback = deseq2_dispersion_fallback
+    )
 }
 
 de_run_dexseq_result <- function(
@@ -336,6 +403,7 @@ de_run_dexseq_result <- function(
     for (covariate in covariates) {
         coldata[[covariate]] <- factor(coldata[[covariate]])
     }
+    dropped_covariates <- character(0)
 
     run_inner <- function(active_covariates) {
         covariate_exon_terms <- if (length(active_covariates) > 0) {
@@ -357,11 +425,29 @@ de_run_dexseq_result <- function(
                 groupID = tx_meta$GENEID
             )
             dxd <- DESeq2::estimateSizeFactors(dxd)
-            dxd <- de_estimate_dispersions_with_fallback(dxd, "DEXSeq", allow_gene_est = TRUE)
+            dispersion_result <- de_estimate_dispersions_with_fallback(
+                dxd,
+                "DEXSeq",
+                allow_gene_est = TRUE
+            )
+            if (is.list(dispersion_result) && !is.null(dispersion_result$object)) {
+                dxd <- dispersion_result$object
+                dispersion_method <- dispersion_result$method_used
+                dispersion_reason <- dispersion_result$reason
+            } else {
+                dxd <- dispersion_result
+                dispersion_method <- "parametric"
+                dispersion_reason <- NULL
+            }
             dxd <- DEXSeq::testForDEU(dxd, reducedModel = reduced_formula)
             dxd <- DEXSeq::estimateExonFoldChanges(dxd, fitExpToVar = condition_column)
             dxr <- DEXSeq::DEXSeqResults(dxd, independentFiltering = FALSE)
-            list(dxd = dxd, dxr = dxr)
+            list(
+                dxd = dxd,
+                dxr = dxr,
+                dexseq_dispersion_method = dispersion_method,
+                dexseq_dispersion_reason = dispersion_reason
+            )
         }, error = function(err) {
             if (length(active_covariates) == 0 || !grepl(
                 "model matrix is not full rank",
@@ -373,6 +459,7 @@ de_run_dexseq_result <- function(
 
             dropped_covariate <- tail(active_covariates, 1)
             kept_covariates <- head(active_covariates, -1)
+            dropped_covariates <<- c(dropped_covariates, dropped_covariate)
             message(
                 "DEXSeq design was not full rank with covariate '",
                 dropped_covariate,
@@ -382,20 +469,12 @@ de_run_dexseq_result <- function(
         })
     }
 
-    run_inner(covariates)
+    result <- run_inner(covariates)
+    result$dexseq_covariates_dropped <- dropped_covariates
+    result
 }
 
-main_run_de_analysis <- function(
-    argv,
-    deseq_runner = de_run_deseq2_result,
-    dexseq_runner = de_run_dexseq_result,
-    pdf_fn = grDevices::pdf,
-    dev_off_fn = grDevices::dev.off,
-    plot_ma_fn = DESeq2::plotMA,
-    plot_disp_fn = DESeq2::plotDispEsts,
-    per_gene_q_fn = DEXSeq::perGeneQValue,
-    placeholder_pdf_fn = de_write_placeholder_pdf
-) {
+main_run_de_analysis <- function(argv) {
     set.seed(42)
     dir.create(argv$out_dir, showWarnings = FALSE, recursive = TRUE)
 
@@ -512,7 +591,15 @@ main_run_de_analysis <- function(
             reference_level = reference_level,
             n_samples = nrow(contrast_samples),
             n_target = sum(contrast_samples[[argv$condition_column]] == target_level),
-            n_reference = sum(contrast_samples[[argv$condition_column]] == reference_level)
+            n_reference = sum(contrast_samples[[argv$condition_column]] == reference_level),
+            deseq2_dispersion_fallback = list(
+                applied = FALSE,
+                method_used = "parametric",
+                reason = NULL,
+                diagnostic_file = NULL
+            ),
+            dexseq_dispersion_method = "parametric",
+            dexseq_covariates_dropped = list()
         )
 
         if (nrow(contrast_samples) < 6) {
@@ -528,7 +615,7 @@ main_run_de_analysis <- function(
         contrast_qc$genes_tested <- nrow(gene_counts)
         contrast_qc$transcripts_tested <- nrow(tx_counts)
 
-        dge_run <- deseq_runner(
+        dge_run <- de_run_deseq2_result(
             gene_counts,
             contrast_samples,
             target_level,
@@ -538,6 +625,20 @@ main_run_de_analysis <- function(
             argv$out_dir,
             contrast_name
         )
+        if (!is.null(dge_run$deseq2_dispersion_fallback)) {
+            fallback <- dge_run$deseq2_dispersion_fallback
+            fallback_applied <- isTRUE(fallback$applied)
+            fallback_method <- fallback$method_used
+            if (is.null(fallback_method) || identical(fallback_method, "")) {
+                fallback_method <- if (fallback_applied) "gene-wise" else "parametric"
+            }
+            contrast_qc$deseq2_dispersion_fallback <- list(
+                applied = fallback_applied,
+                method_used = fallback_method,
+                reason = fallback$reason,
+                diagnostic_file = fallback$diagnostic_file
+            )
+        }
         dge_res <- as.data.frame(dge_run$result)
         dge_res$GENEID <- rownames(dge_res)
         dge_res <- merge(gene_meta, dge_res, by = "GENEID", all.y = TRUE, sort = FALSE)
@@ -563,12 +664,12 @@ main_run_de_analysis <- function(
             row.names = FALSE
         )
 
-        pdf_fn(file.path(contrast_dir, "results_dge.pdf"))
-        plot_ma_fn(dge_run$result)
-        dev_off_fn()
+        grDevices::pdf(file.path(contrast_dir, "results_dge.pdf"))
+        DESeq2::plotMA(dge_run$result)
+        grDevices::dev.off()
 
         dex_res <- tryCatch(
-            dexseq_runner(
+            de_run_dexseq_result(
                 tx_counts,
                 tx_meta,
                 contrast_samples,
@@ -628,7 +729,7 @@ main_run_de_analysis <- function(
             ))
             tx_dtu <- dex_df
             gene_dtu <- workflow_glue_r_empty_tsv(c("GENEID", "qval"))
-            placeholder_pdf_fn(
+            de_write_placeholder_pdf(
                 file.path(contrast_dir, "results_dtu.pdf"),
                 "DEXSeq did not converge for this contrast.\nSee DTU_ANALYSIS_FAILED.txt for details."
             )
@@ -636,6 +737,12 @@ main_run_de_analysis <- function(
             contrast_qc$dtu_significant_transcripts <- 0
             contrast_qc$dtu_significant_genes <- 0
         } else {
+            if (!is.null(dex_res$dexseq_dispersion_method)) {
+                contrast_qc$dexseq_dispersion_method <- dex_res$dexseq_dispersion_method
+            }
+            if (!is.null(dex_res$dexseq_covariates_dropped)) {
+                contrast_qc$dexseq_covariates_dropped <- as.list(dex_res$dexseq_covariates_dropped)
+            }
             dex_df <- as.data.frame(dex_res$dxr)
             dex_df <- workflow_glue_r_normalise_tsv_df(dex_df)
             tx_dtu <- dex_df[, intersect(
@@ -644,7 +751,7 @@ main_run_de_analysis <- function(
             ), drop = FALSE]
             tx_dtu <- workflow_glue_r_normalise_tsv_df(tx_dtu)
 
-            gene_q <- per_gene_q_fn(dex_res$dxr)
+            gene_q <- DEXSeq::perGeneQValue(dex_res$dxr)
             gene_dtu <- data.frame(
                 GENEID = names(gene_q),
                 qval = unname(gene_q),
@@ -655,10 +762,10 @@ main_run_de_analysis <- function(
             contrast_qc$dtu_significant_transcripts <- sum(tx_dtu$padj < 0.05, na.rm = TRUE)
             contrast_qc$dtu_significant_genes <- sum(gene_dtu$qval < 0.05, na.rm = TRUE)
 
-            pdf_fn(file.path(contrast_dir, "results_dtu.pdf"))
-            plot_ma_fn(dex_res$dxr, cex = 0.8, alpha = 0.05)
-            plot_disp_fn(dex_res$dxd)
-            dev_off_fn()
+            grDevices::pdf(file.path(contrast_dir, "results_dtu.pdf"))
+            DESeq2::plotMA(dex_res$dxr, cex = 0.8, alpha = 0.05)
+            DESeq2::plotDispEsts(dex_res$dxd)
+            grDevices::dev.off()
         }
 
         utils::write.table(
@@ -726,6 +833,48 @@ main_run_de_analysis <- function(
         writeLines(contrast_qc_summary, file.path(contrast_dir, "contrast_qc_summary.txt"))
         de_qc_stats$contrasts[[contrast_name]] <- contrast_qc
     }
+
+    deseq2_dispersion_fallbacks <- names(Filter(
+        function(cqc) isTRUE(cqc$deseq2_dispersion_fallback$applied),
+        de_qc_stats$contrasts
+    ))
+    deseq2_gene_wise <- names(Filter(
+        function(cqc) identical(cqc$deseq2_dispersion_fallback$method_used, "gene-wise"),
+        de_qc_stats$contrasts
+    ))
+    dexseq_non_parametric <- names(Filter(
+        function(cqc) {
+            method <- cqc$dexseq_dispersion_method
+            !is.null(method) && !identical(method, "parametric")
+        },
+        de_qc_stats$contrasts
+    ))
+    dexseq_gene_wise <- names(Filter(
+        function(cqc) identical(cqc$dexseq_dispersion_method, "gene-wise"),
+        de_qc_stats$contrasts
+    ))
+    dexseq_covariate_drop <- names(Filter(
+        function(cqc) length(cqc$dexseq_covariates_dropped) > 0,
+        de_qc_stats$contrasts
+    ))
+    total_covariates_dropped <- sum(vapply(
+        de_qc_stats$contrasts,
+        function(cqc) length(cqc$dexseq_covariates_dropped),
+        integer(1)
+    ))
+    de_qc_stats$analysis_fallbacks <- list(
+        deseq2_dispersion_fallback_contrasts = length(deseq2_dispersion_fallbacks),
+        deseq2_dispersion_fallback_contrast_names = as.list(deseq2_dispersion_fallbacks),
+        deseq2_gene_wise_contrasts = length(deseq2_gene_wise),
+        deseq2_gene_wise_contrast_names = as.list(deseq2_gene_wise),
+        dexseq_non_parametric_dispersion_contrasts = length(dexseq_non_parametric),
+        dexseq_non_parametric_dispersion_contrast_names = as.list(dexseq_non_parametric),
+        dexseq_gene_wise_dispersion_contrasts = length(dexseq_gene_wise),
+        dexseq_gene_wise_dispersion_contrast_names = as.list(dexseq_gene_wise),
+        dexseq_covariate_drop_contrasts = length(dexseq_covariate_drop),
+        dexseq_covariate_drop_contrast_names = as.list(dexseq_covariate_drop),
+        total_covariates_dropped = total_covariates_dropped
+    )
 
     jsonlite::write_json(
         de_qc_stats,

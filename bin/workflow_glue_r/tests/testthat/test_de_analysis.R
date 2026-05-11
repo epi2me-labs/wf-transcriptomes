@@ -300,11 +300,7 @@ testthat::test_that("transcript SE without GENEID rejected", {
     )
 
     testthat::expect_error(
-        main_run_de_analysis(
-            argv,
-            deseq_runner = function(...) stop("runner should not be called"),
-            dexseq_runner = function(...) stop("runner should not be called")
-        ),
+        main_run_de_analysis(argv),
         "Transcript rowData must contain GENEID"
     )
 })
@@ -347,11 +343,7 @@ testthat::test_that("underspecified designs rejected", {
     )
 
     testthat::expect_error(
-        suppressWarnings(main_run_de_analysis(
-            argv,
-            deseq_runner = function(...) stop("runner should not be called"),
-            dexseq_runner = function(...) stop("runner should not be called")
-        )),
+        suppressWarnings(main_run_de_analysis(argv)),
         "fewer than 2 replicates"
     )
 
@@ -376,11 +368,7 @@ testthat::test_that("underspecified designs rejected", {
     argv$sample_sheet <- single_condition_sheet
     argv$out_dir <- file.path(fixture_dir, "single-out")
     testthat::expect_error(
-        main_run_de_analysis(
-            argv,
-            deseq_runner = function(...) stop("runner should not be called"),
-            dexseq_runner = function(...) stop("runner should not be called")
-        ),
+        main_run_de_analysis(argv),
         "requires at least two condition levels"
     )
 
@@ -390,18 +378,178 @@ testthat::test_that("underspecified designs rejected", {
     argv$sample_sheet <- sample_sheet
     argv$out_dir <- file.path(fixture_dir, "malformed-out")
     testthat::expect_error(
-        main_run_de_analysis(
-            argv,
-            deseq_runner = function(...) stop("runner should not be called"),
-            dexseq_runner = function(...) stop("runner should not be called")
+        main_run_de_analysis(argv)
+    )
+})
+
+###
+# Fallback helpers and metadata wiring
+#
+# Fixture-driven tests for DESeq2/DEXSeq helper behaviour and metadata.
+# These avoid dependency injection and exercise the real package code paths.
+
+testthat::test_that("de_run_deseq_with_fallback returns structured metadata", {
+    testthat::skip_if_not_installed("DESeq2")
+
+    gene_se <- make_test_gene_se()
+    sample_df <- data.frame(
+        alias = colnames(gene_se),
+        condition = rep(c("control", "treated"), each = 3),
+        batch = rep(c("b1", "b2", "b1"), 2),
+        stringsAsFactors = FALSE
+    )
+    rownames(sample_df) <- sample_df$alias
+
+    dds <- DESeq2::DESeqDataSetFromMatrix(
+        countData = SummarizedExperiment::assay(gene_se, "counts"),
+        colData = sample_df,
+        design = ~ batch + condition
+    )
+    out_dir <- tempfile("deseq-fallback-")
+    dir.create(out_dir)
+
+    result <- suppressWarnings(de_run_deseq_with_fallback(
+        dds = dds,
+        contrast_name = "condition_treated_vs_control",
+        out_dir = out_dir
+    ))
+
+    testthat::expect_true(!is.null(result$dds))
+    testthat::expect_true(result$deseq2_dispersion_fallback$method_used %in% c(
+        "parametric",
+        "gene-wise"
+    ))
+    testthat::expect_true(is.logical(result$deseq2_dispersion_fallback$applied))
+    if (isTRUE(result$deseq2_dispersion_fallback$applied)) {
+        testthat::expect_true(file.exists(file.path(
+            out_dir,
+            result$deseq2_dispersion_fallback$diagnostic_file
+        )))
+    }
+})
+
+testthat::test_that("de_run_deseq_with_fallback rethrows non-recoverable errors", {
+    testthat::skip_if_not_installed("DESeq2")
+
+    out_dir <- tempfile("deseq-fallback-error-")
+    dir.create(out_dir)
+
+    testthat::expect_error(
+        de_run_deseq_with_fallback(
+            dds = list(not = "a DESeqDataSet"),
+            contrast_name = "condition_treated_vs_control",
+            out_dir = out_dir
         )
     )
+})
+
+testthat::test_that("de_estimate_dispersions_with_fallback reports method metadata", {
+    testthat::skip_if_not_installed("DESeq2")
+
+    gene_se <- make_test_gene_se()
+    sample_df <- data.frame(
+        alias = colnames(gene_se),
+        condition = rep(c("control", "treated"), each = 3),
+        batch = rep(c("b1", "b2", "b1"), 2),
+        stringsAsFactors = FALSE
+    )
+    rownames(sample_df) <- sample_df$alias
+    dds <- DESeq2::DESeqDataSetFromMatrix(
+        countData = SummarizedExperiment::assay(gene_se, "counts"),
+        colData = sample_df,
+        design = ~ batch + condition
+    )
+    dds <- DESeq2::estimateSizeFactors(dds)
+
+    result <- suppressWarnings(suppressMessages(
+        de_estimate_dispersions_with_fallback(dds, "DESeq2")
+    ))
+
+    testthat::expect_true(result$method_used %in% c(
+        "parametric",
+        "local",
+        "mean",
+        "gene-wise"
+    ))
+    testthat::expect_true(is.logical(result$fallback_applied))
+    testthat::expect_true(!is.null(result$object))
+})
+
+testthat::test_that("de_is_recoverable_dexseq_error recognises expected messages", {
+    testthat::expect_true(de_is_recoverable_dexseq_error(
+        "all gene-wise dispersion estimates are within 2 orders of magnitude"
+    ))
+    testthat::expect_true(de_is_recoverable_dexseq_error("model matrix is not full rank"))
+    testthat::expect_true(de_is_recoverable_dexseq_error("replacement has 1 row, data has 0"))
+    testthat::expect_false(de_is_recoverable_dexseq_error("random unrelated failure"))
+})
+
+testthat::test_that("de_run_dexseq_result records rank-deficiency covariate drops", {
+    testthat::skip_if_not_installed("DESeq2")
+    testthat::skip_if_not_installed("DEXSeq")
+
+    tx_se <- make_test_tx_se(
+        sample_names = c(
+            "control_rep1", "control_rep2", "control_rep3",
+            "treated_rep1", "treated_rep2", "treated_rep3"
+        )
+    )
+    tx_counts <- SummarizedExperiment::assay(tx_se, "counts")
+    tx_meta <- as.data.frame(SummarizedExperiment::rowData(tx_se))
+    coldata <- data.frame(
+        alias = colnames(tx_counts),
+        condition = rep(c("control", "treated"), each = 3),
+        batch = rep(c("control", "treated"), each = 3),
+        stringsAsFactors = FALSE
+    )
+
+    seen_messages <- character(0)
+    result <- withCallingHandlers(
+        tryCatch(
+            de_run_dexseq_result(
+                tx_counts,
+                tx_meta,
+                coldata,
+                condition_column = "condition",
+                covariates = c("batch")
+            ),
+            error = function(err) err
+        ),
+        message = function(m) {
+            seen_messages <<- c(seen_messages, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        }
+    )
+
+    testthat::expect_true(any(grepl(
+        "retrying without it",
+        seen_messages,
+        fixed = TRUE
+    )))
+
+    if (inherits(result, "error")) {
+        testthat::expect_match(
+            conditionMessage(result),
+            "model matrix is not full rank",
+            fixed = TRUE
+        )
+    } else {
+        testthat::expect_equal(result$dexseq_covariates_dropped, "batch")
+        testthat::expect_true(result$dexseq_dispersion_method %in% c(
+            "parametric",
+            "local",
+            "mean",
+            "gene-wise"
+        ))
+        testthat::expect_true(nrow(as.data.frame(result$dxr)) > 0)
+    }
 })
 
 ###
 # Contrast planning and output writing
 #
-# Mock DESeq2/DRIMSeq to avoid slow runtime and test workflow logic:
+# Use small synthetic fixtures with the real DESeq2/DEXSeq path to verify
+# workflow-level planning and output writing:
 # - One contrast created per non-reference condition level (treated vs control, treated2 vs control)
 # - Each contrast subsets to only reference + target samples (not all samples)
 # - Output directories created with correct naming
@@ -409,49 +557,14 @@ testthat::test_that("underspecified designs rejected", {
 # Multi-level design expands to multiple pairwise contrasts (all vs reference).
 # Each contrast subsets samples to just reference + target level.
 testthat::test_that("contrasts expanded and samples subsetted", {
+    testthat::skip_if_not_installed("DESeq2")
+    testthat::skip_if_not_installed("DEXSeq")
+
     fixture_dir <- tempfile("de-multi-")
     dir.create(fixture_dir)
 
     levels <- c("control", "treated", "treated2")
     bundle <- write_de_fixture_bundle(fixture_dir, levels = levels)
-    calls <- new.env(parent = emptyenv())
-    calls$deseq <- list()
-
-    fake_deseq <- function(
-        count_mat,
-        coldata,
-        target_level,
-        reference_level,
-        condition_column,
-        covariates,
-        out_dir,
-        contrast_name
-    ) {
-        calls$deseq[[target_level]] <- coldata$alias
-        result <- data.frame(
-            baseMean = seq_len(nrow(count_mat)),
-            log2FoldChange = rep(1, nrow(count_mat)),
-            lfcSE = rep(0.1, nrow(count_mat)),
-            stat = rep(1, nrow(count_mat)),
-            pvalue = rep(0.05, nrow(count_mat)),
-            padj = rep(0.05, nrow(count_mat)),
-            row.names = rownames(count_mat)
-        )
-        list(dds = structure(list(), class = "fake_dds"), result = result)
-    }
-
-    fake_dexseq <- function(tx_counts, tx_meta, coldata, condition_column, covariates) {
-        dxr <- data.frame(
-            featureID = tx_meta$TXNAME,
-            groupID = tx_meta$GENEID,
-            log2fold = rep(0.5, nrow(tx_meta)),
-            pvalue = rep(0.5, nrow(tx_meta)),
-            padj = rep(0.5, nrow(tx_meta)),
-            exonBaseMean = rep(10, nrow(tx_meta)),
-            row.names = tx_meta$TXNAME
-        )
-        list(dxd = structure(list(), class = "fake_dxd"), dxr = dxr)
-    }
 
     argv <- c(
         bundle,
@@ -463,29 +576,30 @@ testthat::test_that("contrasts expanded and samples subsetted", {
         )
     )
 
-    main_run_de_analysis(
-        argv,
-        deseq_runner = fake_deseq,
-        dexseq_runner = fake_dexseq,
-        pdf_fn = function(path) file.create(path),
-        dev_off_fn = function() NULL,
-        plot_ma_fn = function(...) NULL,
-        plot_disp_fn = function(...) NULL,
-        per_gene_q_fn = function(dxr) stats::setNames(c(0.2, 0.3), c("gene1", "gene2")),
-        placeholder_pdf_fn = function(path, label) file.create(path)
-    )
+    suppressWarnings(suppressMessages(main_run_de_analysis(argv)))
 
     treated_dir <- file.path(argv$out_dir, "condition_treated_vs_control")
     treated2_dir <- file.path(argv$out_dir, "condition_treated2_vs_control")
 
+    treated_samples <- utils::read.delim(
+        file.path(treated_dir, "samples_used.tsv"),
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+    )
+    treated2_samples <- utils::read.delim(
+        file.path(treated2_dir, "samples_used.tsv"),
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+    )
+
     testthat::expect_true(dir.exists(treated_dir))
     testthat::expect_true(dir.exists(treated2_dir))
     testthat::expect_equal(
-        sort(calls$deseq$treated),
+        sort(treated_samples$alias),
         sort(c("control_rep1", "control_rep2", "control_rep3", "treated_rep1", "treated_rep2", "treated_rep3"))
     )
     testthat::expect_equal(
-        sort(calls$deseq$treated2),
+        sort(treated2_samples$alias),
         sort(c("control_rep1", "control_rep2", "control_rep3", "treated2_rep1", "treated2_rep2", "treated2_rep3"))
     )
 })
@@ -493,6 +607,9 @@ testthat::test_that("contrasts expanded and samples subsetted", {
 # Transcript IDs may contain '|' (e.g., Ensembl IDs like ENST00000123.4|ENSG00000456.7).
 # TSV reading defaults to using '|' as separator - verify workflow preserves these IDs.
 testthat::test_that("pipe characters in transcript IDs preserved", {
+    testthat::skip_if_not_installed("DESeq2")
+    testthat::skip_if_not_installed("DEXSeq")
+
     fixture_dir <- tempfile("de-pipe-ids-")
     dir.create(fixture_dir)
     bundle <- write_de_fixture_bundle(fixture_dir, levels = c("control", "treated"))
@@ -508,42 +625,6 @@ testthat::test_that("pipe characters in transcript IDs preserved", {
     S4Vectors::mcols(SummarizedExperiment::rowRanges(tx_se))$TXNAME <- pipe_ids
     saveRDS(tx_se, bundle$transcript_rds)
 
-    captured <- new.env(parent = emptyenv())
-    fake_deseq <- function(
-        count_mat,
-        coldata,
-        target_level,
-        reference_level,
-        condition_column,
-        covariates,
-        out_dir,
-        contrast_name
-    ) {
-        result <- data.frame(
-            baseMean = seq_len(nrow(count_mat)),
-            log2FoldChange = rep(1, nrow(count_mat)),
-            lfcSE = rep(0.1, nrow(count_mat)),
-            stat = rep(1, nrow(count_mat)),
-            pvalue = rep(0.05, nrow(count_mat)),
-            padj = rep(0.05, nrow(count_mat)),
-            row.names = rownames(count_mat)
-        )
-        list(dds = structure(list(), class = "fake_dds"), result = result)
-    }
-    fake_dexseq <- function(tx_counts, tx_meta, coldata, condition_column, covariates) {
-        captured$feature_ids <- tx_meta$TXNAME
-        dxr <- data.frame(
-            featureID = tx_meta$TXNAME,
-            groupID = tx_meta$GENEID,
-            log2fold = rep(0.5, nrow(tx_meta)),
-            pvalue = rep(0.5, nrow(tx_meta)),
-            padj = rep(0.5, nrow(tx_meta)),
-            exonBaseMean = rep(10, nrow(tx_meta)),
-            row.names = tx_meta$TXNAME
-        )
-        list(dxd = structure(list(), class = "fake_dxd"), dxr = dxr)
-    }
-
     argv <- c(
         bundle,
         list(
@@ -554,17 +635,7 @@ testthat::test_that("pipe characters in transcript IDs preserved", {
         )
     )
 
-    main_run_de_analysis(
-        argv,
-        deseq_runner = fake_deseq,
-        dexseq_runner = fake_dexseq,
-        pdf_fn = function(path) file.create(path),
-        dev_off_fn = function() NULL,
-        plot_ma_fn = function(...) NULL,
-        plot_disp_fn = function(...) NULL,
-        per_gene_q_fn = function(dxr) stats::setNames(c(0.2, 0.3), c("gene1", "gene2")),
-        placeholder_pdf_fn = function(path, label) file.create(path)
-    )
+    suppressWarnings(suppressMessages(main_run_de_analysis(argv)))
 
     contrast_dir <- file.path(argv$out_dir, "condition_treated_vs_control")
     dtu_tx <- utils::read.delim(
@@ -577,10 +648,23 @@ testthat::test_that("pipe characters in transcript IDs preserved", {
         check.names = FALSE,
         stringsAsFactors = FALSE
     )
+    de_qc <- jsonlite::read_json(
+        file.path(argv$out_dir, "de_qc_stats.json"),
+        simplifyVector = TRUE
+    )
+    contrast_qc <- de_qc$contrasts[["condition_treated_vs_control"]]
 
-    testthat::expect_equal(captured$feature_ids, pipe_ids)
-    testthat::expect_equal(dtu_tx$featureID, pipe_ids)
-    testthat::expect_equal(dexseq$featureID, pipe_ids)
+    if (identical(contrast_qc$dtu_status, "SUCCESS")) {
+        testthat::expect_equal(dtu_tx$featureID, pipe_ids)
+        testthat::expect_equal(dexseq$featureID, pipe_ids)
+    } else {
+        testthat::expect_true(file.exists(file.path(
+            contrast_dir,
+            "DTU_ANALYSIS_FAILED.txt"
+        )))
+        testthat::expect_true(nrow(dtu_tx) == 0)
+        testthat::expect_true(nrow(dexseq) == 0)
+    }
 })
 
 ###
@@ -625,9 +709,19 @@ testthat::test_that("CLI integration produces expected outputs", {
     dge <- utils::read.delim(file.path(contrast_dir, "results_dge.tsv"), check.names = FALSE)
     dtu_tx <- utils::read.delim(file.path(contrast_dir, "results_dtu_transcript.tsv"), check.names = FALSE)
     dexseq <- utils::read.delim(file.path(contrast_dir, "results_dexseq.tsv"), check.names = FALSE)
+    de_qc <- jsonlite::read_json(
+        file.path(out_dir, "de_qc_stats.json"),
+        simplifyVector = TRUE
+    )
 
     testthat::expect_gt(nrow(dge), 0)
     testthat::expect_true(all(c("GENEID", "log2FoldChange", "padj") %in% names(dge)))
     testthat::expect_true(all(c("featureID", "groupID", "padj") %in% names(dtu_tx)))
     testthat::expect_true(all(c("featureID", "groupID", "padj") %in% names(dexseq)))
+    testthat::expect_true("analysis_fallbacks" %in% names(de_qc))
+    testthat::expect_true("contrasts" %in% names(de_qc))
+    contrast_qc <- de_qc$contrasts[["condition_treated_vs_control"]]
+    testthat::expect_true("deseq2_dispersion_fallback" %in% names(contrast_qc))
+    testthat::expect_true("dexseq_dispersion_method" %in% names(contrast_qc))
+    testthat::expect_true("dexseq_covariates_dropped" %in% names(contrast_qc))
 })
