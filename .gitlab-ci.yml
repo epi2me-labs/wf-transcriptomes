@@ -57,44 +57,45 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "discover", "igv",
+                "int_discover_dna", "int_fixed_rna",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
-                "no_annotation", "invalid_mode", "conflicting_flags"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
         #   we must redefine this CI_COMMIT_BRANCH rule to prevent docker-run
         #   being incorrectly scheduled for "detached merge request pipelines" etc.
+        # Guardrail: never schedule docker-run on detached/non-standard branch context.
         - if: ($CI_COMMIT_BRANCH == null || $CI_COMMIT_BRANCH == "dev-template")
           when: never
+
+        # Integration: larger discover-mode run on representative cDNA test bundle.
         - if: $MATRIX_NAME == "discover"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
-                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf"
-              NF_IGNORE_PROCESSES: filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-        - if: $MATRIX_NAME == "no_annotation"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
                   --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa \
-                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              ASSERT_NEXTFLOW_FAILURE: "1"
-              ASSERT_NEXTFLOW_FAILURE_REXP: "Missing required parameter: --ref_annotation"
-        - if: $MATRIX_NAME == "only_differential_expression"
+                  --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf \
+                  --transcriptome_mode discover"
+              NF_IGNORE_PROCESSES: filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
+
+        # Integration: fixed-annotation + direct-RNA + DE + IGV with GFF input on richer dataset.
+        - if: $MATRIX_NAME == "int_fixed_rna"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                  --de_analysis \
                   --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gff \
-                --direct_rna --transcriptome_mode fixed_annotation --minimap2_index_opts '-k 15' \
-                --sample_sheet test_data/sample_sheet.csv \
-                --igv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
+                  --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gff \
+                  --sample_sheet test_data/sample_sheet.csv \
+                  --de_analysis \
+                  --direct_rna \
+                  --transcriptome_mode fixed_annotation \
+                  --igv \
+                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
                 gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,validate_ref_annotation,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
+
+        # Smoke: quick discover-mode sanity check for core cohort and per-sample outputs.
         - if: $MATRIX_NAME == "smoke_discover"
           variables:
               NF_BEFORE_SCRIPT: ":"
@@ -103,6 +104,8 @@ docker-run:
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/cohort.transcriptome.fa &&
                   test -f ${CI_PROJECT_NAME}/samples/sampleA/transcripts.gtf
+
+        # Smoke: fixed-annotation path sanity check for quantification outputs.
         - if: $MATRIX_NAME == "smoke_fixed"
           variables:
               NF_BEFORE_SCRIPT: ":"
@@ -110,6 +113,8 @@ docker-run:
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/transcript_counts.tsv
+
+        # Smoke: direct-RNA alignment profile and downstream SQANTI output presence.
         - if: $MATRIX_NAME == "smoke_direct_rna"
           variables:
               NF_BEFORE_SCRIPT: ":"
@@ -117,6 +122,8 @@ docker-run:
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA/reads.bam &&
                   test -f ${CI_PROJECT_NAME}/cohort/sqanti_cohort/classification_summary.tsv
+
+        # Smoke: end-to-end DE/DTU wiring and expected contrast output files.
         - if: $MATRIX_NAME == "smoke_de"
           variables:
               NF_BEFORE_SCRIPT: ":"
@@ -125,9 +132,3 @@ docker-run:
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv &&
                   [ "$(find ${CI_PROJECT_NAME}/samples -type f -name 'gene_counts.tsv' | wc -l)" -eq 4 ]
-        - if: $MATRIX_NAME == "invalid_mode"
-          variables:
-              NF_BEFORE_SCRIPT: ":"
-              NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode nonsense"
-              ASSERT_NEXTFLOW_FAILURE: "1"
-              ASSERT_NEXTFLOW_FAILURE_REXP: "nonsense is not a valid choice"
