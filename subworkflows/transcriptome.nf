@@ -211,8 +211,8 @@ workflow transcriptome_analysis {
                 log.warn(stdoutput.trim())
             }
         }
-        analysis_annotation = prepared_reference_annotation.annotation
-        analysis_reference = prepared_reference_annotation.reference
+        analysis_annotation = prepared_reference_annotation.annotation.first()
+        analysis_reference = prepared_reference_annotation.reference.first()
 
         joint_bambu = runJointBambu(
             alignments
