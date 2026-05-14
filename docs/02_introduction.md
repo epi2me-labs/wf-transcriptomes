@@ -21,6 +21,11 @@ together. The workflow also produces separate per-sample transcriptomes, so
 each sample has its own GTF, FASTA, count tables, and optional `SQANTI3`
 summary alongside the shared results.
 
+<figure>
+<img src="docs/images/wf-transcriptomes.drawio.svg" alt="wf-transcriptomes overview schematic."/>
+<figcaption>Schematic depicting wf-transcriptomes workflow.</figcaption>
+</figure>
+
 For users familiar with earlier transcriptome workflows, the main change is
 that transcript discovery, quantification, and optional differential analysis
 now use the shared `bambu` outputs rather than the older
