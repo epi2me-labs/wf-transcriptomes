@@ -92,6 +92,34 @@ testthat::test_that("formula-unsafe column names rejected", {
     )
 })
 
+testthat::test_that("DTU transcript output renames contrast-specific log2fold column", {
+    contrast_name <- "treated_control"
+    dex_df <- data.frame(
+        featureID = "tx1",
+        groupID = "gene1",
+        log2fold_treated_control = 1.5,
+        pvalue = 0.01,
+        padj = 0.05,
+        exonBaseMean = 100,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+    )
+
+    dtu_tx <- de_extract_dtu_transcript_table(dex_df, contrast_name)
+
+    testthat::expect_equal(
+        names(dtu_tx),
+        c(
+            "featureID",
+            "groupID",
+            "log2FoldChange",
+            "pvalue",
+            "padj",
+            "exonBaseMean"
+        )
+    )
+})
+
 # Sample aliases CAN have spaces/hyphens (they're not used in formulas, just for matching).
 # Sample sheet rows can be in different order than SE columns - should reorder automatically.
 testthat::test_that("non-syntactic aliases allowed, sheets reordered", {
