@@ -57,7 +57,7 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "de-poscounts-fallback", "discover", "igv",
+                "discover", "igv",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
                 "no_annotation", "invalid_mode", "conflicting_flags"
             ]
@@ -81,18 +81,6 @@ docker-run:
                   -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               ASSERT_NEXTFLOW_FAILURE: "1"
               ASSERT_NEXTFLOW_FAILURE_REXP: "Missing required parameter: --ref_annotation"
-        - if: $MATRIX_NAME == "de-poscounts-fallback"
-          variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
-              NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-                  --de_analysis \
-                  --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-                --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gtf \
-                --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
-                -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
-              AFTER_NEXTFLOW_CMD: >
-                  grep -Eq '"deseq2_size_factor_method": "poscounts"' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"

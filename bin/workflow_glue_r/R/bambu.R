@@ -1,66 +1,89 @@
-bambu_arg_parser <- function() {
-    parser <- argparser::arg_parser("Run bambu transcript discovery and quantification.")
-    parser <- argparser::add_argument(parser, "--bams", help = "Comma-separated BAM paths.")
-    parser <- argparser::add_argument(parser, "--aliases", help = "Comma-separated aliases for --bams.")
-    parser <- argparser::add_argument(parser, "--sample_sheet", help = "Optional sample sheet CSV.")
-    parser <- argparser::add_argument(parser, "--annotation", help = "Reference annotation GTF/GFF.")
-    parser <- argparser::add_argument(parser, "--genome", help = "Reference genome FASTA.")
-    parser <- argparser::add_argument(
-        parser,
-        "--transcriptome_mode",
-        help = "discover or fixed_annotation.",
-        default = "discover"
-    )
-    parser <- argparser::add_argument(
-        parser,
-        "--threads",
-        help = "Number of worker threads.",
-        type = "numeric",
-        default = 1
-    )
-    parser <- argparser::add_argument(
-        parser,
-        "--ndr",
-        help = "Optional novel discovery rate.",
-        type = "numeric"
-    )
-    argparser::add_argument(parser, "--out_dir", help = "Output directory.")
-}
-
-bambu_validate_args <- function(argv) {
-    workflow_glue_r_require_args(argv, c("annotation", "genome", "out_dir"))
-
-    if (workflow_glue_r_arg_missing(argv$bams)) {
-        stop("Missing required arguments: --bams", call. = FALSE)
-    }
-    if (workflow_glue_r_arg_missing(argv$aliases)) {
-        stop("Missing required arguments: --aliases", call. = FALSE)
-    }
-
-    if (!argv$transcriptome_mode %in% c("discover", "fixed_annotation")) {
-        stop(
-            sprintf(
-                "transcriptome_mode must be one of: %s",
-                paste(c("discover", "fixed_annotation"), collapse = ", ")
-            ),
-            call. = FALSE
+bambu_arg_spec <- function() {
+    list(
+        list(
+            name = "bams",
+            flag = "--bams",
+            help = "Comma-separated BAM paths.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "aliases",
+            flag = "--aliases",
+            help = "Comma-separated aliases for --bams.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "sample_sheet",
+            flag = "--sample_sheet",
+            help = "Optional sample sheet CSV.",
+            type = "character"
+        ),
+        list(
+            name = "annotation",
+            flag = "--annotation",
+            help = "Reference annotation GTF/GFF.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "genome",
+            flag = "--genome",
+            help = "Reference genome FASTA.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "transcriptome_mode",
+            flag = "--transcriptome_mode",
+            help = "discover or fixed_annotation.",
+            type = "character",
+            default = "discover",
+            choices = c("discover", "fixed_annotation")
+        ),
+        list(
+            name = "threads",
+            flag = "--threads",
+            help = "Number of worker threads.",
+            type = "integer",
+            default = 1L,
+            min = 1L
+        ),
+        list(
+            name = "ndr",
+            flag = "--ndr",
+            help = "Optional novel discovery rate.",
+            type = "numeric",
+            min = 0,
+            max = 1,
+            value_error = "NDR (Novel Discovery Rate) must be between 0 and 1"
+        ),
+        list(
+            name = "out_dir",
+            flag = "--out_dir",
+            help = "Output directory.",
+            type = "character",
+            required = TRUE
         )
-    }
-
-    if (!workflow_glue_r_arg_missing(argv$ndr) && (argv$ndr < 0 || argv$ndr > 1)) {
-        stop("NDR (Novel Discovery Rate) must be between 0 and 1", call. = FALSE)
-    }
-
-    invisible(argv)
+    )
 }
 
-bambu_resolve_inputs <- function(
-    argv,
-    bamfile_list_ctor = Rsamtools::BamFileList
-) {
+bambu_arg_parser <- function() {
+    workflow_glue_r_arg_parser_from_spec(
+        "Run bambu transcript discovery and quantification.",
+        bambu_arg_spec()
+    )
+}
+
+bambu_resolve_inputs <- function(args) {
     sample_df <- NULL
-    if (!workflow_glue_r_arg_missing(argv$sample_sheet)) {
-        sample_df <- workflow_glue_r_read_csv(argv$sample_sheet)
+    if (!is.null(args$sample_sheet)) {
+        sample_df <- utils::read.csv(
+            args$sample_sheet,
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+        )
         if (!"alias" %in% names(sample_df)) {
             stop("Sample sheet must contain an 'alias' column.", call. = FALSE)
         }
@@ -76,8 +99,8 @@ bambu_resolve_inputs <- function(
         }
     }
 
-    bam_paths <- workflow_glue_r_parse_csv_list(argv$bams)
-    aliases <- workflow_glue_r_parse_csv_list(argv$aliases)
+    bam_paths <- workflow_glue_r_parse_csv_list(args$bams)
+    aliases <- workflow_glue_r_parse_csv_list(args$aliases)
 
     if (length(bam_paths) < 1) {
         stop("No BAM files were provided in --bams.", call. = FALSE)
@@ -116,7 +139,7 @@ bambu_resolve_inputs <- function(
     reads <- if (length(bam_paths) == 1) {
         bam_paths
     } else {
-        bamfile_list_ctor(bam_paths, yieldSize = 1000000)
+        Rsamtools::BamFileList(bam_paths, yieldSize = 250000L)
     }
 
     list(
@@ -127,32 +150,45 @@ bambu_resolve_inputs <- function(
     )
 }
 
-bambu_discovery_enabled <- function(argv) {
-    identical(argv$transcriptome_mode, "discover")
+bambu_discovery_enabled <- function(args) {
+    identical(args$transcriptome_mode, "discover")
 }
 
-bambu_resolve_ndr <- function(argv, default_ndr = 0.1) {
-    if (workflow_glue_r_arg_missing(argv$ndr)) {
-        default_ndr
-    } else {
-        as.numeric(argv$ndr)
-    }
-}
-
-bambu_build_args <- function(argv, reads, annotation_obj) {
+bambu_build_args <- function(args, reads, annotation_obj) {
     bambu_args <- list(
         reads = reads,
         annotations = annotation_obj,
-        genome = argv$genome,
-        ncore = as.integer(argv$threads),
-        discovery = bambu_discovery_enabled(argv)
+        genome = args$genome,
+        ncore = args$threads,
+        discovery = bambu_discovery_enabled(args),
+        lowMemory = TRUE,
+        yieldSize = 250000L,
+        verbose = TRUE
     )
 
-    if (bambu_discovery_enabled(argv)) {
-        bambu_args$NDR <- bambu_resolve_ndr(argv)
+    if (bambu_discovery_enabled(args) && !is.null(args$ndr)) {
+        bambu_args$NDR <- args$ndr
     }
 
     bambu_args
+}
+
+bambu_effective_threads <- function(args, bam_count) {
+    # bambu's low-memory mode can have issues with multiple BAMs and
+    # parallel threads due to BiocFileCache writes, 
+    # so we enforce single-threading in that case.
+    threads <- as.integer(args$threads)
+    if (bam_count > 1 && threads > 1L) {
+        warning(
+            paste(
+                "Low-memory mode with multiple BAMs can fail in bambu due to",
+                "parallel BiocFileCache writes; forcing threads=1."
+            ),
+            call. = FALSE
+        )
+        return(1L)
+    }
+    threads
 }
 
 bambu_filter_transcripts <- function(se) {
@@ -194,85 +230,6 @@ bambu_matrix_to_df <- function(se_obj, assay_name, id_col, meta_df) {
     merge(meta_df, assay_df, by.x = id_col, by.y = id_col, all.y = TRUE, sort = FALSE)
 }
 
-bambu_extract_gtf_attribute <- function(attr_field, key) {
-    match <- regexec(sprintf('%s "([^"]*)";', key), attr_field, perl = TRUE)
-    captures <- regmatches(attr_field, match)[[1]]
-    if (length(captures) < 2) {
-        return(NULL)
-    }
-    captures[2]
-}
-
-bambu_normalise_gtf_attribute_value <- function(value) {
-    if (is.null(value)) {
-        return(NULL)
-    }
-    value <- gsub('[";]', "", value)
-    value <- trimws(gsub("\\s+", " ", value))
-    if (!nzchar(value)) {
-        return(NULL)
-    }
-    value
-}
-
-bambu_sanitise_gtf_file <- function(path) {
-    lines <- readLines(path, warn = FALSE)
-    cleaned_lines <- vapply(lines, function(line) {
-        if (!nzchar(line) || startsWith(line, "#")) {
-            return(line)
-        }
-
-        fields <- strsplit(line, "\t", fixed = TRUE)[[1]]
-        if (length(fields) < 9) {
-            return(line)
-        }
-
-        attr_field <- fields[9]
-        transcript_id <- bambu_normalise_gtf_attribute_value(
-            bambu_extract_gtf_attribute(attr_field, "transcript_id")
-        )
-        gene_id <- bambu_normalise_gtf_attribute_value(
-            bambu_extract_gtf_attribute(attr_field, "gene_id")
-        )
-
-        if (!is.null(gene_id) && identical(gene_id, "transcript_id")) {
-            warning(
-                sprintf(
-                    "Replaced malformed gene_id 'transcript_id' with transcript_id '%s'.",
-                    transcript_id
-                ),
-                call. = FALSE
-            )
-            gene_id <- transcript_id
-        }
-        if (is.null(gene_id)) {
-            gene_id <- transcript_id
-        }
-
-        if (!is.null(gene_id)) {
-            attr_field <- sub(
-                'gene_id "([^"]*)";',
-                sprintf('gene_id "%s";', gene_id),
-                attr_field,
-                perl = TRUE
-            )
-        }
-        if (!is.null(transcript_id)) {
-            attr_field <- sub(
-                'transcript_id "([^"]*)";',
-                sprintf('transcript_id "%s";', transcript_id),
-                attr_field,
-                perl = TRUE
-            )
-        }
-
-        fields[9] <- attr_field
-        paste(fields, collapse = "\t")
-    }, character(1))
-
-    writeLines(cleaned_lines, path)
-}
-
 bambu_format_count <- function(value) {
     if (length(value) == 0 || all(is.na(value))) {
         return("NA")
@@ -285,17 +242,30 @@ bambu_format_count <- function(value) {
     )
 }
 
-bambu_write_outputs <- function(se, gene_se, sample_df, argv, qc_stats, write_gtf_fn = bambu::writeToGTF) {
-    write_gtf_fn(
+bambu_write_matrix_tsv <- function(se_obj, assay_name, id_col, meta_df, output_path) {
+    table_df <- bambu_matrix_to_df(se_obj, assay_name, id_col, meta_df)
+    utils::write.table(
+        table_df,
+        file = output_path,
+        sep = "\t",
+        quote = FALSE,
+        row.names = FALSE
+    )
+    rm(table_df)
+    invisible(gc(verbose = FALSE))
+}
+
+bambu_write_outputs <- function(se, gene_se, sample_df, args, qc_stats) {
+    bambu::writeToGTF(
         SummarizedExperiment::rowRanges(se),
-        file = file.path(argv$out_dir, "transcripts.gtf")
+        file = file.path(args$out_dir, "transcripts.gtf")
     )
 
-    saveRDS(se, file.path(argv$out_dir, "bambu_transcripts.rds"))
-    saveRDS(gene_se, file.path(argv$out_dir, "bambu_genes.rds"))
+    saveRDS(se, file.path(args$out_dir, "bambu_transcripts.rds"))
+    saveRDS(gene_se, file.path(args$out_dir, "bambu_genes.rds"))
     utils::write.csv(
         sample_df,
-        file.path(argv$out_dir, "samples.csv"),
+        file.path(args$out_dir, "samples.csv"),
         row.names = FALSE,
         quote = FALSE
     )
@@ -318,58 +288,51 @@ bambu_write_outputs <- function(se, gene_se, sample_df, argv, qc_stats, write_gt
 
     utils::write.table(
         tx_meta,
-        file = file.path(argv$out_dir, "transcript_metadata.tsv"),
+        file = file.path(args$out_dir, "transcript_metadata.tsv"),
         sep = "\t",
         quote = FALSE,
         row.names = FALSE
     )
     utils::write.table(
         gene_meta,
-        file = file.path(argv$out_dir, "gene_metadata.tsv"),
+        file = file.path(args$out_dir, "gene_metadata.tsv"),
         sep = "\t",
         quote = FALSE,
         row.names = FALSE
     )
 
-    tx_counts <- bambu_matrix_to_df(se, "counts", "TXNAME", tx_meta)
-    tx_cpm <- bambu_matrix_to_df(se, "CPM", "TXNAME", tx_meta)
-    gene_counts <- bambu_matrix_to_df(gene_se, "counts", "GENEID", gene_meta)
-    gene_cpm <- bambu_matrix_to_df(gene_se, "CPM", "GENEID", gene_meta)
-
-    utils::write.table(
-        tx_counts,
-        file = file.path(argv$out_dir, "transcript_counts.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE
+    bambu_write_matrix_tsv(
+        se,
+        "counts",
+        "TXNAME",
+        tx_meta,
+        file.path(args$out_dir, "transcript_counts.tsv")
     )
-    utils::write.table(
-        tx_cpm,
-        file = file.path(argv$out_dir, "transcript_cpm.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE
+    bambu_write_matrix_tsv(
+        se,
+        "CPM",
+        "TXNAME",
+        tx_meta,
+        file.path(args$out_dir, "transcript_cpm.tsv")
     )
-    utils::write.table(
-        gene_counts,
-        file = file.path(argv$out_dir, "gene_counts.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE
+    bambu_write_matrix_tsv(
+        gene_se,
+        "counts",
+        "GENEID",
+        gene_meta,
+        file.path(args$out_dir, "gene_counts.tsv")
     )
-    utils::write.table(
-        gene_cpm,
-        file = file.path(argv$out_dir, "gene_cpm.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE
+    bambu_write_matrix_tsv(
+        gene_se,
+        "CPM",
+        "GENEID",
+        gene_meta,
+        file.path(args$out_dir, "gene_cpm.tsv")
     )
 
-    bambu_sanitise_gtf_file(file.path(argv$out_dir, "transcripts.gtf"))
-
-    qc_stats$transcriptome_mode <- argv$transcriptome_mode
-    qc_stats$ndr_used <- if (bambu_discovery_enabled(argv)) {
-        bambu_resolve_ndr(argv)
+    qc_stats$transcriptome_mode <- args$transcriptome_mode
+    qc_stats$ndr_used <- if (bambu_discovery_enabled(args)) {
+        if (is.null(args$ndr)) "automatic" else args$ndr
     } else {
         "N/A"
     }
@@ -377,7 +340,7 @@ bambu_write_outputs <- function(se, gene_se, sample_df, argv, qc_stats, write_gt
 
     jsonlite::write_json(
         qc_stats,
-        file.path(argv$out_dir, "bambu_qc_stats.json"),
+        file.path(args$out_dir, "bambu_qc_stats.json"),
         pretty = TRUE,
         auto_unbox = TRUE
     )
@@ -387,8 +350,14 @@ bambu_write_outputs <- function(se, gene_se, sample_df, argv, qc_stats, write_gt
         "================================",
         "",
         sprintf("Timestamp: %s", qc_stats$timestamp),
-        sprintf("Mode: %s", argv$transcriptome_mode),
-        if (bambu_discovery_enabled(argv)) sprintf("NDR: %.3f", bambu_resolve_ndr(argv)) else NULL,
+        sprintf("Mode: %s", args$transcriptome_mode),
+        if (bambu_discovery_enabled(args)) {
+            if (is.null(args$ndr)) {
+                "NDR: automatic (bambu-selected)"
+            } else {
+                sprintf("NDR: %.3f", args$ndr)
+            }
+        } else NULL,
         "",
         "Sample Statistics:",
         sprintf("  Samples analyzed: %s", bambu_format_count(qc_stats$samples)),
@@ -415,49 +384,51 @@ bambu_write_outputs <- function(se, gene_se, sample_df, argv, qc_stats, write_gt
         ""
     )
 
-    writeLines(qc_summary, file.path(argv$out_dir, "bambu_qc_summary.txt"))
-    writeLines(capture.output(sessionInfo()), file.path(argv$out_dir, "session_info.txt"))
+    writeLines(qc_summary, file.path(args$out_dir, "bambu_qc_summary.txt"))
+    writeLines(capture.output(sessionInfo()), file.path(args$out_dir, "session_info.txt"))
 }
 
 main_run_bambu <- function(
-    argv,
+    args,
     analysis_fn = bambu::bambu,
     prepare_annotations_fn = bambu::prepareAnnotations,
-    gene_expression_fn = bambu::transcriptToGeneExpression,
-    write_gtf_fn = bambu::writeToGTF,
-    bamfile_list_ctor = Rsamtools::BamFileList
+    gene_expression_fn = bambu::transcriptToGeneExpression
 ) {
     set.seed(42)
-    suppressPackageStartupMessages({
-        library(GenomicRanges)
-        library(Rsamtools)
-    })
+    # bambu's parallel worker code may rely on these being attached for generics
+    # such as seqlengths().
+    suppressPackageStartupMessages(library(GenomicRanges))
+    suppressPackageStartupMessages(library(Rsamtools))
 
-    bambu_validate_args(argv)
-    dir.create(argv$out_dir, showWarnings = FALSE, recursive = TRUE)
+    dir.create(args$out_dir, showWarnings = FALSE, recursive = TRUE)
 
-    inputs <- bambu_resolve_inputs(
-        argv,
-        bamfile_list_ctor = bamfile_list_ctor
-    )
-    annotation_obj <- prepare_annotations_fn(argv$annotation)
-    ndr_value <- bambu_resolve_ndr(argv)
+    inputs <- bambu_resolve_inputs(args)
+    args$threads <- bambu_effective_threads(args, length(inputs$bam_paths))
+    annotation_obj <- prepare_annotations_fn(args$annotation)
 
-    if (!workflow_glue_r_arg_missing(argv$ndr)) {
-        message(sprintf("Using user-specified NDR = %.3f", ndr_value))
-    } else {
-        message(sprintf("Using default NDR = %.3f", ndr_value))
+    if (!is.null(args$ndr)) {
+        message(sprintf("Using user-specified NDR = %.3f", args$ndr))
+    } else if (bambu_discovery_enabled(args)) {
+        message("Using bambu automatic NDR selection.")
     }
 
-    if (bambu_discovery_enabled(argv)) {
+    if (bambu_discovery_enabled(args)) {
         message("Novel Discovery Rate (NDR) controls transcript discovery stringency:")
         message("  Lower NDR (e.g., 0.05) = fewer false positive transcripts, may miss real ones")
         message("  Higher NDR (e.g., 0.2) = more sensitive discovery, more false positives")
-        message(sprintf("  Current NDR = %.3f balances precision and recall", ndr_value))
+        if (is.null(args$ndr)) {
+            message("  Current NDR = automatic (selected by bambu from the data)")
+        } else {
+            message(sprintf("  Current NDR = %.3f balances precision and recall", args$ndr))
+        }
     }
+    if (length(inputs$bam_paths) > 1) {
+        message("Using BamFileList yieldSize = 250000")
+    }
+    message(sprintf("Running bambu with threads = %d", args$threads))
 
     message("Running bambu...")
-    se <- do.call(analysis_fn, bambu_build_args(argv, inputs$reads, annotation_obj))
+    se <- do.call(analysis_fn, bambu_build_args(args, inputs$reads, annotation_obj))
     message("Bambu completed successfully")
     colnames(se) <- inputs$aliases
 
@@ -509,9 +480,8 @@ main_run_bambu <- function(
         se,
         gene_se,
         inputs$sample_df,
-        argv,
-        qc_stats,
-        write_gtf_fn = write_gtf_fn
+        args,
+        qc_stats
     )
 
     invisible(
@@ -526,5 +496,6 @@ main_run_bambu <- function(
 
 run_bambu_cli <- function(argv = commandArgs(trailingOnly = TRUE)) {
     parsed <- argparser::parse_args(bambu_arg_parser(), argv = argv)
-    main_run_bambu(parsed)
+    args <- workflow_glue_r_normalise_args(parsed, bambu_arg_spec(), raw_argv = argv)
+    main_run_bambu(args)
 }

@@ -1,6 +1,6 @@
 #' These tests cover the validation logic owned by supeRglue bambu before bambu
-#' itself is invoked: mutually exclusive BAM inputs, alias derivation, sample
-#' sheet alignment, transcriptome mode selection, and NDR handling.
+#' itself is invoked: BAM/alias argument checks, sample-sheet alignment,
+#' transcriptome mode selection, and NDR handling.
 #'
 #' NOTE: Annotation/reference preparation is handled by Python
 #' (bin/workflow_glue/prepare_annotation_reference.py) with pytest coverage.
@@ -20,18 +20,20 @@ testthat::test_that("BAM inputs required", {
     )
 
     testthat::expect_error(
-        bambu_validate_args(args),
+        workflow_glue_r_normalise_args(args, bambu_arg_spec()),
         "Missing required arguments: --bams"
     )
 
     args$bams <- "sampleA.bam"
     testthat::expect_error(
-        bambu_validate_args(args),
+        workflow_glue_r_normalise_args(args, bambu_arg_spec()),
         "Missing required arguments: --aliases"
     )
 
     args$aliases <- "sampleA"
-    testthat::expect_silent(bambu_validate_args(args))
+    normalised <- NULL
+    testthat::expect_silent(normalised <- workflow_glue_r_normalise_args(args, bambu_arg_spec()))
+    testthat::expect_identical(normalised$threads, 1L)
 })
 
 # transcriptome_mode must be "discover" or "fixed_annotation".
@@ -48,27 +50,32 @@ testthat::test_that("invalid discovery settings rejected", {
     )
 
     testthat::expect_error(
-        bambu_validate_args(args),
+        workflow_glue_r_normalise_args(args, bambu_arg_spec()),
         "transcriptome_mode must be one of"
     )
 
     args$transcriptome_mode <- "discover"
     args$ndr <- -0.01
     testthat::expect_error(
-        bambu_validate_args(args),
+        workflow_glue_r_normalise_args(args, bambu_arg_spec()),
         "NDR .* must be between 0 and 1"
     )
 
     args$ndr <- 1.01
     testthat::expect_error(
-        bambu_validate_args(args),
+        workflow_glue_r_normalise_args(args, bambu_arg_spec()),
         "NDR .* must be between 0 and 1"
     )
 
     args$ndr <- 0
-    testthat::expect_silent(bambu_validate_args(args))
+    testthat::expect_silent(workflow_glue_r_normalise_args(args, bambu_arg_spec()))
     args$ndr <- 1
-    testthat::expect_silent(bambu_validate_args(args))
+    testthat::expect_silent(workflow_glue_r_normalise_args(args, bambu_arg_spec()))
+
+    args$ndr <- NULL
+    args$threads <- "2"
+    normalised <- workflow_glue_r_normalise_args(args, bambu_arg_spec())
+    testthat::expect_identical(normalised$threads, 2L)
 })
 
 # Fail fast if --bams is empty rather than passing empty input to bambu.
@@ -80,7 +87,7 @@ testthat::test_that("empty BAM list rejected", {
     )
 
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "No BAM files were provided in --bams"
     )
 })
@@ -94,13 +101,13 @@ testthat::test_that("unique sample aliases required", {
         sample_sheet = NULL
     )
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "BAM aliases must be unique"
     )
 
     args$aliases <- "sampleA"
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "Provide one alias per BAM in --bams"
     )
     missing_alias_sheet <- tempfile(fileext = ".csv")
@@ -118,7 +125,7 @@ testthat::test_that("unique sample aliases required", {
         sample_sheet = missing_alias_sheet
     )
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "Sample sheet must contain an 'alias' column"
     )
 
@@ -134,7 +141,7 @@ testthat::test_that("unique sample aliases required", {
     )
     args$sample_sheet <- duplicate_alias_sheet
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "Sample sheet aliases must be unique"
     )
 })
@@ -159,13 +166,11 @@ testthat::test_that("sample sheet reordered to match BAMs", {
         aliases = "sampleA,sampleB",
         sample_sheet = sample_sheet
     )
-    resolved <- bambu_resolve_inputs(
-        args,
-        bamfile_list_ctor = function(paths, yieldSize) paths
-    )
+    resolved <- bambu_resolve_inputs(args)
 
     testthat::expect_equal(resolved$aliases, c("sampleA", "sampleB"))
     testthat::expect_equal(resolved$sample_df$alias, c("sampleA", "sampleB"))
+    testthat::expect_s4_class(resolved$reads, "BamFileList")
 
     bad_sheet <- tempfile(fileext = ".csv")
     writeLines(
@@ -179,7 +184,7 @@ testthat::test_that("sample sheet reordered to match BAMs", {
     args$sample_sheet <- bad_sheet
 
     testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        bambu_resolve_inputs(args),
         "Sample sheet is missing alias rows"
     )
 })
@@ -199,6 +204,19 @@ testthat::test_that("transcriptome mode mapped to bambu args", {
     testthat::expect_true(discover$discovery)
     testthat::expect_equal(discover$NDR, 0.2)
     testthat::expect_equal(discover$ncore, 3L)
+    testthat::expect_true(discover$lowMemory)
+    testthat::expect_equal(discover$yieldSize, 250000L)
+
+    auto_ndr_args <- list(
+        genome = "genome.fa",
+        threads = 2,
+        transcriptome_mode = "discover",
+        ndr = NULL
+    )
+    auto_ndr <- bambu_build_args(auto_ndr_args, reads = "sample.bam", annotation_obj = annotation_obj)
+    testthat::expect_true(auto_ndr$discovery)
+    testthat::expect_false("NDR" %in% names(auto_ndr))
+    testthat::expect_equal(auto_ndr$yieldSize, 250000L)
 
     fixed_args <- list(
         genome = "genome.fa",
@@ -209,6 +227,8 @@ testthat::test_that("transcriptome mode mapped to bambu args", {
     fixed <- bambu_build_args(fixed_args, reads = "sample.bam", annotation_obj = annotation_obj)
     testthat::expect_false(fixed$discovery)
     testthat::expect_false("NDR" %in% names(fixed))
+    testthat::expect_true(fixed$lowMemory)
+    testthat::expect_equal(fixed$yieldSize, 250000L)
 })
 
 # End-to-end unit test with mocked bambu analysis function.
@@ -235,19 +255,32 @@ testthat::test_that("bams input with discovery mode", {
     )
 
     captured <- new.env(parent = emptyenv())
-    fake_bamfile_list <- function(paths, yieldSize) {
-        captured$bamfile_paths <- paths
-        captured$yield_size <- yieldSize
-        structure(paths, class = "mockBamFileList")
-    }
-    fake_analysis <- function(reads, annotations, genome, ncore, discovery, NDR) {
+    fake_analysis <- function(
+        reads,
+        annotations,
+        genome,
+        ncore,
+        discovery,
+        lowMemory,
+        NDR = NULL,
+        yieldSize = NULL,
+        ...
+    ) {
         captured$reads <- reads
         captured$annotations <- annotations
         captured$genome <- genome
         captured$ncore <- ncore
         captured$discovery <- discovery
         captured$NDR <- NDR
-        make_test_tx_se(sample_names = c("sampleA", "sampleB"))
+        captured$low_memory <- lowMemory
+        captured$arg_yield_size <- yieldSize
+        captured$yield_size <- Rsamtools::yieldSize(reads[[1]])
+
+        base_se <- make_test_tx_se(sample_names = c("sampleA", "sampleB"))
+        SummarizedExperiment::SummarizedExperiment(
+            assays = SummarizedExperiment::assays(base_se),
+            rowRanges = make_test_bambu_row_ranges(fixture_dir)
+        )
     }
 
     argv <- list(
@@ -262,6 +295,7 @@ testthat::test_that("bams input with discovery mode", {
         threads = 2
     )
 
+    argv <- workflow_glue_r_normalise_args(argv, bambu_arg_spec())
     result <- suppressMessages(main_run_bambu(
         argv,
         analysis_fn = fake_analysis,
@@ -269,23 +303,17 @@ testthat::test_that("bams input with discovery mode", {
             captured$annotation_path <- annotation
             structure(list(path = annotation), class = "mockAnnotation")
         },
-        gene_expression_fn = function(se) make_test_gene_se(sample_names = colnames(se)),
-        write_gtf_fn = function(row_ranges, file) {
-            writeLines(
-                'chr1\tsim\texon\t1\t50\t.\t+\t.\tgene_id "gene1"; transcript_id "tx1";',
-                file
-            )
-        },
-        bamfile_list_ctor = fake_bamfile_list
+        gene_expression_fn = function(se) make_test_gene_se(sample_names = colnames(se))
     ))
 
     testthat::expect_equal(captured$annotation_path, "annotation.gtf")
     testthat::expect_equal(captured$genome, "genome.fa")
-    testthat::expect_equal(captured$ncore, 2L)
+    testthat::expect_equal(captured$ncore, 1L)
     testthat::expect_true(captured$discovery)
     testthat::expect_equal(captured$NDR, 0.25)
-    testthat::expect_equal(captured$yield_size, 1000000)
-    testthat::expect_equal(captured$bamfile_paths, c(sample_a, sample_b))
+    testthat::expect_true(captured$low_memory)
+    testthat::expect_equal(captured$arg_yield_size, 250000L)
+    testthat::expect_equal(captured$yield_size, 250000)
     testthat::expect_equal(result$sample_df$alias, c("sampleA", "sampleB"))
     testthat::expect_equal(result$sample_df$condition, c("control", "treated"))
     testthat::expect_true(file.exists(file.path(argv$out_dir, "bambu_qc_stats.json")))
@@ -308,35 +336,19 @@ testthat::test_that("list columns flattened for TSV output", {
     testthat::expect_equal(normalised$list_col, c("x;y", "z"))
 })
 
-# NCBI annotations may have gene_id="transcript_id" (literal string, not value reference).
-# Replace with gene_id=<actual transcript_id value>, but leave gene_id="MYTRANSCRIPT_ID" alone.
-testthat::test_that("malformed gene_id values sanitized", {
-    gtf_path <- tempfile(fileext = ".gtf")
-    writeLines(
-        c(
-            'chr1\tsim\texon\t1\t50\t.\t+\t.\tgene_id "MYTRANSCRIPT_ID"; transcript_id "tx_keep";',
-            'chr1\tsim\texon\t101\t150\t.\t+\t.\tgene_id "transcript_id"; transcript_id "tx_replace";'
-        ),
-        gtf_path
-    )
-
-    testthat::expect_warning(
-        bambu_sanitise_gtf_file(gtf_path),
-        "Replaced malformed gene_id"
-    )
-
-    lines <- readLines(gtf_path, warn = FALSE)
-    testthat::expect_match(lines[[1]], 'gene_id "MYTRANSCRIPT_ID";', fixed = TRUE)
-    testthat::expect_match(lines[[2]], 'gene_id "tx_replace";', fixed = TRUE)
-})
-
 # Verify all expected output files are created with correct structure.
 testthat::test_that("bambu outputs written correctly", {
     out_dir <- tempfile("bambu-write-")
     dir.create(out_dir)
 
     sample_names <- c("sampleA", "sampleB")
-    se <- make_test_tx_se(sample_names = sample_names)
+    base_se <- make_test_tx_se(sample_names = sample_names)
+    row_ranges <- make_test_bambu_row_ranges(out_dir)
+
+    se <- SummarizedExperiment::SummarizedExperiment(
+        assays = SummarizedExperiment::assays(base_se),
+        rowRanges = row_ranges
+    )
     gene_se <- make_test_gene_se(sample_names = sample_names)
     sample_df <- data.frame(alias = sample_names, stringsAsFactors = FALSE)
     argv <- list(out_dir = out_dir, transcriptome_mode = "discover", ndr = 0.15)
@@ -358,13 +370,7 @@ testthat::test_that("bambu outputs written correctly", {
         gene_se,
         sample_df,
         argv,
-        qc_stats,
-        write_gtf_fn = function(row_ranges, file) {
-            writeLines(
-                'chr1\tsim\texon\t1\t50\t.\t+\t.\tgene_id "gene1"; transcript_id "tx1";',
-                file
-            )
-        }
+        qc_stats
     )
 
     testthat::expect_true(file.exists(file.path(out_dir, "transcripts.gtf")))
