@@ -10,7 +10,6 @@ analysis.
 The workflow supports:
 
 + transcript identification from either cDNA or direct RNA reads
-+ optional cDNA preprocessing with `pychopper` before alignment
 + transcript discovery guided by a supplied genome and annotation
 + quantification against a supplied reference annotation
 + optional transcript classification and QC with `SQANTI3`

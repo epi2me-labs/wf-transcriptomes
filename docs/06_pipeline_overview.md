@@ -60,15 +60,7 @@ barcode04,treated_rep2,test_sample,treated,b2
 This example is suitable for a multiplexed run and also satisfies the minimum
 requirements for a two-group DE/DTU comparison.
 
-### 3. Optional cDNA preprocessing
-
-When `--cdna_preprocess` is enabled for cDNA libraries, the workflow runs
-`pychopper` before alignment to classify, orient, and trim full-length reads.
-This preprocessing stage is controlled by `--cdna_kit`,
-`--pychopper_backend`, and optional extra `--pychopper_opts`, and its outputs
-are published alongside the ingress results for each sample.
-
-### 4. Genome alignment
+### 3. Genome alignment
 
 Each sample is aligned to the supplied reference genome with
 [`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
@@ -76,14 +68,14 @@ Each sample is aligned to the supplied reference genome with
 `cohort/alignments/` are the main alignment files used for transcriptome
 analysis, optional `SQANTI3` QC, and optional IGV viewing.
 
-### 5. Cohort transcriptome construction
+### 4. Cohort transcriptome construction
 
 All aligned samples are analysed together with `bambu` to produce the primary
 cohort transcriptome, transcript counts, gene counts, and the `RDS` objects used
 for downstream differential analysis. This shared model is the main cohort-level
 result and is published under `cohort/`.
 
-### 6. Independent per-sample transcriptomes
+### 5. Independent per-sample transcriptomes
 
 Each sample is also processed separately with `bambu` so the workflow produces
 sample-specific GTF, FASTA, count tables, and metadata under
@@ -91,7 +83,7 @@ sample-specific GTF, FASTA, count tables, and metadata under
 specific transcript models without changing the shared cohort transcriptome used
 for DE/DTU.
 
-### 7. Transcript sequence generation and QC
+### 6. Transcript sequence generation and QC
 
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
 When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
@@ -99,7 +91,7 @@ transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
 results live under `cohort/sqanti_cohort/`, while per-sample `SQANTI3`
 directories are published under `samples/<alias>/<alias>_sqanti/`.
 
-### 8. Optional DE and DTU analysis
+### 7. Optional DE and DTU analysis
 
 When `--de_analysis` is enabled, the workflow checks the experimental design,
 runs `DESeq2` for differential gene expression, and runs `DEXSeq` for
@@ -107,7 +99,7 @@ differential transcript usage. These analyses use the shared `bambu` outputs
 and the design columns in the sample sheet, and each comparison is written to
 its own subdirectory under `de_analysis/<contrast>/`.
 
-### 9. What you need to provide
+### 8. What you need to provide
 
 The workflow's analysis is controlled by a user provided genome, annotation, and
 `bambu` mode.
@@ -119,13 +111,10 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 * `--ref_transcriptome` has been removed; if you want annotation-based
   quantification, use `--transcriptome_mode fixed_annotation` together with
   `--ref_genome` and `--ref_annotation`
-* `--cdna_preprocess` enables the `pychopper` cDNA preprocessing stage, and
-  `--cdna_kit`, `--pychopper_backend`, and `--pychopper_opts` control that stage
 * when `--de_analysis` is enabled, the sample sheet must contain `alias`, the
   primary condition column, and any requested columns named in `--covariates`
-* `--cdna_preprocess` must not be combined with `--direct_rna`
 
-### 10. How to read the output folder
+### 9. How to read the output folder
 
 The published outputs are organised around a small number of top-level
 directories:

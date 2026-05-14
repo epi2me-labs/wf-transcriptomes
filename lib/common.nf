@@ -61,3 +61,79 @@ process configure_igv {
     """
 }
 
+
+process minimap2_alignment {
+    label "wf_common"
+    cpus { bsargs["alignment_threads"] }
+    memory { bsargs["minimap2_memory"][task.attempt - 1] }
+    maxRetries { bsargs["minimap2_memory"].size() - 1 }
+    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    input:
+        tuple val(meta), path(reads, stageAs: 'reads/*'), path(reference), path(ref_index)
+        tuple val(align_ext), val(index_ext) // either [bam, bai] or [cram, crai]
+        val bsargs
+    
+    output:
+        tuple val(meta),
+              path("reads.${align_ext}"), 
+              path("reads.${align_ext}.${index_ext}"),
+              path("bamstats_results"),
+              emit: alignment
+    script:
+        String reset_cmd_body = "samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl"
+        String fastq_cmd_body = "samtools fastq -T *"
+        // Default required threads is 6
+        // Samtools x3 and bamstats will all be single threaded
+        def minimap2_threads = Math.max(task.cpus - 4 , 1)
+        def per_read_stats_arg = bsargs["per_read_stats"] ? "| bgzip > bamstats_results/bamstats.readstats.tsv.gz" : " > /dev/null"
+        def bam_input_cmd = """samtools view -H --no-PG reads/\"\$(ls reads | head -n 1)\" \
+            > reads.header && samtools cat reads/* \
+            | ${reset_cmd_body} --no-PG - -o -  \
+            | ${fastq_cmd_body} - """
+        def fastq_input_cmd = "touch reads.header && fastcat --reheader reads/*"
+        def bam_or_fastq_input = params.bam ? bam_input_cmd : fastq_input_cmd
+        def minimap2_opts = bsargs["minimap2_opts"]
+        
+    """
+    rm -rf bamstats_results
+    mkdir bamstats_results
+    ${bam_or_fastq_input} \
+        | minimap2 -y -t ${minimap2_threads} -a ${minimap2_opts} --cap-kalloc 100m --cap-sw-mem 50m \
+            ${reference} - \
+        | workflow-glue reheader_samstream reads.header \
+            --insert \$'@PG\\tID:reset\\tPN:samtools\\tCL:${reset_cmd_body}' \
+            --insert \$'@PG\\tID:fastq\\tPN:samtools\\tCL:${fastq_cmd_body}' \
+        | samtools sort -u -O BAM - \
+        | tee >(samtools view --reference ${reference} \
+            --write-index -o reads.${align_ext}##idx##reads.${align_ext}.${index_ext} -) \
+        | bamstats -s ${meta.alias} -u \
+            -f bamstats_results/bamstats.flagstat.tsv  \
+            -i bamstats_results/bamstats.runids.tsv \
+            -l bamstats_results/bamstats.basecallers.tsv \
+            --histograms histograms - \
+            ${per_read_stats_arg}
+
+        # post-pipe bamstats tidying
+        mv histograms/* bamstats_results/
+
+        # get n_seqs from flagstats - need to sum them up
+        awk 'NR==1{for (i=1; i<=NF; i++) {ix[\$i] = i}} NR>1 {c+=\$ix["total"]} END{print c}' \
+            bamstats_results/bamstats.flagstat.tsv > bamstats_results/n_seqs
+       
+        # get unique run IDs (we add `-F '\\t'` as `awk` uses any stretch of whitespace
+        # as field delimiter otherwise and thus ignore empty columns)
+        awk -F '\\t' '
+            NR==1 {for (i=1; i<=NF; i++) {ix[\$i] = i}}
+            # only print run_id if present
+            NR>1 && \$ix["run_id"] != "" {print \$ix["run_id"]}
+        ' bamstats_results/bamstats.runids.tsv | sort | uniq > bamstats_results/run_ids
+        
+        # get unique basecall models
+        awk -F '\\t' '
+           NR==1 {for (i=1; i<=NF; i++) {ix[\$i] = i}}
+           # only print model if present
+           NR>1 && \$ix["basecaller"] != "" {print \$ix["basecaller"]}
+        ' bamstats_results/bamstats.basecallers.tsv | sort | uniq > bamstats_results/basecallers ;
+
+    """
+}

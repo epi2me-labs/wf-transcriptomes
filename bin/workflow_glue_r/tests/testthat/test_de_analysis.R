@@ -388,6 +388,24 @@ testthat::test_that("underspecified designs rejected", {
 # Fixture-driven tests for DESeq2/DEXSeq helper behaviour and metadata.
 # These avoid dependency injection and exercise the real package code paths.
 
+testthat::test_that("de_choose_size_factor_type uses poscounts for zero-heavy matrices", {
+    count_mat <- matrix(
+        c(
+            0, 4, 5,
+            3, 0, 2,
+            7, 1, 0
+        ),
+        nrow = 3,
+        byrow = TRUE
+    )
+
+    testthat::expect_warning(
+        sf_type <- de_choose_size_factor_type(count_mat, "test matrix"),
+        "using DESeq2 size-factor estimation with sfType='poscounts'"
+    )
+    testthat::expect_equal(sf_type, "poscounts")
+})
+
 testthat::test_that("de_run_deseq_with_fallback returns structured metadata", {
     testthat::skip_if_not_installed("DESeq2")
 
@@ -721,7 +739,9 @@ testthat::test_that("CLI integration produces expected outputs", {
     testthat::expect_true("analysis_fallbacks" %in% names(de_qc))
     testthat::expect_true("contrasts" %in% names(de_qc))
     contrast_qc <- de_qc$contrasts[["condition_treated_vs_control"]]
+    testthat::expect_true("deseq2_size_factor_method" %in% names(contrast_qc))
     testthat::expect_true("deseq2_dispersion_fallback" %in% names(contrast_qc))
+    testthat::expect_true("dexseq_size_factor_method" %in% names(contrast_qc))
     testthat::expect_true("dexseq_dispersion_method" %in% names(contrast_qc))
     testthat::expect_true("dexseq_covariates_dropped" %in% names(contrast_qc))
 })

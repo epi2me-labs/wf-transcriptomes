@@ -15,6 +15,7 @@ variables:
               PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
+              WF_TEMPLATE_ENFORCEMENT_BRANCH: "CW-6552"
 
 macos-run:
   # Let's avoid those ARM64 runners for now
@@ -56,7 +57,7 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "de", "discover", "igv",
+                "de-poscounts-fallback", "discover", "igv",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
                 "no_annotation", "invalid_mode", "conflicting_flags"
             ]
@@ -70,18 +71,17 @@ docker-run:
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
-                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf --cdna_preprocess --pychopper_backend phmm"
-              NF_IGNORE_PROCESSES: preprocess_reads,filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
+                  --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa --ref_annotation ${CI_PROJECT_NAME}/data/chr20/gencode.v22.annotation.chr20.gtf"
+              NF_IGNORE_PROCESSES: filter_unstranded_annotation,validate_ref_annotation,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "no_annotation"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf  ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
                   --ref_genome ${CI_PROJECT_NAME}/data/chr20/hg38_chr20.fa \
                   -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: preprocess_reads
               ASSERT_NEXTFLOW_FAILURE: "1"
               ASSERT_NEXTFLOW_FAILURE_REXP: "Missing required parameter: --ref_annotation"
-        - if: $MATRIX_NAME == "de"
+        - if: $MATRIX_NAME == "de-poscounts-fallback"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
@@ -90,7 +90,9 @@ docker-run:
                 --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gtf \
                 --direct_rna --minimap2_index_opts '-k 15'  --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
                 -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
-              NF_IGNORE_PROCESSES: preprocess_reads,faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
+              NF_IGNORE_PROCESSES: faidx,gz_faidx,merge_transcriptomes,decompress_annotation,decompress_ref,decompress_transcriptome,preprocess_ref_transcriptome
+              AFTER_NEXTFLOW_CMD: >
+                  grep -Eq '"deseq2_size_factor_method": "poscounts"' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json
         - if: $MATRIX_NAME == "only_differential_expression"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
@@ -103,13 +105,12 @@ docker-run:
                 --igv \
                 -c ${CI_PROJECT_NAME}/data/demo.nextflow.config "
               NF_IGNORE_PROCESSES: >
-                preprocess_reads,gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
+                gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,validate_ref_annotation,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
         - if: $MATRIX_NAME == "smoke_discover"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf"
-              NF_IGNORE_PROCESSES: preprocess_reads
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/cohort.transcriptome.fa &&
@@ -118,7 +119,6 @@ docker-run:
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode fixed_annotation"
-              NF_IGNORE_PROCESSES: preprocess_reads
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
                   test -f ${CI_PROJECT_NAME}/cohort/transcript_counts.tsv
@@ -126,15 +126,13 @@ docker-run:
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna"
-              NF_IGNORE_PROCESSES: preprocess_reads
               AFTER_NEXTFLOW_CMD: >
-                  test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA.aligned.sorted.bam &&
+                  test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA/reads.bam &&
                   test -f ${CI_PROJECT_NAME}/cohort/sqanti_cohort/classification_summary.tsv
         - if: $MATRIX_NAME == "smoke_de"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --de_analysis --reference_level control --covariates batch"
-              NF_IGNORE_PROCESSES: preprocess_reads
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv
@@ -142,12 +140,5 @@ docker-run:
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode nonsense"
-              NF_IGNORE_PROCESSES: preprocess_reads
               ASSERT_NEXTFLOW_FAILURE: "1"
               ASSERT_NEXTFLOW_FAILURE_REXP: "nonsense is not a valid choice"
-        - if: $MATRIX_NAME == "conflicting_flags"
-          variables:
-              NF_BEFORE_SCRIPT: ":"
-              NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna --cdna_preprocess"
-              ASSERT_NEXTFLOW_FAILURE: "1"
-              ASSERT_NEXTFLOW_FAILURE_REXP: ".*--cdna_preprocess cannot be used together with --direct_rna"

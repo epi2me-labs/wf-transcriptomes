@@ -5,7 +5,6 @@
   primary condition column, and any columns named in `--covariates`.
 + DE/DTU requires at least two condition levels and at least two samples per
   level.
-+ `--cdna_preprocess` must not be combined with `--direct_rna`.
 + See how to interpret common Nextflow exit codes
   [here](https://labs.epi2me.io/trouble-shooting/).
 
@@ -40,17 +39,6 @@ setting that chose how the workflow behaved. In the current version,
 The options `--transcriptome_mode discover` or `--transcriptome_mode
 fixed_annotation` should be used to choose between the modes of operation.
 
-#### I expected pychopper-style preprocessing for cDNA libraries
-
-cDNA preprocessing is available through
-`--cdna_preprocess`, which runs `pychopper` before alignment. The
-parameters for that stage are `--cdna_kit`, `--pychopper_backend`, and
-`--pychopper_opts`.
-
-Enable `--cdna_preprocess` for cDNA libraries when you want
-`pychopper` preprocessing, or use `--direct_rna` without
-`--cdna_preprocess` for direct RNA data.
-
 #### I cannot find the old flat DE output files
 
 In the previous workflow version, DE files appeared directly under `de_analysis/`.
@@ -67,9 +55,7 @@ In the current versions, the output folder is organised around `ingress_results/
 `igv_reference/`.
 
 Primary shared transcriptome results are under `cohort/`, and
-`samples/<alias>/` for sample-specific models. If `--cdna_preprocess` is enabled,
-look under `ingress_results/<alias>/` for the `pychopper` outputs associated
-with each sample.
+`samples/<alias>/` for sample-specific models.
 
 #### My DE/DTU run fails because of `--sample_sheet`
 
@@ -82,11 +68,6 @@ are required, and each level must contain at least two samples.
 
 What to change: verify the sample sheet columns first, then check
 `--condition_column`, `--covariates`, and `--reference_level`.
-
-#### I combined `--direct_rna` with `--cdna_preprocess`
-
-This is not a valid combination of parameters. Use `--direct_rna` for direct RNA
-libraries and leave `--cdna_preprocess` unset.
 
 #### I hit genome/annotation validation or strand-related annotation warnings
 

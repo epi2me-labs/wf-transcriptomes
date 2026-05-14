@@ -81,17 +81,6 @@ def _sqanti_tables(sqanti_dir):
     return tables
 
 
-def _pychopper_tables(pychopper_dir):
-    tables = {}
-    for summary in sorted(Path(pychopper_dir).rglob("pychopper_summary.tsv")):
-        table = _read_table(summary)
-        if table is None or table.empty:
-            continue
-        label = summary.parent.name.replace("_pychopper_output", "")
-        tables[label] = table
-    return tables
-
-
 def _top_results(de_dir, filename, n=20):
     tables = {}
     for contrast_dir in sorted(Path(de_dir).iterdir()):
@@ -193,6 +182,7 @@ def _collect_de_method_rows(de_qc):
         fallback = contrast_data.get("deseq2_dispersion_fallback") or {}
         fallback_applied = bool(fallback.get("applied", False))
         deseq2_method = fallback.get("method_used")
+        deseq2_size_factors = contrast_data.get("deseq2_size_factor_method") or "ratio"
 
         if not deseq2_method:
             deseq2_method = "gene-wise" if fallback_applied else "parametric"
@@ -201,6 +191,7 @@ def _collect_de_method_rows(de_qc):
             deseq2_gene_wise.append(contrast_name)
 
         dexseq_method = contrast_data.get("dexseq_dispersion_method") or "parametric"
+        dexseq_size_factors = contrast_data.get("dexseq_size_factor_method") or "ratio"
         if dexseq_method == "gene-wise":
             dexseq_gene_wise.append(contrast_name)
 
@@ -213,11 +204,13 @@ def _collect_de_method_rows(de_qc):
         rows.append(
             {
                 "Contrast": contrast_name,
+                "DESeq2 size factors": deseq2_size_factors,
                 "DESeq2 dispersion": (
                     f"{deseq2_method} (fallback)"
                     if fallback_applied
                     else deseq2_method
                 ),
+                "DEXSeq size factors": dexseq_size_factors,
                 "DEXSeq dispersion": dexseq_method,
                 "DEXSeq covariates dropped": (
                     ", ".join(dropped_covariates) if dropped_covariates else "none"
@@ -257,10 +250,19 @@ def main(args):
             sample_names = tuple(
                 item["alias"] for item in metadata if item.get("has_stats")
             )
+            flagstats = tuple(
+                Path(stats_dir) / "bamstats.flagstat.tsv" for stats_dir in stats
+            )
             if len(stats) == 1:
                 stats = stats[0]
+                flagstats = flagstats[0]
                 sample_names = sample_names[0] if sample_names else None
-            fastcat.SeqSummary(stats, sample_names=sample_names)
+            fastcat.SeqSummary(
+                stats,
+                flagstat=flagstats,
+                sample_names=sample_names,
+                alignment_stats=True,
+            )
 
     with report.add_section("Sample metadata", "Samples"):
         tabs = Tabs()
@@ -498,16 +500,6 @@ def main(args):
             ):
                 with tabs.add_tab(stats_file.stem.replace(".flagstat", "")):
                     pre(stats_file.read_text())
-
-    pychopper_tables = {}
-    if args.pychopper_dir and Path(args.pychopper_dir).exists():
-        pychopper_tables = _pychopper_tables(args.pychopper_dir)
-    if pychopper_tables:
-        with report.add_section("Pychopper preprocessing", "Pychopper"):
-            tabs = Tabs()
-            for label, table in pychopper_tables.items():
-                with tabs.add_tab(label):
-                    DataTable.from_pandas(table, use_index=False)
 
     sqanti_tables = _sqanti_tables(args.sqanti_dir)
     if sqanti_tables:
@@ -852,11 +844,6 @@ def argparser():
         "--samples_dir",
         required=True,
         help="Per-sample output directory.",
-    )
-    parser.add_argument(
-        "--pychopper_dir",
-        default=None,
-        help="Pychopper output directory.",
     )
     parser.add_argument(
         "--sqanti_dir",

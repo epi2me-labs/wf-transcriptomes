@@ -4,6 +4,10 @@ import ArgumentParser
 
 N_OPEN_FILES_LIMIT = 128
 
+OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
+
+include { minimap2_alignment as bam_alignment;
+          minimap2_alignment as fastq_alignment; } from './common'
 
 /**
 * Check if a file ends with one of the target extensions.
@@ -171,6 +175,14 @@ def add_number_of_reads_to_meta(ch, String input_type_format) {
  *  - "allow_multiple_basecall_models": emit data of samples that had more than one
  *     basecall model; if this is `false`, such samples will be emitted as `[meta, null,
  *     null]`
+ *  - "minimap2_memory": A list of memory options to pass to minimap2. Alignment will be retried
+ *     with next in list if it fails due to memory issues. (default: ["8G", "15G", "31G"])
+ *  - "minimap2_opts": string with options to pass to minimap2 (default: "-x lr:hq")
+ *  - "alignment_threads": number of threads to use for alignment process (default: 6)
+ *  - "output_xam_fmt": alignment output format, `bam` outputs a BAM file with index (.bam, .bai),
+       `cram` outputs a CRAM file with index (.cram, .crai)
+ * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
+ *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
  *  The first element is a map with metadata, the second is the path to the
  *  `.fastq.gz` file with the (potentially concatenated) sequences and the third is
@@ -178,7 +190,7 @@ def add_number_of_reads_to_meta(ch, String input_type_format) {
  *  `null` for sample sheet entries for which no corresponding barcode directory was
  *  found. The third element is `null` if there were no reads.
  */
-def fastq_ingress(Map arguments)
+def fastq_ingress(Map arguments, aln_ref_ch = null)
 {
     // check arguments
     Map margs = parse_arguments(
@@ -194,42 +206,99 @@ def fastq_ingress(Map arguments)
 
     def input = get_valid_inputs(margs, fq_extensions)
 
-    def ch_result = fastcat(input.files.mix(input.dirs), margs, "FASTQ")
-  
-    // TODO: xam_ingress mixes in a .no_files channel here. Do we need to do the same? 
+    // Alignment with reference if provided
+    if (aln_ref_ch) {
 
-    // The above may have returned a channel with multiple fastqs if chunking
-    // is enabled. Flatten this and add a groupKey to meta information which
-    // states the number of sibling files. This can be later used as the key
-    // for .groupTuple() on a channel in order to get all results for a sample
-    // We don't decorate "alias" with a count because that messes up downstream
-    // serialisation.
-    // Mix in the missing files from the sample sheet
-    // Add in a unique key for every emission
-    def ch_spread_result = ch_result
-        .mix (input.missing.map { meta, files -> [meta, files, null] })
-        .map { meta, files, stats ->
-            // new `arity: '1..*'` would be nice here
-            files = files instanceof List ? files : [files]
-            def new_keys = [
-                "group_key": groupKey(meta["alias"], files.size()),
-                "n_fastq": files.size()]
-            def grp_index = (0..<files.size()).collect()
-            [meta + new_keys, files, grp_index, stats]
+        if (margs["output_xam_fmt"] == "bam"){
+            output_xam_fmt = ["bam", "bai"]
         }
-        .transpose(by: [1, 2])  // spread multiple fastq files into separate emissions
-        .map { meta, files, grp_i, stats ->
-            def new_keys = [
-                "group_index": "${meta["alias"]}_${grp_i}"]
-            [meta + new_keys, files, stats]
+        else {
+            output_xam_fmt = ["cram", "crai"]
+        }
+        
+        mm2_aln = fastq_alignment(
+            input.files.mix(input.dirs).combine(aln_ref_ch),
+            output_xam_fmt,
+            margs
+        )
+    
+        // Add back samples from sample sheet with missing barcode dir
+        aligned_and_missing = mm2_aln.mix(
+            input.missing.map { meta, files -> [meta, files, null, null] }
+        )
+     
+        // add number of reads to meta
+        updated_ch = add_number_of_reads_to_meta(
+            aligned_and_missing 
+            | map { meta, bam, bai, stats ->
+                [meta, [bam, bai], stats]
+            }, 
+            "xam"
+        )
+        
+        // add run IDs, and basecall models to meta
+        ch_result = add_run_IDs_and_basecall_models_to_meta(
+            updated_ch,
+            margs.allow_multiple_basecall_models
+        ) | map { it -> 
+            def (meta, bam, bai, stats) = it.flatten()
+            def xam = meta.src_xam
+            def xai = meta.src_xai
+            // S3 paths are remote references; only keep local file paths for downstream processing
+            if (meta.src_xam){
+                xam = meta.src_xam.startsWith('s3://') ? null : meta.src_xam
+                xai = meta.src_xam.startsWith('s3://') ? null : meta.src_xai
+            }
+            [ meta + [src_xam: xam, src_xai: xai], bam, bai, stats ]
         }
 
-    // add number of reads, run IDs, and basecall models to meta
-    def ch_final = add_number_of_reads_to_meta(ch_spread_result, "fastq")
-    ch_final = add_run_IDs_and_basecall_models_to_meta(
-        ch_final, margs.allow_multiple_basecall_models
-    )
-    return ch_final
+        return ch_result
+    } else {
+        // If no alignment ref is provided, just process FASTQ as usual.
+        def ch_fastcat = fastcat(input.files.mix(input.dirs), margs, "FASTQ")
+        def ch_fastcat_branched = ch_fastcat.branch { meta, files, stats ->
+            def file_list = files ? (files instanceof List ? files : [files]) : []
+            no_files: file_list.size() == 0
+            has_files: true
+        }
+        ch_result = ch_fastcat_branched.has_files
+        def ch_no_files = ch_fastcat_branched.no_files
+            .map { meta, files, stats -> [meta, null, null] }
+
+        // fastcat may have returned a channel with multiple fastqs if chunking
+        // is enabled. Flatten this and add a groupKey to meta information which
+        // states the number of sibling files. This can be later used as the key
+        // for .groupTuple() on a channel in order to get all results for a sample
+        // We don't decorate "alias" with a count because that messes up downstream
+        // serialisation.
+        // Mix in the missing files from the sample sheet
+        // Add in a unique key for every emission
+        ch_spread_result = ch_result
+            .mix(input.missing.map { meta, files -> [meta, files, null] })
+            .mix(ch_no_files)
+            .map { meta, files, stats ->
+                // new `arity: '1..*'` would be nice here
+                files = files instanceof List ? files : [files]
+                def new_keys = [
+                    "group_key": groupKey(meta["alias"], files.size()),
+                    "n_fastq": files.size()]
+                def grp_index = (0..<files.size()).collect()
+                [meta + new_keys, files, grp_index, stats]
+            }
+            .transpose(by: [1, 2])  // spread multiple fastq files into separate emissions
+            .map { meta, files, grp_i, stats ->
+                def new_keys = [
+                    "group_index": "${meta["alias"]}_${grp_i}"]
+                [meta + new_keys, files, stats]
+            }
+
+        // add number of reads, run IDs, and basecall models to meta
+        ch_final = add_number_of_reads_to_meta(ch_spread_result, "fastq")
+        ch_final = add_run_IDs_and_basecall_models_to_meta(
+            ch_final, margs.allow_multiple_basecall_models
+        )
+        return ch_final
+    }
 }
 
 
@@ -251,7 +320,7 @@ def fastq_ingress(Map arguments)
  *    directories.
  *  - "keep_unaligned": boolean whether to include uBAM files
  *  - "return_fastq": boolean whether to convert to FASTQ (this will always run
- *    `fastcat`)
+ *    `fastcat`). Cannot be set to true if an alignment reference is provided.
  *  - "fastcat_extra_args": string with extra arguments to pass to `fastcat`
  *  - "required_sample_types": list of zero or more required sample types expected to be present 
  *     in the sample sheet
@@ -260,7 +329,15 @@ def fastq_ingress(Map arguments)
  *  - "fastq_chunk": null or a number of reads to place into chunked FASTQ files
  *  - "allow_multiple_basecall_models": boolean. If true, emit data of samples that had more than one
  *     basecall model; if this is `false`, such samples will be emitted as `[meta, null,
- *     null]`
+ null]`
+ *  - "minimap2_memory": a list of memory options to pass to minimap2, alignment will be retried
+ *     with next in list if it fails due to memory issues. (default: ["8G", "15G", "31G"])
+ *  - "minimap2_opts": string with options to pass to minimap2 (default: "-x lr:hq")
+ *  - "alignment_threads": number of threads to use for alignment process (default: 6)
+ *  - "output_xam_fmt": alignment output format, `bam` outputs an BAM file with index (.bam, .bai),
+       `cram` outputs a CRAM file with index (.cram, .crai)
+ * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
+ *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
  *  The first element is a map with metadata, the second is the path to the
  *  `.bam` file with the (potentially merged) sequences and the third is
@@ -269,7 +346,7 @@ def fastq_ingress(Map arguments)
  *  found and for samples with only uBAM files when `keep_unaligned: false`. The third
  *  element is `null` if `bamstats` was not run.
  */
-def xam_ingress(Map arguments)
+def xam_ingress(Map arguments, aln_ref_ch = null)
 {
     // check arguments
     Map margs = parse_arguments(
@@ -283,13 +360,25 @@ def xam_ingress(Map arguments)
     )
     margs["fastq_chunk"] ?= 0  // cant pass null through channel
 
+    if (margs["return_fastq"] && aln_ref_ch){
+        error "`return_fastq` ingress argument cannot be true when alignment is enabled. Alignment always produces XAM-format outputs."
+    }
+
     // we only accept BAM or uBAM for now (i.e. no SAM or CRAM)
     ArrayList xam_extensions = [".bam", ".ubam"]
 
     def input = get_valid_inputs(margs, xam_extensions)
 
+    if (aln_ref_ch) {
+        aln_ref = aln_ref_ch
+    } else {
+        aln_ref = Channel.of( 
+          tuple(OPTIONAL_FILE, OPTIONAL_FILE)
+        )
+    }
+
     // check BAM headers to see if any samples are uBAM
-    ch_result = input.dirs
+    ch_check_bams = input.dirs
     | map { meta, path -> [meta, get_target_files_in_dir(path, xam_extensions, margs)] }
     | mix(input.files)
     | map{
@@ -313,21 +402,65 @@ def xam_ingress(Map arguments)
         }
         [meta + [src_xam: src_xam, src_xai: src_xai], paths]
     }
+    | combine(aln_ref)
     | checkBamHeaders
-    | map { meta, paths, is_unaligned_env, mixed_headers_env, is_sorted_env ->
+    | map { meta, paths, is_unaligned_env, mixed_sq_headers_env, is_sorted_env, has_reads_env ->
         // convert the env. variables from strings ('0' or '1') into bools
         boolean is_unaligned = is_unaligned_env as int as boolean
-        boolean mixed_headers = mixed_headers_env as int as boolean
+        boolean mixed_sq_headers = mixed_sq_headers_env as int as boolean
         boolean is_sorted = is_sorted_env as int as boolean
+        // if no reads, no error (multisample may have some empty bams) but do not attempt alignment
+        boolean has_reads = has_reads_env as int as boolean
         // throw an error if there was a sample with mixed headers
-        if (mixed_headers) {
+        if (mixed_sq_headers) {
             error "Found mixed headers in (u)BAM files of sample '${meta.alias}'."
         }
         // add `is_unaligned` to the metamap (note the use of `+` to create a copy of
         // `meta` to avoid modifying every item in the channel;
         // https://github.com/nextflow-io/nextflow/issues/2660)
-        [meta + [is_unaligned: is_unaligned, is_sorted: is_sorted], paths]
+        [meta + [is_unaligned: is_unaligned, is_sorted: is_sorted, has_reads: has_reads], paths]
     }
+
+    // Handle alignment
+    if (aln_ref_ch) {
+        alignment_fork = ch_check_bams
+        | branch {
+            meta, paths ->
+                to_align: (meta.is_unaligned == true) && (meta.has_reads == true)
+                noalign: true
+        }
+        if (margs["output_xam_fmt"] == "bam"){
+            output_xam_fmt = ["bam", "bai"]
+        }
+        else {
+            output_xam_fmt = ["cram", "crai"]
+        }
+        mm2_aln = bam_alignment(
+            alignment_fork.to_align.combine(aln_ref_ch),
+            output_xam_fmt,
+            margs
+        )
+        // Update meta is unaligned
+        mm2_aln_final = mm2_aln.alignment.map{
+            meta, xam, xai, stats ->
+                // remove has reads from meta as no longer required
+                def newmeta = meta.findAll { k, v -> k != 'has_reads' }
+                [newmeta + [is_unaligned: false], xam, xai, stats]
+        }
+        // Process BAM files that do not require realignment by passing them through the standard downstream steps (merging, sorting, indexing, etc.)
+        ch_result_tmp = alignment_fork.noalign.map{
+            meta, paths -> 
+                def newmeta = meta.findAll { k, v -> k != 'has_reads' }
+                [newmeta, paths]
+        }
+    } else {
+        // If no alignment reference provided process all BAM's as usual.
+        ch_result_tmp = ch_check_bams.map{ meta, paths -> 
+            def newmeta = meta.findAll { k, v -> k != 'has_reads' }
+            [newmeta, paths]}
+    }
+
+    ch_result = ch_result_tmp 
     | branch { meta, paths ->
         // set `paths` to `null` for uBAM samples if unallowed (they will be added to
         // the results channel in shape of `[meta, null]` at the end of the function
@@ -485,7 +618,8 @@ def xam_ingress(Map arguments)
     }
 
     // Combine all possible inputs
-    ch_result = ch_missing | mix(
+    ch_result = ch_missing 
+    | mix(
         ch_no_op,
         ch_indexed,
         ch_merged,
@@ -514,6 +648,11 @@ def xam_ingress(Map arguments)
         ch_result.is_null.map{it + [null]}
     )
 
+    // Add back aligned if alignment reference provided
+    if (aln_ref_ch) {
+        ch_result = ch_result.mix(mm2_aln_final)
+    }
+    
     // Remove metadata that are unnecessary downstream:
     // meta.src_xai: not needed, as it will be part of the channel as a file
     // meta.is_sorted: if data are aligned, they will also be sorted/indexed
@@ -550,13 +689,14 @@ def xam_ingress(Map arguments)
         meta, bam, bai, stats ->
         def xam = meta.src_xam
         def xai = meta.src_xai
+        // S3 paths are remote references;
+        // only keep local file paths for downstream processing
         if (meta.src_xam){
             xam = meta.src_xam.startsWith('s3://') ? null : meta.src_xam
             xai = meta.src_xam.startsWith('s3://') ? null : meta.src_xai
         }
         [ meta + [src_xam: xam, src_xai: xai], bam, bai, stats ]
     }
-
     return ch_result
 }
 
@@ -629,18 +769,21 @@ process checkBamHeaders {
     label "wf_common"
     cpus 1
     memory "2 GB"
-    input: tuple val(meta), path("input_dir/reads*.bam")
+    input: tuple val(meta), path("input_dir/reads*.bam"), path(ref, stageAs: "ref/*"),
+            path(ref_index, stageAs: "ref_index/*")
     output:
         tuple(
             val(meta),
             path("input_dir/reads*.bam", includeInputs: true),
             env(IS_UNALIGNED),
-            env(MIXED_HEADERS),
+            env(MIXED_SQ_HEADERS),
             env(IS_SORTED),
+            env(HAS_READS),
         )
     script:
+    String ref_arg = ref.fileName.name == OPTIONAL_FILE.name ? "" : "--ref $ref --ref_idx $ref_index"
     """
-    workflow-glue check_bam_headers_in_dir input_dir > env.vars
+    workflow-glue check_bam_headers_in_dir input_dir $ref_arg > env.vars
     source env.vars
     """
 }
@@ -836,6 +979,10 @@ Map parse_arguments(String func_name, Map arguments, Map extra_kwargs=[:]) {
         "required_sample_types": [],
         "per_read_stats": false,
         "allow_multiple_basecall_models": false,
+        "minimap2_memory": ["8GB", "15GB", "31GB"],
+        "minimap2_opts": "-x lr:hq",
+        "alignment_threads": 6,
+        "output_xam_fmt": "bam" // or cram
     ]
     ArgumentParser parser = new ArgumentParser(
         args: required_args,

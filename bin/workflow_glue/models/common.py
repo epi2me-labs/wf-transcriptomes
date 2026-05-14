@@ -206,10 +206,11 @@ class Sample:
         self.additional_identifiers.append(sample_identifier)
         return self.additional_identifiers
 
+    # TODO: Integrate this into WorkflowBaseModel
     def to_json(self, filename):
         """Save class as JSON."""
         with open(filename, 'w') as f:
-            json.dump(asdict(self), f, default=str, indent=2)
+            json.dump(asdict(self), f, default=str, indent=2, allow_nan=False)
 
     def get_reportable_qc_status(self, max_criteria=4):
         """Store global status of the sample and list of QC criteria to show.
@@ -364,7 +365,8 @@ class WorkflowResult(WorkflowBaseModel):
         self.versions = versions
         return self.versions
 
+    # TODO: Integrate this into WorkflowBaseModel
     def to_json(self, filename):
         """Save class as JSON."""
         with open(filename, 'w') as f:
-            json.dump(asdict(self), f, default=str, indent=2)
+            json.dump(asdict(self), f, default=str, indent=2, allow_nan=False)

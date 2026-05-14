@@ -1,8 +1,7 @@
 bambu_arg_parser <- function() {
     parser <- argparser::arg_parser("Run bambu transcript discovery and quantification.")
-    parser <- argparser::add_argument(parser, "--bam_dir", help = "Directory containing BAM files.")
-    parser <- argparser::add_argument(parser, "--bam_path", help = "Path to a single BAM file.")
-    parser <- argparser::add_argument(parser, "--sample_alias", help = "Alias to use for a single BAM file.")
+    parser <- argparser::add_argument(parser, "--bams", help = "Comma-separated BAM paths.")
+    parser <- argparser::add_argument(parser, "--aliases", help = "Comma-separated aliases for --bams.")
     parser <- argparser::add_argument(parser, "--sample_sheet", help = "Optional sample sheet CSV.")
     parser <- argparser::add_argument(parser, "--annotation", help = "Reference annotation GTF/GFF.")
     parser <- argparser::add_argument(parser, "--genome", help = "Reference genome FASTA.")
@@ -31,8 +30,11 @@ bambu_arg_parser <- function() {
 bambu_validate_args <- function(argv) {
     workflow_glue_r_require_args(argv, c("annotation", "genome", "out_dir"))
 
-    if (workflow_glue_r_arg_missing(argv$bam_dir) == workflow_glue_r_arg_missing(argv$bam_path)) {
-        stop("Provide exactly one of --bam_dir or --bam_path.", call. = FALSE)
+    if (workflow_glue_r_arg_missing(argv$bams)) {
+        stop("Missing required arguments: --bams", call. = FALSE)
+    }
+    if (workflow_glue_r_arg_missing(argv$aliases)) {
+        stop("Missing required arguments: --aliases", call. = FALSE)
     }
 
     if (!argv$transcriptome_mode %in% c("discover", "fixed_annotation")) {
@@ -52,16 +54,9 @@ bambu_validate_args <- function(argv) {
     invisible(argv)
 }
 
-bambu_strip_alias <- function(path) {
-    name <- basename(path)
-    name <- sub("\\.aligned\\.sorted\\.bam$", "", name)
-    tools::file_path_sans_ext(name)
-}
-
 bambu_resolve_inputs <- function(
     argv,
-    bamfile_list_ctor = Rsamtools::BamFileList,
-    list_files_fn = base::list.files
+    bamfile_list_ctor = Rsamtools::BamFileList
 ) {
     sample_df <- NULL
     if (!workflow_glue_r_arg_missing(argv$sample_sheet)) {
@@ -81,19 +76,14 @@ bambu_resolve_inputs <- function(
         }
     }
 
-    if (!workflow_glue_r_arg_missing(argv$bam_dir)) {
-        bam_paths <- sort(list_files_fn(argv$bam_dir, pattern = "\\.bam$", full.names = TRUE))
-        if (length(bam_paths) < 1) {
-            stop("No BAM files were found in bam_dir.", call. = FALSE)
-        }
-        aliases <- unname(vapply(bam_paths, bambu_strip_alias, character(1)))
-    } else {
-        bam_paths <- argv$bam_path
-        aliases <- if (!workflow_glue_r_arg_missing(argv$sample_alias)) {
-            argv$sample_alias
-        } else {
-            bambu_strip_alias(argv$bam_path)
-        }
+    bam_paths <- workflow_glue_r_parse_csv_list(argv$bams)
+    aliases <- workflow_glue_r_parse_csv_list(argv$aliases)
+
+    if (length(bam_paths) < 1) {
+        stop("No BAM files were provided in --bams.", call. = FALSE)
+    }
+    if (length(aliases) != length(bam_paths)) {
+        stop("Provide one alias per BAM in --bams.", call. = FALSE)
     }
 
     duplicate_bam_aliases <- unique(aliases[duplicated(aliases)])
@@ -435,8 +425,7 @@ main_run_bambu <- function(
     prepare_annotations_fn = bambu::prepareAnnotations,
     gene_expression_fn = bambu::transcriptToGeneExpression,
     write_gtf_fn = bambu::writeToGTF,
-    bamfile_list_ctor = Rsamtools::BamFileList,
-    list_files_fn = base::list.files
+    bamfile_list_ctor = Rsamtools::BamFileList
 ) {
     set.seed(42)
     suppressPackageStartupMessages({
@@ -449,8 +438,7 @@ main_run_bambu <- function(
 
     inputs <- bambu_resolve_inputs(
         argv,
-        bamfile_list_ctor = bamfile_list_ctor,
-        list_files_fn = list_files_fn
+        bamfile_list_ctor = bamfile_list_ctor
     )
     annotation_obj <- prepare_annotations_fn(argv$annotation)
     ndr_value <- bambu_resolve_ndr(argv)
