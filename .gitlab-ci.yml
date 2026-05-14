@@ -135,7 +135,8 @@ docker-run:
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --de_analysis --reference_level control --covariates batch"
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
-                  test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv
+                  test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv &&
+                  [ "$(find ${CI_PROJECT_NAME}/samples -type f -name 'gene_counts.tsv' | wc -l)" -eq 4 ]
         - if: $MATRIX_NAME == "invalid_mode"
           variables:
               NF_BEFORE_SCRIPT: ":"
