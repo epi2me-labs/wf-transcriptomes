@@ -14,7 +14,10 @@ workflow_glue_r_load(pkg_dir)
 Sys.setenv(
     WORKFLOW_GLUE_R_PACKAGE_DIR = pkg_dir,
     WORKFLOW_GLUE_R_REPO_ROOT = repo_root,
-    TEST_DATA = Sys.getenv("TEST_DATA", unset = file.path(repo_root, "test_data"))
+    TEST_DATA = Sys.getenv("TEST_DATA", unset = file.path(repo_root, "test_data")),
+    TESTTHAT_PKG = "workflowGlueR",
+    TESTTHAT_PARALLEL = "true",
+    TESTTHAT_CPUS = "8"
 )
 
 testthat_dir <- file.path(pkg_dir, "tests", "testthat")

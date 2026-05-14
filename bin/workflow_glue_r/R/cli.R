@@ -1,4 +1,4 @@
-workflow_glue_r_components <- function(env = globalenv()) {
+workflow_glue_r_components <- function(env = environment(workflow_glue_r_components)) {
     parser_suffix <- "_arg_parser"
     parser_names <- grep(
         paste0(parser_suffix, "$"),
@@ -48,7 +48,7 @@ workflow_glue_r_usage <- function(components = workflow_glue_r_components()) {
     paste(lines, collapse = "\n")
 }
 
-workflow_glue_r_cli <- function(argv = commandArgs(trailingOnly = TRUE), env = globalenv()) {
+workflow_glue_r_cli <- function(argv = commandArgs(trailingOnly = TRUE), env = environment(workflow_glue_r_components)) {
     components <- workflow_glue_r_components(env = env)
 
     if (length(argv) < 1 || argv[[1]] %in% c("-h", "--help", "help")) {

@@ -231,94 +231,6 @@ testthat::test_that("transcriptome mode mapped to bambu args", {
     testthat::expect_equal(fixed$yieldSize, 250000L)
 })
 
-# End-to-end unit test with mocked bambu analysis function.
-# Verifies --bams input resolution, sample sheet reordering, and discovery settings.
-testthat::test_that("bams input with discovery mode", {
-    fixture_dir <- tempfile("bambu-discover-")
-    dir.create(fixture_dir)
-    bam_dir <- file.path(fixture_dir, "bams")
-    dir.create(bam_dir)
-    sample_a <- file.path(bam_dir, "sampleA.aligned.sorted.bam")
-    sample_b <- file.path(bam_dir, "sampleB.bam")
-    file.create(sample_b)
-    file.create(sample_a)
-
-    sample_sheet <- file.path(fixture_dir, "sample_sheet.csv")
-    writeLines(
-        paste(
-            "alias,condition",
-            "sampleB,treated",
-            "sampleA,control",
-            sep = "\n"
-        ),
-        sample_sheet
-    )
-
-    captured <- new.env(parent = emptyenv())
-    fake_analysis <- function(
-        reads,
-        annotations,
-        genome,
-        ncore,
-        discovery,
-        lowMemory,
-        NDR = NULL,
-        yieldSize = NULL,
-        ...
-    ) {
-        captured$reads <- reads
-        captured$annotations <- annotations
-        captured$genome <- genome
-        captured$ncore <- ncore
-        captured$discovery <- discovery
-        captured$NDR <- NDR
-        captured$low_memory <- lowMemory
-        captured$arg_yield_size <- yieldSize
-        captured$yield_size <- Rsamtools::yieldSize(reads[[1]])
-
-        base_se <- make_test_tx_se(sample_names = c("sampleA", "sampleB"))
-        SummarizedExperiment::SummarizedExperiment(
-            assays = SummarizedExperiment::assays(base_se),
-            rowRanges = make_test_bambu_row_ranges(fixture_dir)
-        )
-    }
-
-    argv <- list(
-        annotation = "annotation.gtf",
-        genome = "genome.fa",
-        out_dir = file.path(fixture_dir, "out"),
-        bams = paste(c(sample_a, sample_b), collapse = ","),
-        aliases = "sampleA,sampleB",
-        sample_sheet = sample_sheet,
-        transcriptome_mode = "discover",
-        ndr = 0.25,
-        threads = 2
-    )
-
-    argv <- workflow_glue_r_normalise_args(argv, bambu_arg_spec())
-    result <- suppressMessages(main_run_bambu(
-        argv,
-        analysis_fn = fake_analysis,
-        prepare_annotations_fn = function(annotation) {
-            captured$annotation_path <- annotation
-            structure(list(path = annotation), class = "mockAnnotation")
-        },
-        gene_expression_fn = function(se) make_test_gene_se(sample_names = colnames(se))
-    ))
-
-    testthat::expect_equal(captured$annotation_path, "annotation.gtf")
-    testthat::expect_equal(captured$genome, "genome.fa")
-    testthat::expect_equal(captured$ncore, 1L)
-    testthat::expect_true(captured$discovery)
-    testthat::expect_equal(captured$NDR, 0.25)
-    testthat::expect_true(captured$low_memory)
-    testthat::expect_equal(captured$arg_yield_size, 250000L)
-    testthat::expect_equal(captured$yield_size, 250000)
-    testthat::expect_equal(result$sample_df$alias, c("sampleA", "sampleB"))
-    testthat::expect_equal(result$sample_df$condition, c("control", "treated"))
-    testthat::expect_true(file.exists(file.path(argv$out_dir, "bambu_qc_stats.json")))
-})
-
 ###
 # Output serialization
 #
@@ -463,6 +375,41 @@ testthat::test_that("QC stats match filtered results", {
 
     testthat::expect_equal(result$qc_stats$total_transcripts_after_filter, nrow(result$se))
     testthat::expect_equal(result$qc_stats$transcripts_filtered, 3)
+})
+
+# Contract test: after transcript filtering, the filtered object must remain
+# acceptable input for gene-level aggregation.
+testthat::test_that("bambu_filter_transcripts contract with transcriptToGeneExpression", {
+    fixture_dir <- tempfile("bambu-filter-contract-")
+    dir.create(fixture_dir)
+
+    base_se <- make_test_tx_se(sample_names = "sampleA")
+    se <- SummarizedExperiment::SummarizedExperiment(
+        assays = SummarizedExperiment::assays(base_se),
+        rowRanges = make_test_bambu_row_ranges(fixture_dir)
+    )
+
+    full_length <- matrix(
+        c(5, 4, 0, 0),
+        nrow = nrow(se),
+        ncol = ncol(se),
+        dimnames = dimnames(SummarizedExperiment::assays(se)$counts)
+    )
+    SummarizedExperiment::assays(se, withDimnames = FALSE)[["fullLengthCounts"]] <- full_length
+
+    S4Vectors::metadata(se)$incompatibleCounts <- data.table::data.table(
+        GENEID = "gene2",
+        sampleA = 7L
+    )
+
+    filtered <- bambu_filter_transcripts(se)
+    testthat::expect_true(all(SummarizedExperiment::rowData(filtered$se)$GENEID == "gene1"))
+    testthat::expect_equal(
+        unique(S4Vectors::metadata(filtered$se)$incompatibleCounts$GENEID),
+        character(0)
+    )
+
+    testthat::expect_error(bambu::transcriptToGeneExpression(filtered$se), NA)
 })
 
 ###

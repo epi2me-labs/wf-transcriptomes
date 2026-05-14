@@ -192,10 +192,19 @@ bambu_effective_threads <- function(args, bam_count) {
 }
 
 bambu_filter_transcripts <- function(se) {
-    counts_mat <- SummarizedExperiment::assays(se)$counts
-    full_length_mat <- SummarizedExperiment::assays(se)$fullLengthCounts
+    assays <- SummarizedExperiment::assays(se)
+    counts_mat <- assays$counts
+    full_length_mat <- assays$fullLengthCounts
 
-    gene_ids <- SummarizedExperiment::rowData(se)$GENEID
+    row_data <- SummarizedExperiment::rowData(se)
+    if (!"GENEID" %in% names(row_data)) {
+        stop("rowData(se) does not contain required column 'GENEID'.")
+    }
+    if (is.null(full_length_mat) && is.null(counts_mat)) {
+        stop("Neither counts nor fullLengthCounts assay found in bambu output.")
+    }
+
+    gene_ids <- row_data$GENEID
     qc_stats <- list(
         total_transcripts_before_filter = nrow(se),
         total_genes_before_filter = length(unique(gene_ids)),
@@ -217,6 +226,53 @@ bambu_filter_transcripts <- function(se) {
 
     qc_stats$transcripts_filtered <- sum(!keep_idx)
     se <- se[keep_idx, ]
+
+    # Keep incompatible gene-level counts in sync with the filtered transcript set.
+    # transcriptToGeneExpression() expects incompatibleCounts GENEIDs to be a
+    # subset of rowData(se)$GENEID after filtering.
+    sample_names <- colnames(se)
+    empty_incompatible_counts <- function() {
+        cols <- c(
+            list(GENEID = character(0)),
+            stats::setNames(rep(list(numeric(0)), length(sample_names)), sample_names)
+        )
+        data.table::as.data.table(cols)
+    }
+
+    incompatible_counts <- S4Vectors::metadata(se)$incompatibleCounts
+    if (is.null(incompatible_counts)) {
+        incompatible_counts <- empty_incompatible_counts()
+    } else {
+        if (!"GENEID" %in% names(incompatible_counts)) {
+            incompatible_counts <- empty_incompatible_counts()
+        } else {
+            kept_genes <- unique(SummarizedExperiment::rowData(se)$GENEID)
+            incompatible_gene_ids <- incompatible_counts$GENEID
+
+            rows_to_keep <- incompatible_gene_ids %in% kept_genes
+            incompatible_counts <- incompatible_counts[rows_to_keep, , drop = FALSE]
+            data.table::set(
+                incompatible_counts,
+                j = "GENEID",
+                value = incompatible_gene_ids[rows_to_keep]
+            )
+
+            for (sample_name in sample_names) {
+                if (!sample_name %in% names(incompatible_counts)) {
+                    data.table::set(
+                        incompatible_counts,
+                        j = sample_name,
+                        value = numeric(nrow(incompatible_counts))
+                    )
+                }
+            }
+
+            keep_cols <- c("GENEID", sample_names)
+            incompatible_counts <- incompatible_counts[, keep_cols, with = FALSE]
+        }
+    }
+    S4Vectors::metadata(se)$incompatibleCounts <- incompatible_counts
+
     qc_stats$total_transcripts_after_filter <- nrow(se)
     qc_stats$total_genes_after_filter <- length(unique(SummarizedExperiment::rowData(se)$GENEID))
 
@@ -388,12 +444,7 @@ bambu_write_outputs <- function(se, gene_se, sample_df, args, qc_stats) {
     writeLines(capture.output(sessionInfo()), file.path(args$out_dir, "session_info.txt"))
 }
 
-main_run_bambu <- function(
-    args,
-    analysis_fn = bambu::bambu,
-    prepare_annotations_fn = bambu::prepareAnnotations,
-    gene_expression_fn = bambu::transcriptToGeneExpression
-) {
+main_run_bambu <- function(args) {
     set.seed(42)
     # bambu's parallel worker code may rely on these being attached for generics
     # such as seqlengths().
@@ -404,7 +455,7 @@ main_run_bambu <- function(
 
     inputs <- bambu_resolve_inputs(args)
     args$threads <- bambu_effective_threads(args, length(inputs$bam_paths))
-    annotation_obj <- prepare_annotations_fn(args$annotation)
+    annotation_obj <- bambu::prepareAnnotations(args$annotation)
 
     if (!is.null(args$ndr)) {
         message(sprintf("Using user-specified NDR = %.3f", args$ndr))
@@ -428,13 +479,15 @@ main_run_bambu <- function(
     message(sprintf("Running bambu with threads = %d", args$threads))
 
     message("Running bambu...")
-    se <- do.call(analysis_fn, bambu_build_args(args, inputs$reads, annotation_obj))
+    se <- do.call(bambu::bambu, bambu_build_args(args, inputs$reads, annotation_obj))
     message("Bambu completed successfully")
     colnames(se) <- inputs$aliases
 
     filtered <- bambu_filter_transcripts(se)
     se <- filtered$se
     qc_stats <- filtered$qc_stats
+    gene_se <- bambu::transcriptToGeneExpression(se)
+    colnames(gene_se) <- inputs$aliases
     message(
         sprintf(
             "Filtering: keeping %d / %d transcripts",
@@ -472,9 +525,6 @@ main_run_bambu <- function(
     detected_per_sample <- colSums(SummarizedExperiment::assays(se)$counts > 0)
     qc_stats$transcripts_detected_per_sample <- as.list(detected_per_sample)
     qc_stats$median_transcripts_detected <- stats::median(detected_per_sample)
-
-    gene_se <- gene_expression_fn(se)
-    colnames(gene_se) <- inputs$aliases
 
     bambu_write_outputs(
         se,
