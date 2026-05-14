@@ -96,12 +96,6 @@
           "type": "boolean",
           "default": false,
           "description": "Set this for direct RNA sequencing libraries."
-        },
-        "cdna_preprocess": {
-          "type": "boolean",
-          "default": false,
-          "description": "Apply the optional cDNA preprocessing stage before alignment.",
-          "help_text": "This is only relevant for cDNA libraries and must not be combined with `--direct_rna`."
         }
       },
       "required": [
@@ -198,26 +192,6 @@
         "ndr": {
           "type": "number",
           "description": "Optional bambu novel discovery rate override."
-        },
-        "cdna_kit": {
-          "type": "string",
-          "default": "SQK-PCS109",
-          "description": "ONT cDNA kit identifier used for pychopper preprocessing.",
-          "help_text": "Only used when `--cdna_preprocess` is enabled. The workflow derives the pychopper kit code from this value."
-        },
-        "pychopper_backend": {
-          "type": "string",
-          "default": "edlib",
-          "enum": [
-            "edlib",
-            "phmm"
-          ],
-          "description": "Primer-detection backend to use for pychopper preprocessing."
-        },
-        "pychopper_opts": {
-          "type": "string",
-          "default": "",
-          "description": "Extra command-line options to pass to pychopper."
         },
         "skip_sqanti": {
           "type": "boolean",

@@ -217,25 +217,6 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     assert any("GRCh38" in table.to_string() for table in tables)
 
 
-def test_pychopper_tables_uses_sample_directory_names(tmp_path):
-    """Pychopper summaries should be keyed by sample alias."""
-    pychopper_dir = tmp_path / "pychopper"
-    sample_dir = pychopper_dir / "sampleA_pychopper_output"
-    sample_dir.mkdir(parents=True)
-    _write(
-        sample_dir / "pychopper_summary.tsv",
-        "Classification\tValue\nFull length\t10\nUnclassified\t2\n",
-    )
-
-    tables = report._pychopper_tables(pychopper_dir)
-
-    assert list(tables) == ["sampleA"]
-    assert list(tables["sampleA"]["Classification"]) == [
-        "Full length",
-        "Unclassified",
-    ]
-
-
 def test_report_main_renders_statistical_methods_and_warnings(
     monkeypatch,
     tmp_path,

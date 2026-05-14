@@ -149,20 +149,38 @@ de_extract_disp_gene_est <- function(object) {
     S4Vectors::mcols(object)$dispGeneEst
 }
 
+# DESeq2's default geometric-mean size-factor estimator is undefined when
+# every gene has at least one zero across samples, so use poscounts then.
+de_choose_size_factor_type <- function(count_mat, context_label = "Count matrix") {
+    if (all(rowSums(count_mat == 0) > 0)) {
+        warning(
+            context_label,
+            " has every gene containing at least one zero; using DESeq2 size-factor estimation with sfType='poscounts'."
+        )
+        return("poscounts")
+    }
+    "ratio"
+}
+
 de_run_deseq_with_fallback <- function(
     dds,
     contrast_name,
     out_dir
 ) {
+    sf_type <- de_choose_size_factor_type(
+        DESeq2::counts(dds),
+        context_label = paste0("DGE count matrix for ", contrast_name)
+    )
     fallback_info <- list(
         applied = FALSE,
         method_used = "parametric",
         reason = NULL,
-        diagnostic_file = NULL
+        diagnostic_file = NULL,
+        size_factor_type = sf_type
     )
 
     de_out <- tryCatch(
-        DESeq2::DESeq(dds, quiet = TRUE),
+        DESeq2::DESeq(dds, quiet = TRUE, sfType = sf_type),
         error = function(err) {
             if (!grepl(
                 "all gene-wise dispersion estimates are within 2 orders of magnitude",
@@ -184,7 +202,7 @@ de_run_deseq_with_fallback <- function(
                 "Results will have reduced power and wider confidence intervals."
             )
 
-            dds <- DESeq2::estimateSizeFactors(dds)
+            dds <- DESeq2::estimateSizeFactors(dds, type = sf_type)
             dds <- DESeq2::estimateDispersionsGeneEst(dds)
             dds <- de_set_dispersions(dds, de_extract_disp_gene_est(dds))
 
@@ -242,7 +260,8 @@ de_run_deseq_with_fallback <- function(
                 applied = TRUE,
                 method_used = "gene-wise",
                 reason = conditionMessage(err),
-                diagnostic_file = basename(diag_file)
+                diagnostic_file = basename(diag_file),
+                size_factor_type = sf_type
             )
 
             DESeq2::nbinomWaldTest(dds)
@@ -391,6 +410,17 @@ de_run_deseq2_result <- function(
     )
 }
 
+de_estimate_size_factors_for_dexseq <- function(dxd, count_mat, coldata, sf_type) {
+    sf_dds <- DESeq2::DESeqDataSetFromMatrix(
+        countData = round(count_mat),
+        colData = coldata,
+        design = ~ 1
+    )
+    sf_dds <- DESeq2::estimateSizeFactors(sf_dds, type = sf_type)
+    DESeq2::sizeFactors(dxd) <- DESeq2::sizeFactors(sf_dds)
+    dxd
+}
+
 de_run_dexseq_result <- function(
     tx_counts,
     tx_meta,
@@ -424,7 +454,16 @@ de_run_dexseq_result <- function(
                 featureID = tx_meta$TXNAME,
                 groupID = tx_meta$GENEID
             )
-            dxd <- DESeq2::estimateSizeFactors(dxd)
+            dexseq_sf_type <- de_choose_size_factor_type(
+                round(tx_counts),
+                context_label = "DEXSeq transcript count matrix"
+            )
+            dxd <- de_estimate_size_factors_for_dexseq(
+                dxd,
+                tx_counts,
+                coldata,
+                dexseq_sf_type
+            )
             dispersion_result <- de_estimate_dispersions_with_fallback(
                 dxd,
                 "DEXSeq",
@@ -446,7 +485,8 @@ de_run_dexseq_result <- function(
                 dxd = dxd,
                 dxr = dxr,
                 dexseq_dispersion_method = dispersion_method,
-                dexseq_dispersion_reason = dispersion_reason
+                dexseq_dispersion_reason = dispersion_reason,
+                dexseq_size_factor_type = dexseq_sf_type
             )
         }, error = function(err) {
             if (length(active_covariates) == 0 || !grepl(
@@ -592,12 +632,14 @@ main_run_de_analysis <- function(argv) {
             n_samples = nrow(contrast_samples),
             n_target = sum(contrast_samples[[argv$condition_column]] == target_level),
             n_reference = sum(contrast_samples[[argv$condition_column]] == reference_level),
+            deseq2_size_factor_method = "ratio",
             deseq2_dispersion_fallback = list(
                 applied = FALSE,
                 method_used = "parametric",
                 reason = NULL,
                 diagnostic_file = NULL
             ),
+            dexseq_size_factor_method = "ratio",
             dexseq_dispersion_method = "parametric",
             dexseq_covariates_dropped = list()
         )
@@ -631,6 +673,9 @@ main_run_de_analysis <- function(argv) {
             fallback_method <- fallback$method_used
             if (is.null(fallback_method) || identical(fallback_method, "")) {
                 fallback_method <- if (fallback_applied) "gene-wise" else "parametric"
+            }
+            if (!is.null(fallback$size_factor_type) && !identical(fallback$size_factor_type, "")) {
+                contrast_qc$deseq2_size_factor_method <- fallback$size_factor_type
             }
             contrast_qc$deseq2_dispersion_fallback <- list(
                 applied = fallback_applied,
@@ -737,6 +782,9 @@ main_run_de_analysis <- function(argv) {
             contrast_qc$dtu_significant_transcripts <- 0
             contrast_qc$dtu_significant_genes <- 0
         } else {
+            if (!is.null(dex_res$dexseq_size_factor_type) && !identical(dex_res$dexseq_size_factor_type, "")) {
+                contrast_qc$dexseq_size_factor_method <- dex_res$dexseq_size_factor_type
+            }
             if (!is.null(dex_res$dexseq_dispersion_method)) {
                 contrast_qc$dexseq_dispersion_method <- dex_res$dexseq_dispersion_method
             }
@@ -808,6 +856,7 @@ main_run_de_analysis <- function(argv) {
             "",
             "DGE Results:",
             sprintf("  Genes tested: %d", contrast_qc$genes_tested),
+            sprintf("  Size factor method: %s", contrast_qc$deseq2_size_factor_method),
             sprintf("  Significant (FDR < 0.05): %d", contrast_qc$dge_significant_fdr05),
             sprintf("  Significant (FDR < 0.01): %d", contrast_qc$dge_significant_fdr01),
             sprintf("  Upregulated: %d", contrast_qc$dge_upregulated),
@@ -816,6 +865,7 @@ main_run_de_analysis <- function(argv) {
             "DTU Results:",
             sprintf("  Status: %s", contrast_qc$dtu_status),
             sprintf("  Transcripts tested: %d", contrast_qc$transcripts_tested),
+            sprintf("  Size factor method: %s", contrast_qc$dexseq_size_factor_method),
             if (contrast_qc$dtu_status == "SUCCESS") {
                 c(
                     sprintf(
@@ -842,6 +892,10 @@ main_run_de_analysis <- function(argv) {
         function(cqc) identical(cqc$deseq2_dispersion_fallback$method_used, "gene-wise"),
         de_qc_stats$contrasts
     ))
+    deseq2_poscounts <- names(Filter(
+        function(cqc) identical(cqc$deseq2_size_factor_method, "poscounts"),
+        de_qc_stats$contrasts
+    ))
     dexseq_non_parametric <- names(Filter(
         function(cqc) {
             method <- cqc$dexseq_dispersion_method
@@ -851,6 +905,10 @@ main_run_de_analysis <- function(argv) {
     ))
     dexseq_gene_wise <- names(Filter(
         function(cqc) identical(cqc$dexseq_dispersion_method, "gene-wise"),
+        de_qc_stats$contrasts
+    ))
+    dexseq_poscounts <- names(Filter(
+        function(cqc) identical(cqc$dexseq_size_factor_method, "poscounts"),
         de_qc_stats$contrasts
     ))
     dexseq_covariate_drop <- names(Filter(
@@ -867,10 +925,14 @@ main_run_de_analysis <- function(argv) {
         deseq2_dispersion_fallback_contrast_names = as.list(deseq2_dispersion_fallbacks),
         deseq2_gene_wise_contrasts = length(deseq2_gene_wise),
         deseq2_gene_wise_contrast_names = as.list(deseq2_gene_wise),
+        deseq2_poscounts_contrasts = length(deseq2_poscounts),
+        deseq2_poscounts_contrast_names = as.list(deseq2_poscounts),
         dexseq_non_parametric_dispersion_contrasts = length(dexseq_non_parametric),
         dexseq_non_parametric_dispersion_contrast_names = as.list(dexseq_non_parametric),
         dexseq_gene_wise_dispersion_contrasts = length(dexseq_gene_wise),
         dexseq_gene_wise_dispersion_contrast_names = as.list(dexseq_gene_wise),
+        dexseq_poscounts_contrasts = length(dexseq_poscounts),
+        dexseq_poscounts_contrast_names = as.list(dexseq_poscounts),
         dexseq_covariate_drop_contrasts = length(dexseq_covariate_drop),
         dexseq_covariate_drop_contrast_names = as.list(dexseq_covariate_drop),
         total_covariates_dropped = total_covariates_dropped
@@ -910,7 +972,9 @@ main_run_de_analysis <- function(argv) {
                 sprintf("  %s:", cname),
                 sprintf("    Samples: %d (%d vs %d)", cqc$n_samples, cqc$n_target, cqc$n_reference),
                 sprintf("    DGE significant: %d genes (FDR<0.05)", cqc$dge_significant_fdr05),
+                sprintf("    DESeq2 size factors: %s", cqc$deseq2_size_factor_method),
                 sprintf("    DTU status: %s", cqc$dtu_status),
+                sprintf("    DEXSeq size factors: %s", cqc$dexseq_size_factor_method),
                 if (cqc$dtu_status == "SUCCESS") sprintf("    DTU significant: %d genes", cqc$dtu_significant_genes) else NULL
             )
         }),

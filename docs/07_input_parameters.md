@@ -17,7 +17,6 @@
 | ref_annotation | string | Reference transcript annotation in GTF or GFF format. | Required in both discover and fixed_annotation modes. |  |
 | transcriptome_mode | string | How bambu should prepare the transcriptome model. | Use discover for reference-guided transcript discovery and quantification, or fixed_annotation for quantification only against the supplied annotation. | discover |
 | direct_rna | boolean | Set this for direct RNA sequencing libraries. |  | False |
-| cdna_preprocess | boolean | Apply the optional cDNA preprocessing stage before alignment. | This is only relevant for cDNA libraries and must not be combined with `--direct_rna`. | False |
 
 
 ### Sample Options
@@ -53,9 +52,6 @@
 | threads | integer | Thread count to use for the core workflow processes. |  | 4 |
 | minimap2_opts | string | Extra command-line options to pass to minimap2. |  |  |
 | ndr | number | Optional bambu novel discovery rate override. |  |  |
-| cdna_kit | string | ONT cDNA kit identifier used for pychopper preprocessing. | Only used when `--cdna_preprocess` is enabled. The workflow derives the pychopper kit code from this value. | SQK-PCS109 |
-| pychopper_backend | string | Primer-detection backend to use for pychopper preprocessing. |  | edlib |
-| pychopper_opts | string | Extra command-line options to pass to pychopper. |  |  |
 | skip_sqanti | boolean | Skip SQANTI3 transcript classification and QC. |  | False |
 | sqanti_skip_orf | boolean | Skip ORF prediction during SQANTI3 QC. |  | True |
 | sqanti_extra_args | string | Extra command-line options to pass to SQANTI3. |  |  |

@@ -9,7 +9,7 @@ process prepareAnnotationReference {
     memory "6 GB"
     input:
         path ref_annotation
-        path ref_genome
+        tuple path(ref), path(ref_idx)
     output:
         stdout emit: warnings
         path "annotation.gtf", emit: annotation
@@ -20,51 +20,9 @@ process prepareAnnotationReference {
     """
     workflow-glue prepare_annotation_reference \
         --annotation "${ref_annotation}" \
-        --reference "${ref_genome}" \
+        --reference "${ref}" \
         --out_dir prepared
     mv prepared/* .
-    """
-}
-
-
-process buildMinimapIndex {
-    label "wf_transcriptomes"
-    cpus 4
-    memory "32 GB"
-    input:
-        path reference
-    output:
-        tuple path("genome.mmi"), path(reference), emit: index
-    script:
-        String index_opts = params.minimap2_index_opts ?: ""
-    """
-    minimap2 -t ${task.cpus} ${index_opts} -d genome.mmi "${reference}"
-    """
-}
-
-
-process alignReads {
-    label "wf_transcriptomes"
-    cpus { params.threads ?: 4 }
-    memory "16 GB"
-    input:
-        tuple val(meta), path(reads), path(index), path(reference)
-    output:
-        tuple val(meta),
-            path("${meta.alias}.aligned.sorted.bam"),
-            path("${meta.alias}.aligned.sorted.bam.bai"),
-            path("${meta.alias}.flagstat.txt"),
-            emit: bam
-    script:
-        String preset = params.direct_rna ? "-ax splice -uf -k14" : "-ax splice -uf"
-        String extra = params.minimap2_opts ?: ""
-        def read_args = reads instanceof java.util.ArrayList ? reads.join(" ") : reads
-        int sort_threads = Math.max(task.cpus as int - 1, 1)
-    """
-    minimap2 -t ${task.cpus} ${preset} ${extra} "${index}" ${read_args} \
-        | samtools sort --write-index -@ ${sort_threads} \
-            -o "${meta.alias}.aligned.sorted.bam##idx##${meta.alias}.aligned.sorted.bam.bai" -
-    samtools flagstat "${meta.alias}.aligned.sorted.bam" > "${meta.alias}.flagstat.txt"
     """
 }
 
@@ -74,8 +32,7 @@ process runJointBambu {
     cpus { params.threads ?: 4 }
     memory "32 GB"
     input:
-        path bam_files, stageAs: "bams/*"
-        path bam_indexes, stageAs: "bams/*"
+        tuple val(aliases), path(bams, stageAs: "bams/??.bam"), path(bais, stageAs: "bams/??.bam.bai")
         path sample_sheet
         path annotation, stageAs: "annotation/*"
         path reference, stageAs: "reference/*"
@@ -88,11 +45,16 @@ process runJointBambu {
         path "cohort/bambu_genes.rds", emit: gene_rds
         path "cohort/transcript_metadata.tsv", emit: transcript_metadata
     script:
+        def bam_list = bams instanceof Collection ? bams : [bams]  // todo dont run joint on single sample anyway
+        def alias_list = aliases instanceof Collection ? aliases : [aliases]
+        String bams_arg = "--bams '${bam_list.join(",")}'"
+        String aliases_arg = "--aliases '${alias_list.join(",")}'"
         String sample_sheet_arg = sample_sheet.name == OPTIONAL_FILE.name ? "" : "--sample_sheet ${sample_sheet}"
         String ndr_arg = params.ndr != null ? "--ndr ${params.ndr}" : ""
     """
     supeRglue bambu \
-        --bam_dir bams \
+        ${bams_arg} \
+        ${aliases_arg} \
         ${sample_sheet_arg} \
         --annotation "${annotation}" \
         --genome "${reference}" \
@@ -109,7 +71,7 @@ process runPerSampleBambu {
     cpus { params.threads ?: 4 }
     memory "24 GB"
     input:
-        tuple val(meta), path(bam), path(bai), path(flagstat)
+        tuple val(meta), path(bam), path(bai), path(stats)
         path annotation, stageAs: "annotation/*"
         path reference, stageAs: "reference/*"
     output:
@@ -121,11 +83,13 @@ process runPerSampleBambu {
         tuple val(meta), path("${meta.alias}/bambu_genes.rds"), emit: gene_rds
         tuple val(meta), path("${meta.alias}/transcript_metadata.tsv"), emit: transcript_metadata
     script:
+        String bams_arg = "--bams '${bam.toString()}'"
+        String aliases_arg = "--aliases '${meta.alias}'"
         String ndr_arg = params.ndr != null ? "--ndr ${params.ndr}" : ""
     """
     supeRglue bambu \
-        --bam_path "${bam}" \
-        --sample_alias "${meta.alias}" \
+        ${bams_arg} \
+        ${aliases_arg} \
         --annotation "${annotation}" \
         --genome "${reference}" \
         --transcriptome_mode "${params.transcriptome_mode}" \
@@ -234,40 +198,9 @@ process runPerSampleSqanti {
 }
 
 
-process faidx {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "4 GB"
-    input:
-        path ref
-    output:
-        path("${ref}.fai"), emit: fai
-    script:
-    """
-    samtools faidx "${ref}"
-    """
-}
-
-
-process gzFaidx {
-    label "wf_transcriptomes"
-    cpus 1
-    memory "4 GB"
-    errorStrategy "ignore"
-    input:
-        path ref
-    output:
-        tuple path("${ref}.fai"), path("${ref}.gzi"), emit: indexes
-    script:
-    """
-    samtools faidx "${ref}"
-    """
-}
-
-
 workflow transcriptome_analysis {
     take:
-        reads
+        alignments
         ref_genome
         ref_annotation
         sample_sheet
@@ -281,22 +214,23 @@ workflow transcriptome_analysis {
         analysis_annotation = prepared_reference_annotation.annotation
         analysis_reference = prepared_reference_annotation.reference
 
-        genome_index = buildMinimapIndex(analysis_reference)
-
-        aligned = alignReads(
-            reads.map { meta, sample_reads, stats -> [meta, sample_reads] }
-                .combine(genome_index.index)
-        )
-
         joint_bambu = runJointBambu(
-            aligned.bam.map { meta, bam, bai, flagstat -> bam }.collect(),
-            aligned.bam.map { meta, bam, bai, flagstat -> bai }.collect(),
+            alignments
+            | collect(flat: false)
+            | map { rows ->
+                // transform [meta, bam, bai] to [[alias1...aliasN], [bam1...bamN], [bai1...baiN]]
+                tuple(
+                    rows.collect { it[0].alias },
+                    rows.collect { it[1] },
+                    rows.collect { it[2] }
+                )
+            },
             sample_sheet,
             analysis_annotation,
             analysis_reference
         )
 
-        sample_bambu = runPerSampleBambu(aligned.bam, analysis_annotation, analysis_reference)
+        sample_bambu = runPerSampleBambu(alignments, analysis_annotation, analysis_reference)
 
         joint_fasta = buildCohortTranscriptomeFasta(joint_bambu.gtf, analysis_reference)
         sample_fastas = buildSampleTranscriptomeFasta(sample_bambu.gtf, analysis_reference)
@@ -311,22 +245,10 @@ workflow transcriptome_analysis {
             sample_sqanti_dirs = sample_sqanti.dir
         }
 
-        compressed_reference = params.ref_genome.toLowerCase().endsWith("gz")
-        if (compressed_reference) {
-            ref_indexes = gzFaidx(ref_genome)
-            reference_fai = ref_indexes.indexes.map { fai, gzi -> fai }
-            reference_gzi = ref_indexes.indexes.map { fai, gzi -> gzi }
-        } else {
-            ref_indexes = faidx(ref_genome)
-            reference_fai = ref_indexes.fai
-            reference_gzi = Channel.empty()
-        }
     emit:
-        reference = ref_genome
         annotation = ref_annotation
         annotation_reference_summary = prepared_reference_annotation.summary
         unstranded_annotation = prepared_reference_annotation.unstranded
-        alignments = aligned.bam
         joint_dir = joint_bambu.dir
         joint_gtf = joint_bambu.gtf
         joint_fasta = joint_fasta.fasta
@@ -345,6 +267,4 @@ workflow transcriptome_analysis {
         sample_metadata = sample_bambu.transcript_metadata
         joint_sqanti_dir = joint_sqanti_dir
         sample_sqanti_dirs = sample_sqanti_dirs
-        reference_fai = reference_fai
-        reference_gzi = reference_gzi
 }

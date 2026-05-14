@@ -6,32 +6,31 @@
 #' (bin/workflow_glue/prepare_annotation_reference.py) with pytest coverage.
 #' These tests focus on bambu-specific validation and integration.
 
-# Workflow must accept exactly one of --bam_dir or --bam_path, not both, not neither.
+# Workflow requires explicit BAM paths and aliases.
 # Fail fast with clear error rather than passing invalid inputs to bambu.
-testthat::test_that("exactly one BAM input required", {
+testthat::test_that("BAM inputs required", {
     args <- list(
         annotation = "annotation.gtf",
         genome = "genome.fa",
         out_dir = tempfile("bambu-out-"),
-        bam_dir = NULL,
-        bam_path = NULL,
+        bams = NULL,
+        aliases = NULL,
         transcriptome_mode = "discover",
         ndr = NULL
     )
 
     testthat::expect_error(
         bambu_validate_args(args),
-        "Provide exactly one of --bam_dir or --bam_path"
+        "Missing required arguments: --bams"
     )
 
-    args$bam_dir <- tempfile("bam-dir-")
-    args$bam_path <- "sample.bam"
+    args$bams <- "sampleA.bam"
     testthat::expect_error(
         bambu_validate_args(args),
-        "Provide exactly one of --bam_dir or --bam_path"
+        "Missing required arguments: --aliases"
     )
 
-    args$bam_path <- NULL
+    args$aliases <- "sampleA"
     testthat::expect_silent(bambu_validate_args(args))
 })
 
@@ -42,8 +41,8 @@ testthat::test_that("invalid discovery settings rejected", {
         annotation = "annotation.gtf",
         genome = "genome.fa",
         out_dir = tempfile("bambu-out-"),
-        bam_dir = tempfile("bam-dir-"),
-        bam_path = NULL,
+        bams = "sampleA.bam",
+        aliases = "sampleA",
         transcriptome_mode = "novel",
         ndr = NULL
     )
@@ -72,48 +71,26 @@ testthat::test_that("invalid discovery settings rejected", {
     testthat::expect_silent(bambu_validate_args(args))
 })
 
-# Derive clean sample aliases from BAM filenames by removing workflow-specific suffixes.
-testthat::test_that("BAM suffixes stripped from aliases", {
-    testthat::expect_equal(
-        bambu_strip_alias("/tmp/sample.aligned.sorted.bam"),
-        "sample"
-    )
-    testthat::expect_equal(
-        bambu_strip_alias("/tmp/sample.bam"),
-        "sample"
-    )
-})
-
-# Fail fast if --bam_dir contains no BAM files rather than passing empty input to bambu.
-testthat::test_that("empty BAM directory rejected", {
-    bam_dir <- tempfile("empty-bam-dir-")
-    dir.create(bam_dir)
+# Fail fast if --bams is empty rather than passing empty input to bambu.
+testthat::test_that("empty BAM list rejected", {
     args <- list(
-        bam_dir = bam_dir,
-        bam_path = NULL,
-        sample_alias = NULL,
+        bams = "",
+        aliases = "",
         sample_sheet = NULL
     )
 
     testthat::expect_error(
         bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
-        "No BAM files were found in bam_dir"
+        "No BAM files were provided in --bams"
     )
 })
 
 # Sample aliases must be unique and explicitly specified.
-# Derived aliases (from filenames) can collide: sample.bam vs sample.aligned.sorted.bam.
 # Sample sheets must have an 'alias' column with unique values that match BAM inputs.
 testthat::test_that("unique sample aliases required", {
-    bam_dir <- tempfile("ambiguous-bam-dir-")
-    dir.create(bam_dir)
-    file.create(file.path(bam_dir, "sample.bam"))
-    file.create(file.path(bam_dir, "sample.aligned.sorted.bam"))
-
     args <- list(
-        bam_dir = bam_dir,
-        bam_path = NULL,
-        sample_alias = NULL,
+        bams = "sampleA.bam,sampleB.bam",
+        aliases = "sampleA,sampleA",
         sample_sheet = NULL
     )
     testthat::expect_error(
@@ -121,8 +98,11 @@ testthat::test_that("unique sample aliases required", {
         "BAM aliases must be unique"
     )
 
-    sample_bam <- tempfile(fileext = ".bam")
-    file.create(sample_bam)
+    args$aliases <- "sampleA"
+    testthat::expect_error(
+        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
+        "Provide one alias per BAM in --bams"
+    )
     missing_alias_sheet <- tempfile(fileext = ".csv")
     writeLines(
         paste(
@@ -133,9 +113,8 @@ testthat::test_that("unique sample aliases required", {
         missing_alias_sheet
     )
     args <- list(
-        bam_dir = NULL,
-        bam_path = sample_bam,
-        sample_alias = "sampleA",
+        bams = "sampleA.bam",
+        aliases = "sampleA",
         sample_sheet = missing_alias_sheet
     )
     testthat::expect_error(
@@ -161,14 +140,9 @@ testthat::test_that("unique sample aliases required", {
 })
 
 # Sample sheet rows must align with BAM file order.
-# If sheet lists samples in different order than filesystem, reorder sheet to match.
+# If sheet lists samples in different order than CLI aliases, reorder sheet to match.
 # If sheet is missing aliases found in BAMs, fail.
 testthat::test_that("sample sheet reordered to match BAMs", {
-    bam_dir <- tempfile("bam-dir-")
-    dir.create(bam_dir)
-    file.create(file.path(bam_dir, "sampleA.aligned.sorted.bam"))
-    file.create(file.path(bam_dir, "sampleB.bam"))
-
     sample_sheet <- tempfile(fileext = ".csv")
     writeLines(
         paste(
@@ -181,9 +155,8 @@ testthat::test_that("sample sheet reordered to match BAMs", {
     )
 
     args <- list(
-        bam_dir = bam_dir,
-        bam_path = NULL,
-        sample_alias = NULL,
+        bams = "sampleA.aligned.sorted.bam,sampleB.bam",
+        aliases = "sampleA,sampleB",
         sample_sheet = sample_sheet
     )
     resolved <- bambu_resolve_inputs(
@@ -239,8 +212,8 @@ testthat::test_that("transcriptome mode mapped to bambu args", {
 })
 
 # End-to-end unit test with mocked bambu analysis function.
-# Verifies --bam_dir input resolution, sample sheet reordering, and discovery settings.
-testthat::test_that("bam_dir input with discovery mode", {
+# Verifies --bams input resolution, sample sheet reordering, and discovery settings.
+testthat::test_that("bams input with discovery mode", {
     fixture_dir <- tempfile("bambu-discover-")
     dir.create(fixture_dir)
     bam_dir <- file.path(fixture_dir, "bams")
@@ -281,9 +254,8 @@ testthat::test_that("bam_dir input with discovery mode", {
         annotation = "annotation.gtf",
         genome = "genome.fa",
         out_dir = file.path(fixture_dir, "out"),
-        bam_dir = bam_dir,
-        bam_path = NULL,
-        sample_alias = NULL,
+        bams = paste(c(sample_a, sample_b), collapse = ","),
+        aliases = "sampleA,sampleB",
         sample_sheet = sample_sheet,
         transcriptome_mode = "discover",
         ndr = 0.25,
@@ -492,10 +464,10 @@ testthat::test_that("QC stats match filtered results", {
 #
 # End-to-end tests with real bambu library (not mocked):
 # - Build BAMs from committed fixtures (reference.fa, annotation.gtf, reads.fastq)
-# - Run `supeRglue bambu` with both --bam_path and --bam_dir inputs
+# - Run `supeRglue bambu` with --bams input
 # - Verify output files exist and contain data for downstream workflow steps
 
-testthat::test_that("CLI single BAM input with fixed annotation", {
+testthat::test_that("CLI single BAM in bams input with fixed annotation", {
     fixture_dir <- tempfile("bambu-cli-")
     dir.create(fixture_dir)
 
@@ -510,8 +482,8 @@ testthat::test_that("CLI single BAM input with fixed annotation", {
         "supeRglue",
         c(
             "bambu",
-            "--bam_path", bam_path,
-            "--sample_alias", "sampleA",
+            "--bams", bam_path,
+            "--aliases", "sampleA",
             "--sample_sheet", sample_sheet,
             "--annotation", annotation,
             "--genome", reference,
@@ -546,7 +518,7 @@ testthat::test_that("CLI single BAM input with fixed annotation", {
     testthat::expect_gt(nrow(gene_counts), 0)
 })
 
-testthat::test_that("CLI bam_dir input preserves sample order", {
+testthat::test_that("CLI bams input preserves sample order", {
     fixture_dir <- tempfile("bambu-cli-dir-")
     dir.create(fixture_dir)
     bam_dir <- file.path(fixture_dir, "bams")
@@ -573,7 +545,14 @@ testthat::test_that("CLI bam_dir input preserves sample order", {
         "supeRglue",
         c(
             "bambu",
-            "--bam_dir", bam_dir,
+            "--bams", paste(
+                c(
+                    file.path(bam_dir, "sampleA.aligned.sorted.bam"),
+                    file.path(bam_dir, "sampleB.aligned.sorted.bam")
+                ),
+                collapse = ","
+            ),
+            "--aliases", "sampleA,sampleB",
             "--sample_sheet", sample_sheet,
             "--annotation", annotation,
             "--genome", reference,
