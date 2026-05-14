@@ -118,6 +118,71 @@ make_test_tx_se <- function(include_geneid = TRUE, sample_names = NULL) {
     )
 }
 
+#' Create bambu-style transcript row ranges for output-writing tests.
+#'
+#' `bambu::writeToGTF()` expects a `GRangesList` shaped like the object
+#' returned by `bambu::prepareAnnotations()`. This helper writes a minimal GTF
+#' and returns that object with metadata columns used by test assertions.
+#'
+#' @param out_dir Directory where temporary annotation fixture is written.
+#' @return A GRangesList with tx1-tx4 transcript entries and metadata.
+#' @export
+make_test_bambu_row_ranges <- function(out_dir) {
+    gtf <- file.path(out_dir, "annotation.gtf")
+    writeLines(
+        c(
+            paste(
+                "chr1", "test", "transcript", "1", "50", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx1";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "exon", "1", "50", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx1"; exon_number "1";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "transcript", "101", "150", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx2";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "exon", "101", "150", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx2"; exon_number "1";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "transcript", "201", "250", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx3";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "exon", "201", "250", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx3"; exon_number "1";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "transcript", "301", "350", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx4";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "exon", "301", "350", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx4"; exon_number "1";',
+                sep = "\t"
+            )
+        ),
+        gtf
+    )
+
+    row_ranges <- bambu::prepareAnnotations(gtf)[c("tx1", "tx2", "tx3", "tx4")]
+    S4Vectors::mcols(row_ranges)$TXNAME <- names(row_ranges)
+    S4Vectors::mcols(row_ranges)$GENEID <- c("gene1", "gene1", "gene2", "gene2")
+    S4Vectors::mcols(row_ranges)$eqClassById <- IRanges::CharacterList(list(c("1", "2"), "3", "4", "5"))
+
+    row_ranges
+}
+
 #' Create a test gene-level SummarizedExperiment by aggregating a transcript-level SummarizedExperiment.
 #' @param sample_names Optional vector of sample names to use as column names.
 #' @return A SummarizedExperiment object with synthetic gene-level data.

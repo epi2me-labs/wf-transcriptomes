@@ -8,7 +8,7 @@
 # Covariates CLI arg is comma-separated string with possible whitespace/empty values.
 testthat::test_that("covariates parsed and trimmed", {
     testthat::expect_equal(
-        de_parse_covariates(" batch, sex ,, site "),
+        workflow_glue_r_parse_csv_list(" batch, sex ,, site "),
         c("batch", "sex", "site")
     )
 })
@@ -26,6 +26,7 @@ testthat::test_that("sample sheet structure validated", {
         covariates = "batch",
         reference_level = NULL
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     missing_alias <- data.frame(condition = rep(c("control", "treated"), each = 3))
     testthat::expect_error(
@@ -78,6 +79,7 @@ testthat::test_that("formula-unsafe column names rejected", {
         covariates = "batch",
         reference_level = NULL
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     testthat::expect_error(
         de_validate_inputs(tx_se, gene_se, sample_df, argv),
@@ -150,6 +152,7 @@ testthat::test_that("non-syntactic aliases allowed, sheets reordered", {
         covariates = "batch",
         reference_level = "control"
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     validated <- de_validate_inputs(tx_se, gene_se, sample_df, argv)
 
@@ -173,6 +176,7 @@ testthat::test_that("reference level defaults to control", {
         covariates = "batch",
         reference_level = NULL
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
     sample_df <- data.frame(
         alias = colnames(tx_se),
         condition = rep(c("control", "treated"), each = 3),
@@ -220,6 +224,7 @@ testthat::test_that("explicit reference level required without control", {
         covariates = "batch",
         reference_level = NULL
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     testthat::expect_error(
         de_validate_inputs(tx_se, gene_se, sample_df, argv),
@@ -246,6 +251,7 @@ testthat::test_that("unusable count data rejected", {
         covariates = "batch",
         reference_level = "control"
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
     sample_df <- data.frame(
         alias = colnames(tx_se),
         condition = rep(c("control", "treated"), each = 3),
@@ -326,6 +332,7 @@ testthat::test_that("transcript SE without GENEID rejected", {
         reference_level = "control",
         out_dir = file.path(fixture_dir, "out")
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     testthat::expect_error(
         main_run_de_analysis(argv),
@@ -369,6 +376,7 @@ testthat::test_that("underspecified designs rejected", {
         reference_level = "control",
         out_dir = file.path(fixture_dir, "out")
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     testthat::expect_error(
         suppressWarnings(main_run_de_analysis(argv)),
@@ -621,6 +629,7 @@ testthat::test_that("contrasts expanded and samples subsetted", {
             out_dir = file.path(fixture_dir, "out")
         )
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     suppressWarnings(suppressMessages(main_run_de_analysis(argv)))
 
@@ -680,6 +689,7 @@ testthat::test_that("pipe characters in transcript IDs preserved", {
             out_dir = file.path(fixture_dir, "out")
         )
     )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
 
     suppressWarnings(suppressMessages(main_run_de_analysis(argv)))
 

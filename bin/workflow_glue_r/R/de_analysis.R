@@ -1,27 +1,64 @@
-de_analysis_arg_parser <- function() {
-    parser <- argparser::arg_parser("Run DESeq2 and DEXSeq on bambu output.")
-    parser <- argparser::add_argument(parser, "--transcript_rds", help = "bambu transcript RDS.")
-    parser <- argparser::add_argument(parser, "--gene_rds", help = "bambu gene RDS.")
-    parser <- argparser::add_argument(parser, "--sample_sheet", help = "Sample sheet CSV.")
-    parser <- argparser::add_argument(
-        parser,
-        "--condition_column",
-        help = "Primary condition column.",
-        default = "condition"
+de_analysis_arg_spec <- function() {
+    list(
+        list(
+            name = "transcript_rds",
+            flag = "--transcript_rds",
+            help = "bambu transcript RDS.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "gene_rds",
+            flag = "--gene_rds",
+            help = "bambu gene RDS.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "sample_sheet",
+            flag = "--sample_sheet",
+            help = "Sample sheet CSV.",
+            type = "character",
+            required = TRUE
+        ),
+        list(
+            name = "condition_column",
+            flag = "--condition_column",
+            help = "Primary condition column.",
+            type = "character",
+            default = "condition"
+        ),
+        list(
+            name = "covariates",
+            flag = "--covariates",
+            help = "Comma-separated nuisance covariates.",
+            type = "character"
+        ),
+        list(
+            name = "reference_level",
+            flag = "--reference_level",
+            help = "Reference level for the condition column.",
+            type = "character"
+        ),
+        list(
+            name = "out_dir",
+            flag = "--out_dir",
+            help = "Output directory.",
+            type = "character",
+            default = "de_analysis"
+        )
     )
-    parser <- argparser::add_argument(parser, "--covariates", help = "Comma-separated nuisance covariates.")
-    parser <- argparser::add_argument(parser, "--reference_level", help = "Reference level for the condition column.")
-    argparser::add_argument(parser, "--out_dir", help = "Output directory.", default = "de_analysis")
 }
 
-de_parse_covariates <- function(value) {
-    workflow_glue_r_parse_csv_list(value)
+de_analysis_arg_parser <- function() {
+    workflow_glue_r_arg_parser_from_spec(
+        "Run DESeq2 and DEXSeq on bambu output.",
+        de_analysis_arg_spec()
+    )
 }
 
 de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
-    workflow_glue_r_require_args(argv, c("transcript_rds", "gene_rds", "sample_sheet"))
-
-    covariates <- de_parse_covariates(argv$covariates)
+    covariates <- workflow_glue_r_parse_csv_list(argv$covariates)
     workflow_glue_r_validate_r_formula_names(
         c(argv$condition_column, covariates),
         label = "Design column"
@@ -107,7 +144,7 @@ de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
     }
 
     reference_level <- argv$reference_level
-    if (workflow_glue_r_arg_missing(reference_level)) {
+    if (is.null(reference_level)) {
         if ("control" %in% condition_values) {
             reference_level <- "control"
         } else {
@@ -127,26 +164,11 @@ de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
     }
 
     list(
-        tx_se = tx_se,
-        gene_se = gene_se,
         sample_df = sample_df,
         covariates = covariates,
         condition_values = condition_values,
         reference_level = reference_level
     )
-}
-
-de_build_contrast_name <- function(condition_column, target_level, reference_level) {
-    sprintf("%s_%s_vs_%s", condition_column, target_level, reference_level)
-}
-
-de_set_dispersions <- function(object, value) {
-    setter <- get("dispersions<-", envir = asNamespace("DESeq2"))
-    setter(object, value = value)
-}
-
-de_extract_disp_gene_est <- function(object) {
-    S4Vectors::mcols(object)$dispGeneEst
 }
 
 # DESeq2's default geometric-mean size-factor estimator is undefined when
@@ -161,7 +183,6 @@ de_choose_size_factor_type <- function(count_mat, context_label = "Count matrix"
     }
     "ratio"
 }
-
 de_run_deseq_with_fallback <- function(
     dds,
     contrast_name,
@@ -204,7 +225,8 @@ de_run_deseq_with_fallback <- function(
 
             dds <- DESeq2::estimateSizeFactors(dds, type = sf_type)
             dds <- DESeq2::estimateDispersionsGeneEst(dds)
-            dds <- de_set_dispersions(dds, de_extract_disp_gene_est(dds))
+            dispersions_setter <- get("dispersions<-", envir = asNamespace("DESeq2"))
+            dds <- dispersions_setter(dds, value = S4Vectors::mcols(dds)$dispGeneEst)
 
             dispersion_values <- suppressWarnings(as.numeric(DESeq2::dispersions(dds)))
             dispersion_values <- dispersion_values[is.finite(dispersion_values)]
@@ -279,8 +301,7 @@ de_estimate_dispersions_with_fallback <- function(
         list(
             object = DESeq2::estimateDispersions(object),
             method_used = "parametric",
-            fallback_applied = FALSE,
-            reason = NULL
+            fallback_applied = FALSE
         ),
         error = function(err) {
             if (!grepl(
@@ -291,7 +312,6 @@ de_estimate_dispersions_with_fallback <- function(
                 stop(err)
             }
 
-            primary_reason <- conditionMessage(err)
             message(
                 context_label,
                 " dispersion fitting failed; retrying with fitType='local'."
@@ -300,8 +320,7 @@ de_estimate_dispersions_with_fallback <- function(
                 list(
                     object = DESeq2::estimateDispersions(object, fitType = "local"),
                     method_used = "local",
-                    fallback_applied = TRUE,
-                    reason = primary_reason
+                    fallback_applied = TRUE
                 ),
                 error = function(local_err) {
                     if (!grepl(
@@ -320,8 +339,7 @@ de_estimate_dispersions_with_fallback <- function(
                         list(
                             object = DESeq2::estimateDispersions(object, fitType = "mean"),
                             method_used = "mean",
-                            fallback_applied = TRUE,
-                            reason = primary_reason
+                            fallback_applied = TRUE
                         ),
                         error = function(mean_err) {
                             if (!grepl(
@@ -340,12 +358,15 @@ de_estimate_dispersions_with_fallback <- function(
                                 " mean-fit dispersion retry failed; falling back to gene-wise dispersion estimates."
                             )
                             object <- DESeq2::estimateDispersionsGeneEst(object)
-                            object <- de_set_dispersions(object, de_extract_disp_gene_est(object))
+                            dispersions_setter <- get("dispersions<-", envir = asNamespace("DESeq2"))
+                            object <- dispersions_setter(
+                                object,
+                                value = S4Vectors::mcols(object)$dispGeneEst
+                            )
                             list(
                                 object = object,
                                 method_used = "gene-wise",
-                                fallback_applied = TRUE,
-                                reason = primary_reason
+                                fallback_applied = TRUE
                             )
                         }
                     )
@@ -404,7 +425,6 @@ de_run_deseq2_result <- function(
         independentFiltering = TRUE
     )
     list(
-        dds = dds,
         result = result,
         deseq2_dispersion_fallback = deseq2_dispersion_fallback
     )
@@ -469,15 +489,8 @@ de_run_dexseq_result <- function(
                 "DEXSeq",
                 allow_gene_est = TRUE
             )
-            if (is.list(dispersion_result) && !is.null(dispersion_result$object)) {
-                dxd <- dispersion_result$object
-                dispersion_method <- dispersion_result$method_used
-                dispersion_reason <- dispersion_result$reason
-            } else {
-                dxd <- dispersion_result
-                dispersion_method <- "parametric"
-                dispersion_reason <- NULL
-            }
+            dxd <- dispersion_result$object
+            dispersion_method <- dispersion_result$method_used
             dxd <- DEXSeq::testForDEU(dxd, reducedModel = reduced_formula)
             dxd <- DEXSeq::estimateExonFoldChanges(dxd, fitExpToVar = condition_column)
             dxr <- DEXSeq::DEXSeqResults(dxd, independentFiltering = FALSE)
@@ -485,7 +498,6 @@ de_run_dexseq_result <- function(
                 dxd = dxd,
                 dxr = dxr,
                 dexseq_dispersion_method = dispersion_method,
-                dexseq_dispersion_reason = dispersion_reason,
                 dexseq_size_factor_type = dexseq_sf_type
             )
         }, error = function(err) {
@@ -527,7 +539,7 @@ de_dtu_transcript_columns <- c(
 #'
 #' Renames the contrast-specific DEXSeq fold-change column to
 #' `log2FoldChange`, normalizes data for TSV output
-#'  and returns only the transcript output columns.
+#' and returns only the transcript output columns.
 #'
 #' @param dex_df DEXSeq results as a data frame.
 #' @param contrast_name Contrast suffix used in the DEXSeq fold-change column.
@@ -545,14 +557,18 @@ de_extract_dtu_transcript_table <- function(dex_df, contrast_name) {
     workflow_glue_r_normalise_tsv_df(tx_dtu)
 }
 
-main_run_de_analysis <- function(argv) {
+main_run_de_analysis <- function(args) {
     set.seed(42)
-    dir.create(argv$out_dir, showWarnings = FALSE, recursive = TRUE)
+    dir.create(args$out_dir, showWarnings = FALSE, recursive = TRUE)
 
-    tx_se <- readRDS(argv$transcript_rds)
-    gene_se <- readRDS(argv$gene_rds)
-    sample_df <- workflow_glue_r_read_csv(argv$sample_sheet)
-    validated <- de_validate_inputs(tx_se, gene_se, sample_df, argv)
+    tx_se <- readRDS(args$transcript_rds)
+    gene_se <- readRDS(args$gene_rds)
+    sample_df <- utils::read.csv(
+        args$sample_sheet,
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+    )
+    validated <- de_validate_inputs(tx_se, gene_se, sample_df, args)
     sample_df <- validated$sample_df
     covariates <- validated$covariates
     condition_values <- validated$condition_values
@@ -576,14 +592,14 @@ main_run_de_analysis <- function(argv) {
     de_qc_stats <- list(
         timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
         total_samples = nrow(sample_df),
-        condition_column = argv$condition_column,
+        condition_column = args$condition_column,
         reference_level = reference_level,
         covariates = if (length(covariates) > 0) covariates else "none",
         num_contrasts = length(targets),
         contrasts = list()
     )
 
-    n_per_group <- table(sample_df[[argv$condition_column]])
+    n_per_group <- table(sample_df[[args$condition_column]])
     de_qc_stats$samples_per_group <- as.list(n_per_group)
 
     sample_size_warnings <- character(0)
@@ -641,18 +657,23 @@ main_run_de_analysis <- function(argv) {
             "  4. Consider using hierarchical testing procedures",
             ""
         )
-        writeLines(mt_content, file.path(argv$out_dir, "MULTIPLE_TESTING_WARNING.txt"))
+        writeLines(mt_content, file.path(args$out_dir, "MULTIPLE_TESTING_WARNING.txt"))
     }
 
     for (target_level in targets) {
-        contrast_name <- de_build_contrast_name(argv$condition_column, target_level, reference_level)
-        contrast_dir <- file.path(argv$out_dir, contrast_name)
+        contrast_name <- sprintf(
+            "%s_%s_vs_%s",
+            args$condition_column,
+            target_level,
+            reference_level
+        )
+        contrast_dir <- file.path(args$out_dir, contrast_name)
         dir.create(contrast_dir, showWarnings = FALSE, recursive = TRUE)
 
-        keep_samples <- sample_df[[argv$condition_column]] %in% c(reference_level, target_level)
+        keep_samples <- sample_df[[args$condition_column]] %in% c(reference_level, target_level)
         contrast_samples <- droplevels(sample_df[keep_samples, , drop = FALSE])
-        contrast_samples[[argv$condition_column]] <- stats::relevel(
-            factor(contrast_samples[[argv$condition_column]]),
+        contrast_samples[[args$condition_column]] <- stats::relevel(
+            factor(contrast_samples[[args$condition_column]]),
             ref = reference_level
         )
 
@@ -661,8 +682,8 @@ main_run_de_analysis <- function(argv) {
             target_level = target_level,
             reference_level = reference_level,
             n_samples = nrow(contrast_samples),
-            n_target = sum(contrast_samples[[argv$condition_column]] == target_level),
-            n_reference = sum(contrast_samples[[argv$condition_column]] == reference_level),
+            n_target = sum(contrast_samples[[args$condition_column]] == target_level),
+            n_reference = sum(contrast_samples[[args$condition_column]] == reference_level),
             deseq2_size_factor_method = "ratio",
             deseq2_dispersion_fallback = list(
                 applied = FALSE,
@@ -693,9 +714,9 @@ main_run_de_analysis <- function(argv) {
             contrast_samples,
             target_level,
             reference_level,
-            argv$condition_column,
+            args$condition_column,
             covariates,
-            argv$out_dir,
+            args$out_dir,
             contrast_name
         )
         if (!is.null(dge_run$deseq2_dispersion_fallback)) {
@@ -749,7 +770,7 @@ main_run_de_analysis <- function(argv) {
                 tx_counts,
                 tx_meta,
                 contrast_samples,
-                argv$condition_column,
+                args$condition_column,
                 covariates
             ),
             error = function(err) {
@@ -776,9 +797,9 @@ main_run_de_analysis <- function(argv) {
                     sprintf(
                         "Samples: %d (%d %s, %d %s)",
                         nrow(contrast_samples),
-                        sum(contrast_samples[[argv$condition_column]] == target_level),
+                        sum(contrast_samples[[args$condition_column]] == target_level),
                         target_level,
-                        sum(contrast_samples[[argv$condition_column]] == reference_level),
+                        sum(contrast_samples[[args$condition_column]] == reference_level),
                         reference_level
                     ),
                     sprintf("Transcripts: %d", nrow(tx_counts)),
@@ -963,7 +984,7 @@ main_run_de_analysis <- function(argv) {
 
     jsonlite::write_json(
         de_qc_stats,
-        file.path(argv$out_dir, "de_qc_stats.json"),
+        file.path(args$out_dir, "de_qc_stats.json"),
         pretty = TRUE,
         auto_unbox = TRUE
     )
@@ -1008,13 +1029,14 @@ main_run_de_analysis <- function(argv) {
         "  - <contrast>/results_dtu_gene.tsv",
         ""
     )
-    writeLines(unlist(overall_summary), file.path(argv$out_dir, "de_overall_summary.txt"))
-    writeLines(capture.output(sessionInfo()), file.path(argv$out_dir, "session_info.txt"))
+    writeLines(unlist(overall_summary), file.path(args$out_dir, "de_overall_summary.txt"))
+    writeLines(capture.output(sessionInfo()), file.path(args$out_dir, "session_info.txt"))
 
     invisible(list(qc = de_qc_stats))
 }
 
 run_de_analysis_cli <- function(argv = commandArgs(trailingOnly = TRUE)) {
     parsed <- argparser::parse_args(de_analysis_arg_parser(), argv = argv)
-    main_run_de_analysis(parsed)
+    args <- workflow_glue_r_normalise_args(parsed, de_analysis_arg_spec(), raw_argv = argv)
+    main_run_de_analysis(args)
 }

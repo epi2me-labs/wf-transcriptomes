@@ -61,7 +61,7 @@ process runJointBambu {
         --transcriptome_mode "${params.transcriptome_mode}" \
         --threads ${task.cpus} \
         ${ndr_arg} \
-        --out_dir cohort
+        --out_dir cohort \
     """
 }
 

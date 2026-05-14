@@ -1,38 +1,3 @@
-workflow_glue_r_arg_missing <- function(value) {
-    if (is.null(value) || length(value) == 0 || all(is.na(value))) {
-        return(TRUE)
-    }
-    if (is.character(value)) {
-        return(all(!nzchar(value)))
-    }
-    FALSE
-}
-
-workflow_glue_r_require_args <- function(argv, required_args) {
-    missing_args <- required_args[vapply(required_args, function(arg_name) {
-        workflow_glue_r_arg_missing(argv[[arg_name]])
-    }, logical(1))]
-
-    if (length(missing_args) > 0) {
-        stop(
-            sprintf(
-                "Missing required arguments: %s",
-                paste(sprintf("--%s", missing_args), collapse = ", ")
-            ),
-            call. = FALSE
-        )
-    }
-}
-
-workflow_glue_r_parse_csv_list <- function(value) {
-    if (workflow_glue_r_arg_missing(value)) {
-        return(character(0))
-    }
-
-    values <- trimws(strsplit(value, ",", fixed = TRUE)[[1]])
-    values[nzchar(values)]
-}
-
 workflow_glue_r_is_r_formula_name <- function(name) {
     is.character(name) &&
         length(name) == 1 &&
@@ -52,10 +17,6 @@ workflow_glue_r_validate_r_formula_names <- function(names, label = "Column") {
         )
     }
     invisible(names)
-}
-
-workflow_glue_r_read_csv <- function(path) {
-    utils::read.csv(path, check.names = FALSE, stringsAsFactors = FALSE)
 }
 
 workflow_glue_r_normalise_tsv_value <- function(value) {
