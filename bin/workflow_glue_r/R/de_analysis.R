@@ -514,6 +514,37 @@ de_run_dexseq_result <- function(
     result
 }
 
+de_dtu_transcript_columns <- c(
+    "featureID",
+    "groupID",
+    "log2FoldChange",
+    "pvalue",
+    "padj",
+    "exonBaseMean"
+)
+
+#' Extract transcript-level DTU columns for TSV output.
+#'
+#' Renames the contrast-specific DEXSeq fold-change column to
+#' `log2FoldChange`, normalizes data for TSV output
+#'  and returns only the transcript output columns.
+#'
+#' @param dex_df DEXSeq results as a data frame.
+#' @param contrast_name Contrast suffix used in the DEXSeq fold-change column.
+#'
+#' @return A normalized data frame ready for `results_dtu_transcript.tsv`.
+de_extract_dtu_transcript_table <- function(dex_df, contrast_name) {
+    log2fold_column <- paste0("log2fold_", contrast_name)
+    if (log2fold_column %in% names(dex_df)) {
+        names(dex_df)[names(dex_df) == log2fold_column] <- "log2FoldChange"
+    }
+    tx_dtu <- dex_df[, intersect(
+        de_dtu_transcript_columns,
+        names(dex_df)
+    ), drop = FALSE]
+    workflow_glue_r_normalise_tsv_df(tx_dtu)
+}
+
 main_run_de_analysis <- function(argv) {
     set.seed(42)
     dir.create(argv$out_dir, showWarnings = FALSE, recursive = TRUE)
@@ -764,14 +795,7 @@ main_run_de_analysis <- function(argv) {
         )
 
         if (is.null(dex_res)) {
-            dex_df <- workflow_glue_r_empty_tsv(c(
-                "featureID",
-                "groupID",
-                "log2fold",
-                "pvalue",
-                "padj",
-                "exonBaseMean"
-            ))
+            dex_df <- workflow_glue_r_empty_tsv(de_dtu_transcript_columns)
             tx_dtu <- dex_df
             gene_dtu <- workflow_glue_r_empty_tsv(c("GENEID", "qval"))
             de_write_placeholder_pdf(
@@ -793,11 +817,10 @@ main_run_de_analysis <- function(argv) {
             }
             dex_df <- as.data.frame(dex_res$dxr)
             dex_df <- workflow_glue_r_normalise_tsv_df(dex_df)
-            tx_dtu <- dex_df[, intersect(
-                c("featureID", "groupID", "log2fold", "pvalue", "padj", "exonBaseMean"),
-                names(dex_df)
-            ), drop = FALSE]
-            tx_dtu <- workflow_glue_r_normalise_tsv_df(tx_dtu)
+            tx_dtu <- de_extract_dtu_transcript_table(
+                dex_df,
+                paste(target_level, reference_level, sep = "_")
+            )
 
             gene_q <- DEXSeq::perGeneQValue(dex_res$dxr)
             gene_dtu <- data.frame(
