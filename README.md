@@ -229,6 +229,9 @@ All aligned samples are analysed together with `bambu` to produce the primary
 cohort transcriptome, transcript counts, gene counts, and the `RDS` objects used
 for downstream differential analysis. This shared model is the main cohort-level
 result and is published under `cohort/`.
+Before writing outputs, transcript filtering removes only transcripts with zero
+total transcript counts across samples; it does not use `fullLengthCounts` for
+this quantification filter.
 
 ### 5. Independent per-sample transcriptomes
 

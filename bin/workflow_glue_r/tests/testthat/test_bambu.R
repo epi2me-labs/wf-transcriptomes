@@ -307,9 +307,10 @@ testthat::test_that("bambu outputs written correctly", {
 })
 
 # Transcript filtering edge cases
-testthat::test_that("zero full-length count transcripts filtered", {
+testthat::test_that("filters on counts when fullLengthCounts disagrees", {
     se <- make_test_tx_se(sample_names = c("sampleA", "sampleB"))
-    # Set tx1 to have full-length counts, tx2 to have none (will be filtered)
+    # tx2 has counts but zero full-length counts: must be kept.
+    # tx3 has zero counts but non-zero full-length counts: must be filtered.
     counts <- SummarizedExperiment::assay(se, "counts")
     counts[1, ] <- c(10, 8)
     counts[2, ] <- c(5, 3)
@@ -319,12 +320,14 @@ testthat::test_that("zero full-length count transcripts filtered", {
 
     full_length <- matrix(0, nrow = 4, ncol = 2)
     full_length[1, ] <- c(5, 4)
+    full_length[3, ] <- c(6, 6)
     SummarizedExperiment::assays(se, withDimnames = FALSE)[["fullLengthCounts"]] <- full_length
 
     result <- bambu_filter_transcripts(se)
 
-    testthat::expect_equal(nrow(result$se), 1)
-    testthat::expect_equal(result$qc_stats$transcripts_filtered, 3)
+    testthat::expect_equal(rownames(result$se), c("tx1", "tx2"))
+    testthat::expect_equal(nrow(result$se), 2)
+    testthat::expect_equal(result$qc_stats$transcripts_filtered, 2)
 })
 
 testthat::test_that("filters on counts when no fullLengthCounts assay", {
@@ -352,7 +355,6 @@ testthat::test_that("error when all transcripts filtered", {
     se <- make_test_tx_se(sample_names = c("sampleA", "sampleB"))
     # All transcripts have zero counts
     SummarizedExperiment::assay(se, "counts", withDimnames = FALSE) <- matrix(0, nrow = 4, ncol = 2)
-    SummarizedExperiment::assays(se, withDimnames = FALSE)[["fullLengthCounts"]] <- matrix(0, nrow = 4, ncol = 2)
 
     testthat::expect_error(
         bambu_filter_transcripts(se),
@@ -389,8 +391,15 @@ testthat::test_that("bambu_filter_transcripts contract with transcriptToGeneExpr
         rowRanges = make_test_bambu_row_ranges(fixture_dir)
     )
 
+    counts <- SummarizedExperiment::assays(se)$counts
+    counts["tx1", ] <- 10
+    counts["tx2", ] <- 8
+    counts["tx3", ] <- 0
+    counts["tx4", ] <- 0
+    SummarizedExperiment::assay(se, "counts", withDimnames = FALSE) <- counts
+
     full_length <- matrix(
-        c(5, 4, 0, 0),
+        c(5, 4, 6, 0),
         nrow = nrow(se),
         ncol = ncol(se),
         dimnames = dimnames(SummarizedExperiment::assays(se)$counts)
