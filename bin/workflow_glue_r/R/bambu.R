@@ -194,14 +194,13 @@ bambu_effective_threads <- function(args, bam_count) {
 bambu_filter_transcripts <- function(se) {
     assays <- SummarizedExperiment::assays(se)
     counts_mat <- assays$counts
-    full_length_mat <- assays$fullLengthCounts
 
     row_data <- SummarizedExperiment::rowData(se)
     if (!"GENEID" %in% names(row_data)) {
         stop("rowData(se) does not contain required column 'GENEID'.")
     }
-    if (is.null(full_length_mat) && is.null(counts_mat)) {
-        stop("Neither counts nor fullLengthCounts assay found in bambu output.")
+    if (is.null(counts_mat)) {
+        stop("counts assay not found in bambu output.")
     }
 
     gene_ids <- row_data$GENEID
@@ -211,11 +210,7 @@ bambu_filter_transcripts <- function(se) {
         samples = ncol(se)
     )
 
-    if (is.null(full_length_mat)) {
-        keep_idx <- rowSums(counts_mat) > 0
-    } else {
-        keep_idx <- rowSums(full_length_mat) > 0
-    }
+    keep_idx <- rowSums(counts_mat) > 0
     if (!any(keep_idx)) {
         stop(
             "All transcripts have zero counts after filtering. ",
