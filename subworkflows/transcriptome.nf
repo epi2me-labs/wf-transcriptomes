@@ -246,7 +246,7 @@ workflow transcriptome_analysis {
         }
 
     emit:
-        annotation = ref_annotation
+        annotation = analysis_annotation
         annotation_reference_summary = prepared_reference_annotation.summary
         unstranded_annotation = prepared_reference_annotation.unstranded
         joint_dir = joint_bambu.dir
