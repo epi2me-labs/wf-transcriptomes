@@ -165,17 +165,100 @@ class Annotation:
 
     MAX_UNSTRANDED_EXAMPLES = 20
 
-    def __init__(self, input_path, work_dir, gffread="gffread"):
+    def __init__(self, input_path, work_dir):
         """Initialize and convert annotation to GTF."""
         self.input_path = Path(input_path)
         self.work_dir = Path(work_dir)
-        self.is_gff = _is_gff(input_path)
-        self.gffread = gffread
-
+        self.normalised_records = 0
         # outputs
-        self.unfiltered_path = None
-        self.prepared_path = None
-        self._convert_to_gtf()
+        self.was_gff = _is_gff(self.input_path)
+        self.unfiltered_path = self.input_path  # intermediate GTF before filtering
+
+        if not self.was_gff:
+            if not self.input_path.exists() or self.input_path.stat().st_size < 1:
+                raise ValueError(f"Prepared annotation is empty: {self.input_path}")
+        else:
+            intermediate = self._decompress_gff_if_needed(self.input_path)
+            intermediate, self.normalised_records = (
+                self._normalise_unknown_gff_strands(intermediate)
+            )
+
+            self.unfiltered_path = self.work_dir / "annotation_unfiltered.gtf"
+            self._run_gffread_conversion(intermediate, self.unfiltered_path)
+
+        self.output_path = self.unfiltered_path  # maybe mutated after filtering
+
+    def _normalise_unknown_gff_strands(self, source_path, dest_path=None):
+        """Replace '?' strand values with '.' and return (path_used, count)."""
+        source_path = Path(source_path)
+
+        if dest_path is None:
+            dest_path = self.work_dir / "annotation_input_sanitised.gff"
+        dest_path = Path(dest_path)
+        normalised = 0
+
+        with open(source_path, encoding="utf-8") as src, open(
+            dest_path, "w", encoding="utf-8"
+        ) as dst:
+            for line in src:
+                stripped = line.rstrip("\n")
+                if not stripped or stripped.startswith("#"):
+                    dst.write(line)
+                    continue
+
+                fields = stripped.split("\t")
+                if len(fields) >= 7 and fields[6] == "?":
+                    fields[6] = "."
+                    normalised += 1
+                dst.write("\t".join(fields) + "\n")
+
+        if normalised == 0:
+            dest_path.unlink()
+            return source_path, 0
+
+        return dest_path, normalised
+
+    def _decompress_gff_if_needed(self, source_path=None):
+        """Materialise gzipped GFF input to plain text; pass through if plain."""
+        if source_path is None:
+            source_path = self.input_path
+        source_path = Path(source_path)
+
+        if not _is_gzip(source_path):
+            return source_path
+
+        # gffread does not support gzip input
+        name_without_gz = source_path.name[:-3]
+        suffix = Path(name_without_gz).suffix or ".gff"
+        decompressed = self.work_dir / f"annotation_input{suffix}"
+        with gzip.open(source_path, "rb") as src, open(
+            decompressed, "wb"
+        ) as dst:
+            shutil.copyfileobj(src, dst)
+
+        return decompressed
+
+    def _run_gffread_conversion(self, gff_path, gtf_path):
+        """Run gffread conversion from GFF/GFF3 to GTF."""
+        result = subprocess.run(
+            ["gffread", "-T", str(gff_path), "-o", str(gtf_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            details = "\n".join(
+                part
+                for part in (result.stdout, result.stderr)
+                if part
+            )
+            raise ValueError(
+                "Failed to convert annotation to GTF with gffread.\n"
+                f"Return code: {result.returncode}\n"
+                "Error message:" + details
+            )
+        if not Path(gtf_path).exists() or Path(gtf_path).stat().st_size < 1:
+            raise ValueError(f"Prepared annotation is empty: {gtf_path}")
 
     def _open_gtf(self, path):
         """Open a GTF file, handling gzip transparently."""
@@ -219,58 +302,10 @@ class Annotation:
                         ids.add(fields[0])
         return sorted(ids)
 
-    def _convert_to_gtf(self):
-        """Convert GFF/GFF3 to GTF using gffread, or use input if already GTF."""
-        if self.is_gff:
-            dest = self.work_dir / "annotation_unfiltered.gtf"
-
-            if _is_gzip(self.input_path):
-                # decompress as gff doesn't support gzip input
-                name_without_gz = self.input_path.name[:-3]
-                suffix = Path(name_without_gz).suffix or ".gff"
-                intermediate = self.work_dir / f"annotation_input{suffix}"
-                with gzip.open(self.input_path, "rb") as src, open(
-                    intermediate, "wb"
-                ) as dst:
-                    shutil.copyfileobj(src, dst)
-            else:
-                intermediate = self.input_path
-
-            # use gffread to convert to GTF
-            result = subprocess.run(
-                [self.gffread, "-T", str(intermediate), "-o", str(dest)],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                details = "\n".join(
-                    part
-                    for part in (result.stdout, result.stderr)
-                    if part
-                )
-                raise ValueError(
-                    "Failed to convert annotation to GTF with gffread.\n"
-                    f"Return code: {result.returncode}\n"
-                    "Error message:" + details
-                )
-
-            if not dest.exists() or dest.stat().st_size < 1:
-                raise ValueError(f"Prepared annotation is empty: {dest}")
-
-            self.unfiltered_path = dest
-        else:
-            # already GTF
-            if not self.input_path.exists() or self.input_path.stat().st_size < 1:
-                raise ValueError(f"Prepared annotation is empty: {self.input_path}")
-            self.unfiltered_path = self.input_path
-
     @property
     def seqnames(self):
-        """Get seqnames from prepared (stranded) annotation."""
-        if self.prepared_path is None:
-            raise ValueError("Must call filter_stranded() before accessing seqnames")
-        return self._extract_seqnames(self.prepared_path)
+        """Get seqnames from the current annotation output path."""
+        return self._extract_seqnames(self.output_path)
 
     def filter_stranded(self):
         """Filter to stranded records, return statistics."""
@@ -329,7 +364,7 @@ class Annotation:
         if stats["excluded_unstranded_records"] == 0 and unstranded_dest.exists():
             unstranded_dest.unlink()
 
-        self.prepared_path = dest
+        self.output_path = dest
         stats["unstranded_path"] = (
             str(unstranded_dest) if stats["excluded_unstranded_records"] > 0 else None
         )
@@ -434,7 +469,7 @@ def build_warnings(filter_stats, seqnames, ref_hints, ann_hints):
     return warnings
 
 
-def prepare_annotation_reference(annotation, reference, out_dir, gffread="gffread"):
+def prepare_annotation_reference(annotation, reference, out_dir):
     """Prepare annotation.gtf and reference.fasta in out_dir."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=False)
@@ -443,7 +478,7 @@ def prepare_annotation_reference(annotation, reference, out_dir, gffread="gffrea
     ref = PreparedReference(reference, out_dir)
 
     # prepare annotation (convert to GTF if needed, then filter to stranded)
-    ann = Annotation(annotation, out_dir, gffread=gffread)
+    ann = Annotation(annotation, out_dir)
     filter_stats = ann.filter_stranded()
 
     # check seqname overlap between prepared annotation and reference
@@ -464,14 +499,21 @@ def prepare_annotation_reference(annotation, reference, out_dir, gffread="gffrea
     ref_hints = ref.detect_hints()
     ann_hints = ann.detect_hints()
     warnings = build_warnings(filter_stats, seqnames, ref_hints, ann_hints)
+    if ann.normalised_records:
+        warnings.append(
+            "Warning: Replaced "
+            f"{ann.normalised_records} "
+            "GFF records with unknown strand '?' to '.' before gffread conversion."
+        )
 
     # build a summary
     summary = {
         "annotation": {
             "input": str(ann.input_path),
-            "prepared": str(ann.prepared_path),
+            "prepared": str(ann.output_path),
             "unfiltered": str(ann.unfiltered_path),
-            "was_gff": ann.is_gff,
+            "was_gff": ann.was_gff,
+            "normalised_unknown_strand_records": ann.normalised_records,
             **filter_stats,
         },
         "reference": {
@@ -505,7 +547,6 @@ def main(args):
         args.annotation,
         args.reference,
         args.out_dir,
-        gffread=args.gffread,
     )
 
     for warning in summary["warnings"]:
@@ -530,5 +571,4 @@ def argparser():
         required=True,
         help="Output directory for prepared annotation/reference files.",
     )
-    parser.add_argument("--gffread", default="gffread", help="gffread executable.")
     return parser
