@@ -13,9 +13,17 @@ variables:
               CI_FLAVOUR: "new"
               PYTEST_CONTAINER_NAME: "wf-common"
               PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
+              PYTEST_TESTS_PATH: "bin/workflow_glue/tests/common"
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
               WF_TEMPLATE_ENFORCEMENT_BRANCH: "CW-6552"
+
+pytest_wfcontainer:
+    extends: pytest
+    variables:
+              PYTEST_CONTAINER_NAME: "wf-transcriptomes-core"
+              PYTEST_CONTAINER_CONFIG_KEY: "container_sha"
+              PYTEST_TESTS_PATH: "bin/workflow_glue/tests/wf"
 
 macos-run:
   # Let's avoid those ARM64 runners for now

@@ -2,7 +2,6 @@
 
 import gzip
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from workflow_glue import get_components
@@ -31,14 +30,12 @@ chr1\tsim\texon\t1\t5\t.\t+\t.\tParent=transcript1
 chr1\tsim\texon\t6\t10\t.\t+\t.\tParent=transcript1
 """
 
-GFF3_AS_GTF = (
-    'chr1\tsim\ttranscript\t1\t10\t.\t+\t.\tgene_id "gene1"; '
-    'transcript_id "transcript1";\n'
-    'chr1\tsim\texon\t1\t5\t.\t+\t.\tgene_id "gene1"; '
-    'transcript_id "transcript1";\n'
-    'chr1\tsim\texon\t6\t10\t.\t+\t.\tgene_id "gene1"; '
-    'transcript_id "transcript1";\n'
-)
+GFF3_INPUT_WITH_UNKNOWN_STRAND = """##gff-version 3
+chr1\tsim\tgene\t1\t10\t.\t?\t.\tID=gene1
+chr1\tsim\tmRNA\t1\t10\t.\t+\t.\tID=transcript1;Parent=gene1
+chr1\tsim\texon\t1\t5\t.\t+\t.\tParent=transcript1
+chr1\tsim\texon\t6\t10\t.\t+\t.\tParent=transcript1
+"""
 
 NCBI_REFERENCE = """>chr1 GRCh38 RefSeq primary assembly
 AAAA
@@ -72,27 +69,27 @@ MOUSE_GTF = (
 
 
 @pytest.mark.parametrize(
-    "ref_data,ref_name,annot_data,annot_name,gff_output",
+    "ref_data,ref_name,annot_data,annot_name",
     [
         (SIMPLE_REFERENCE, "reference.fa", SIMPLE_GTF,
-         "annotation.gtf", None),
+         "annotation.gtf"),
         (SIMPLE_REFERENCE, "reference.fa.gz", SIMPLE_GTF,
-         "annotation.gtf.gz", None),
+         "annotation.gtf.gz"),
         (SIMPLE_REFERENCE, "reference.fa", GFF3_INPUT,
-         "annotation.gff3.gz", GFF3_AS_GTF),
+         "annotation.gff3.gz"),
         (NCBI_REFERENCE, "reference.fna.gz", NCBI_GTF,
-         "annotation.gtf.gz", None),
+         "annotation.gtf.gz"),
         (SIMPLE_REFERENCE + ">chrExtra\nTTTT\n", "reference.fa",
-         MIXED_STRANDED_GTF, "annotation.gtf", None),
+         MIXED_STRANDED_GTF, "annotation.gtf"),
         (MOUSE_REFERENCE, "GRCm39.genome.fa", MOUSE_GTF,
-         "gencode.vM33.annotation.gtf", None),
+         "gencode.vM33.annotation.gtf"),
     ],
     ids=[
         "simple_gtf", "gzipped_gtf", "gff3_input",
         "ncbi_format", "mixed_stranded", "mouse_gencode"],
 )
 def test_prepare_all_formats_produce_valid_outputs(
-    ref_data, ref_name, annot_data, annot_name, gff_output, tmp_path, monkeypatch
+    ref_data, ref_name, annot_data, annot_name, tmp_path
 ):
     """All supported input formats produce annotation.gtf and reference.fasta."""
     # write reference
@@ -108,14 +105,6 @@ def test_prepare_all_formats_produce_valid_outputs(
         _write_gzip(annot_path, annot_data)
     else:
         _write(annot_path, annot_data)
-
-    # mock gffread (only invoked for GFF3 inputs)
-    if gff_output:
-        def fake_run(command, check, capture_output, text):
-            output_idx = command.index("-o") + 1
-            Path(command[output_idx]).write_text(gff_output, encoding="utf-8")
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
-        monkeypatch.setattr(prepare_annotation_reference.subprocess, "run", fake_run)
 
     out_dir = tmp_path / "prepared"
     summary = prepare_annotation_reference.prepare_annotation_reference(
@@ -172,34 +161,59 @@ def test_ncbi_format_sanitises_gene_ids(tmp_path):
     )
 
 
-def test_gff3_conversion_via_gffread(tmp_path, monkeypatch):
+def test_gff3_conversion_via_gffread(tmp_path):
     """GFF3 inputs invoke gffread and convert to GTF format."""
     reference = _write(tmp_path / "reference.fa", SIMPLE_REFERENCE)
     annotation = _write(tmp_path / "annotation.gff3", GFF3_INPUT)
-    captured = {}
-
-    def fake_run(command, check, capture_output, text):
-        captured["command"] = command
-        output_idx = command.index("-o") + 1
-        Path(command[output_idx]).write_text(GFF3_AS_GTF, encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-    monkeypatch.setattr(prepare_annotation_reference.subprocess, "run", fake_run)
 
     summary = prepare_annotation_reference.prepare_annotation_reference(
         annotation,
         reference,
         tmp_path / "prepared",
-        gffread="custom-gffread",
     )
 
     assert summary["annotation"]["was_gff"] is True
-    assert captured["command"][0] == "custom-gffread"
-    assert "-T" in captured["command"]
 
     prepared_text = Path(summary["annotation"]["prepared"]).read_text(encoding="utf-8")
     assert 'gene_id "gene1"' in prepared_text
     assert 'transcript_id "transcript1"' in prepared_text
-    assert prepared_text.count("exon") == 2
+    assert "\texon\t" in prepared_text
+
+
+def test_normalise_unknown_gff_strands_rewrites_question_mark(tmp_path):
+    """Unknown GFF strand '?' should be rewritten to '.'."""
+    input_path = _write(tmp_path / "annotation.gff3", GFF3_INPUT_WITH_UNKNOWN_STRAND)
+    output_path = tmp_path / "annotation_sanitised.gff"
+    init_annotation = _write(tmp_path / "annotation_init.gtf", SIMPLE_GTF)
+    ann = prepare_annotation_reference.Annotation(
+        init_annotation,
+        tmp_path,
+    )
+
+    used_path, normalised = ann._normalise_unknown_gff_strands(input_path, output_path)
+
+    assert used_path == output_path
+    assert normalised == 1
+    output_text = output_path.read_text(encoding="utf-8")
+    assert "\t?\t" not in output_text
+    assert "\t.\t" in output_text
+
+
+def test_gff3_unknown_strand_with_real_gffread(tmp_path):
+    """Integration: real gffread accepts input after '?' strand normalisation."""
+    reference = _write(tmp_path / "reference.fa", SIMPLE_REFERENCE)
+    annotation = _write(tmp_path / "annotation.gff3", GFF3_INPUT_WITH_UNKNOWN_STRAND)
+
+    summary = prepare_annotation_reference.prepare_annotation_reference(
+        annotation,
+        reference,
+        tmp_path / "prepared",
+    )
+
+    prepared_text = Path(summary["annotation"]["prepared"]).read_text(encoding="utf-8")
+    assert summary["annotation"]["normalised_unknown_strand_records"] == 1
+    assert "\t?\t" not in prepared_text
+    assert summary["annotation"]["kept_records"] > 0
 
 
 def test_unstranded_records_filtered_and_saved_separately(tmp_path):
@@ -250,16 +264,15 @@ def test_seqname_warnings_reflect_filtered_annotation(tmp_path):
     )
 
 
-def test_gffread_failure_raises_error(tmp_path, monkeypatch):
-    """Failed GFF3 conversion should abort before downstream processing."""
+def test_invalid_gff_for_conversion_raises_error(tmp_path):
+    """Malformed GFF input should fail during gffread conversion."""
     reference = _write(tmp_path / "reference.fa", SIMPLE_REFERENCE)
-    annotation = _write(tmp_path / "annotation.gff3", GFF3_INPUT)
+    annotation = _write(tmp_path / "annotation.gff3", "chr1\tsim\tgene\t1\t10\n")
 
-    def fake_run(command, check, capture_output, text):
-        return SimpleNamespace(returncode=1, stdout="", stderr="gffread error")
-    monkeypatch.setattr(prepare_annotation_reference.subprocess, "run", fake_run)
-
-    with pytest.raises(ValueError, match="Failed to convert annotation"):
+    with pytest.raises(
+        ValueError,
+        match="(Failed to convert annotation to GTF|Prepared annotation is empty)",
+    ):
         prepare_annotation_reference.prepare_annotation_reference(
             annotation,
             reference,
