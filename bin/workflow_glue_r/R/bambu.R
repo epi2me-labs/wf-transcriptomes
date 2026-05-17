@@ -505,12 +505,12 @@ main_run_bambu <- function(args) {
                 sprintf(
                     paste0(
                         "Large library size variation detected (%.1fx difference).\n",
-                        "  Min: %d, Max: %d reads.\n",
+                        "  Min: %s, Max: %s reads.\n",
                         "  CPM normalization may not be appropriate for such variation."
                     ),
                     lib_size_ratio,
-                    min(lib_sizes),
-                    max(lib_sizes)
+                    bambu_format_count(min(lib_sizes)),
+                    bambu_format_count(max(lib_sizes))
                 )
             )
             qc_stats$library_size_warning <- sprintf("%.1fx variation (>3x threshold)", lib_size_ratio)
