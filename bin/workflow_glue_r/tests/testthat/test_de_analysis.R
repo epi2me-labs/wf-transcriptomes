@@ -535,7 +535,86 @@ testthat::test_that("de_is_recoverable_dexseq_error recognises expected messages
     ))
     testthat::expect_true(de_is_recoverable_dexseq_error("model matrix is not full rank"))
     testthat::expect_true(de_is_recoverable_dexseq_error("replacement has 1 row, data has 0"))
+    # Internal object-shape mismatches should still be reported as failures,
+    # but they are not known statistical fallback patterns.
+    testthat::expect_false(de_is_recoverable_dexseq_error(
+        "nb of cols in 'assay' (7) must equal nb of rows in 'colData' (12)"
+    ))
+    testthat::expect_true(de_is_recoverable_dexseq_error(
+        "newsplit: out of vertex space"
+    ))
+    testthat::expect_true(de_is_recoverable_dexseq_error(
+        "every gene contains at least one zero, cannot compute log geometric means"
+    ))
     testthat::expect_false(de_is_recoverable_dexseq_error("random unrelated failure"))
+})
+
+testthat::test_that("de_dexseq_failure_hint identifies degenerate-data shape mismatch", {
+    hint <- de_dexseq_failure_hint(
+        "nb of cols in 'assay' (7) must equal nb of rows in 'colData' (12)"
+    )
+    testthat::expect_match(hint, "degenerate or near-identical sample groups")
+    row_sums_hint <- de_dexseq_failure_hint(
+        "Error in rowSums(numerator) : 'x' must be an array of at least two dimensions"
+    )
+    testthat::expect_match(row_sums_hint, "gene-level DTU summarisation")
+    testthat::expect_null(de_dexseq_failure_hint("random unrelated failure"))
+})
+
+testthat::test_that("de_postprocess_dexseq_result degrades gracefully on gene-level DTU failure", {
+    contrast_dir <- tempfile("dexseq-postprocess-")
+    dir.create(contrast_dir)
+
+    dex_res <- list(
+        dxr = data.frame(
+            featureID = c("tx1", "tx2"),
+            groupID = c("gene1", "gene1"),
+            log2fold_case_control = c(1, -1),
+            pvalue = c(0.01, 0.2),
+            padj = c(0.02, 0.3),
+            exonBaseMean = c(10, 20),
+            check.names = FALSE
+        ),
+        dxd = structure(list(), class = "mock_dxd")
+    )
+    contrast_samples <- data.frame(
+        alias = c("s1", "s2"),
+        condition = c("case", "control"),
+        stringsAsFactors = FALSE
+    )
+    tx_counts <- matrix(
+        c(10, 0, 4, 8),
+        nrow = 2,
+        dimnames = list(c("tx1", "tx2"), c("s1", "s2"))
+    )
+
+    result <- testthat::expect_warning(
+        de_postprocess_dexseq_result(
+            dex_res = dex_res,
+            contrast_dir = contrast_dir,
+            target_level = "case",
+            reference_level = "control",
+            contrast_samples = contrast_samples,
+            condition_column = "condition",
+            tx_counts = tx_counts,
+            contrast_name = "case_control",
+            per_gene_qvalue_fn = function(...) {
+                stop("'x' must be an array of at least two dimensions", call. = FALSE)
+            },
+            plot_writer = function(...) NULL
+        ),
+        "DEXSeq post-processing failed"
+    )
+
+    testthat::expect_false(result$ok)
+    testthat::expect_match(
+        result$failure_hint,
+        "gene-level DTU summarisation"
+    )
+    testthat::expect_true(file.exists(file.path(contrast_dir, "DTU_ANALYSIS_FAILED.txt")))
+    failure_text <- readLines(file.path(contrast_dir, "DTU_ANALYSIS_FAILED.txt"))
+    testthat::expect_true(any(grepl("DTU Analysis Failed", failure_text, fixed = TRUE)))
+    testthat::expect_true(any(grepl("at least two dimensions", failure_text, fixed = TRUE)))
 })
 
 testthat::test_that("de_run_dexseq_result records rank-deficiency covariate drops", {
@@ -779,7 +858,89 @@ testthat::test_that("CLI integration produces expected outputs", {
     contrast_qc <- de_qc$contrasts[["condition_treated_vs_control"]]
     testthat::expect_true("deseq2_size_factor_method" %in% names(contrast_qc))
     testthat::expect_true("deseq2_dispersion_fallback" %in% names(contrast_qc))
+    testthat::expect_true("dge_status" %in% names(contrast_qc))
     testthat::expect_true("dexseq_size_factor_method" %in% names(contrast_qc))
     testthat::expect_true("dexseq_dispersion_method" %in% names(contrast_qc))
     testthat::expect_true("dexseq_covariates_dropped" %in% names(contrast_qc))
+})
+
+###
+# Degenerate input (control-vs-control / zero-heavy counts)
+#
+# Exercises the graceful-degradation paths added for three cases:
+# - newsplit/lfproc OOM in DESeq2 local regression
+# - DEXSeq colData dimension mismatch on degenerate input
+# - size-factor estimation failure when every gene has a zero
+#
+# The process must run to completion and produce placeholder outputs + a
+# machine-readable status in de_qc_stats.json rather than crashing.
+
+testthat::test_that("degenerate control-vs-control data completes gracefully", {
+    testthat::skip_if_not_installed("DESeq2")
+    testthat::skip_if_not_installed("DEXSeq")
+
+    fixture_dir <- tempfile("de-degenerate-")
+    dir.create(fixture_dir)
+    bundle <- write_degenerate_de_fixture_bundle(fixture_dir)
+
+    argv <- c(
+        bundle,
+        list(
+            condition_column = "condition",
+            covariates = NULL,
+            reference_level = "control",
+            out_dir = file.path(fixture_dir, "out")
+        )
+    )
+    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
+
+    # Must complete without throwing — any DESeq2/DEXSeq failure should be
+    # caught and degraded to placeholder outputs rather than crashing the process.
+    result <- tryCatch(
+        suppressWarnings(suppressMessages(main_run_de_analysis(argv))),
+        error = function(err) err
+    )
+    testthat::expect_false(
+        inherits(result, "error"),
+        info = if (inherits(result, "error")) conditionMessage(result) else ""
+    )
+
+    # QC JSON must exist with per-contrast status fields.
+    qc_path <- file.path(argv$out_dir, "de_qc_stats.json")
+    testthat::expect_true(file.exists(qc_path))
+    de_qc <- jsonlite::read_json(qc_path, simplifyVector = TRUE)
+
+    contrast_name <- "condition_case_vs_control"
+    contrast_qc <- de_qc$contrasts[[contrast_name]]
+    testthat::expect_false(is.null(contrast_qc))
+    testthat::expect_true(contrast_qc$dge_status %in% c("SUCCESS", "FAILED"))
+    testthat::expect_true(contrast_qc$dtu_status %in% c("SUCCESS", "FAILED"))
+
+    # DGE results file must always exist (empty placeholder on failure).
+    contrast_dir <- file.path(argv$out_dir, contrast_name)
+    dge_tsv <- file.path(contrast_dir, "results_dge.tsv")
+    testthat::expect_true(file.exists(dge_tsv))
+
+    if (identical(contrast_qc$dge_status, "FAILED")) {
+        # Failure log and placeholder PDF written.
+        testthat::expect_true(file.exists(file.path(contrast_dir, "DGE_ANALYSIS_FAILED.txt")))
+        testthat::expect_true(file.exists(file.path(contrast_dir, "results_dge.pdf")))
+        # Empty TSV must have the expected column headers.
+        dge_df <- utils::read.delim(dge_tsv, check.names = FALSE)
+        testthat::expect_equal(nrow(dge_df), 0)
+        testthat::expect_true(all(c("GENEID", "log2FoldChange", "padj") %in% names(dge_df)))
+    }
+
+    # DTU outputs must always exist.
+    testthat::expect_true(file.exists(file.path(contrast_dir, "results_dtu_transcript.tsv")))
+    testthat::expect_true(file.exists(file.path(contrast_dir, "results_dtu_gene.tsv")))
+
+    if (identical(contrast_qc$dtu_status, "FAILED")) {
+        testthat::expect_true(file.exists(file.path(contrast_dir, "DTU_ANALYSIS_FAILED.txt")))
+    }
+
+    # analysis_fallbacks must record failed counts.
+    fallbacks <- de_qc$analysis_fallbacks
+    testthat::expect_true(!is.null(fallbacks$failed_dge_contrasts))
+    testthat::expect_true(!is.null(fallbacks$failed_dtu_contrasts))
 })

@@ -308,3 +308,86 @@ expect_bam_fixture_built <- function(reference, reads, out_dir, alias = "sampleA
 
     bam_path
 }
+
+#' Create a degenerate DE fixture where both condition groups have identical
+#' zero-heavy counts, simulating the control-vs-control case from the bug reports.
+#'
+#' Properties:
+#' - Every transcript has at least one zero (forces DEXSeq poscounts path)
+#' - Every gene has at least one zero (forces DESeq2 poscounts path via
+#'   de_choose_size_factor_type)
+#' - Both condition groups have identical counts (no differential signal,
+#'   stresses dispersion estimation)
+#'
+#' @param out_dir Directory to write the output files.
+#' @return A list with paths to transcript RDS, gene RDS, and sample sheet CSV.
+#' @export
+write_degenerate_de_fixture_bundle <- function(out_dir) {
+    sample_names <- c(
+        "ctrl_rep1", "ctrl_rep2", "ctrl_rep3",
+        "case_rep1", "case_rep2", "case_rep3"
+    )
+
+    # Identical counts across both groups; zeros in every transcript.
+    tx_counts <- matrix(
+        c(
+            0, 0, 4, 0, 0, 4,  # tx1: zero in rep1 and rep2 of both groups
+            3, 4, 3, 3, 4, 3,  # tx2: all nonzero but no group difference
+            2, 2, 0, 2, 2, 0,  # tx3: zero in rep3
+            0, 1, 1, 0, 1, 1   # tx4: zero in rep1
+        ),
+        nrow = 4, byrow = TRUE,
+        dimnames = list(c("tx1", "tx2", "tx3", "tx4"), sample_names)
+    )
+    tx_cpm <- t(t(tx_counts) / pmax(colSums(tx_counts), 1)) * 1e6
+
+    row_ranges <- GenomicRanges::GRanges(
+        seqnames = rep("chr1", 4),
+        ranges = IRanges::IRanges(start = c(1, 101, 201, 301), width = 50),
+        strand = rep("+", 4),
+        TXNAME = c("tx1", "tx2", "tx3", "tx4"),
+        GENEID = c("gene1", "gene1", "gene2", "gene2"),
+        eqClassById = IRanges::CharacterList(list(c("1", "2"), "3", "4", "5"))
+    )
+
+    tx_se <- SummarizedExperiment::SummarizedExperiment(
+        assays = list(counts = tx_counts, CPM = tx_cpm),
+        rowRanges = row_ranges
+    )
+
+    # Gene counts: gene1 = tx1+tx2, gene2 = tx3+tx4.
+    # Each gene has at least one zero per group (triggers poscounts for DGE).
+    gene_counts <- rbind(
+        gene1 = tx_counts["tx1", ] + tx_counts["tx2", ],
+        gene2 = tx_counts["tx3", ] + tx_counts["tx4", ]
+    )
+    gene_cpm <- t(t(gene_counts) / pmax(colSums(gene_counts), 1)) * 1e6
+
+    gene_se <- SummarizedExperiment::SummarizedExperiment(
+        assays = list(counts = gene_counts, CPM = gene_cpm),
+        rowData = S4Vectors::DataFrame(GENEID = rownames(gene_counts))
+    )
+
+    tx_path <- file.path(out_dir, "transcripts.rds")
+    gene_path <- file.path(out_dir, "genes.rds")
+    saveRDS(tx_se, tx_path)
+    saveRDS(gene_se, gene_path)
+
+    sample_sheet <- file.path(out_dir, "sample_sheet.csv")
+    utils::write.csv(
+        data.frame(
+            alias = sample_names,
+            condition = rep(c("control", "case"), each = 3),
+            stringsAsFactors = FALSE
+        ),
+        sample_sheet,
+        row.names = FALSE,
+        quote = FALSE
+    )
+
+    list(
+        transcript_rds = tx_path,
+        gene_rds = gene_path,
+        sample_sheet = sample_sheet
+    )
+}
