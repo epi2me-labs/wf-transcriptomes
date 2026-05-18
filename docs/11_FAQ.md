@@ -81,7 +81,6 @@ Yes. Use `--transcriptome_mode fixed_annotation` together with `--ref_genome`,
 
 Expect the report and output folder to emphasise:
 
-+ optional `pychopper` preprocessing outputs under `ingress_results/<alias>/`
 + the joint cohort `bambu` transcriptome under `cohort/`
 + the per-sample `bambu` transcriptomes under `samples/<alias>/`
 + optional `SQANTI3` results under cohort and per-sample directories
