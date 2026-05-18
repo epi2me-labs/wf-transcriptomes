@@ -359,7 +359,7 @@ def test_report_main_renders_statistical_methods_and_warnings(
     monkeypatch.setattr(report.fastcat, "SeqSummary", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         report,
-        "h3",
+        "h4",
         lambda label: (headings.append(label), _NullContext())[1],
     )
     monkeypatch.setattr(
@@ -449,7 +449,7 @@ def test_report_main_tolerates_missing_statistical_fields(monkeypatch, tmp_path)
     monkeypatch.setattr(report.fastcat, "SeqSummary", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         report,
-        "h3",
+        "h4",
         lambda label: (headings.append(label), _NullContext())[1],
     )
     monkeypatch.setattr(report, "_create_warning_banner", lambda *args, **kwargs: None)

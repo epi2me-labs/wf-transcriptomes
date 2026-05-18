@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-from dominate.tags import div, h3, p, pre, strong
+from dominate.tags import div, h4, p, pre, strong
 from dominate.util import raw
 from ezcharts.components import fastcat
 from ezcharts.components.reports import labs
@@ -317,7 +317,8 @@ def main(args):
                 DataTable.from_pandas(
                     pd.DataFrame.from_dict(item, orient="index", columns=["Value"])
                     .reset_index()
-                    .rename(columns={"index": "Field"})
+                    .rename(columns={"index": "Field"}),
+                    use_index=False,
                 )
 
     # Load bambu QC statistics
@@ -362,53 +363,55 @@ def main(args):
                 pd.DataFrame(seqname_rows, columns=["Check", "Value"]),
                 paging=False,
                 searchable=False,
+                use_index=False,
             )
 
-            with h3("Build and Provider Hints"):
-                hint_rows = [
-                    (
-                        "Reference build",
-                        _format_hint_values(
-                            annotation_reference_summary.get(
-                                "reference_build_hints", []
-                            )
-                        ),
+            h4("Build and Provider Hints")
+            hint_rows = [
+                (
+                    "Reference build",
+                    _format_hint_values(
+                        annotation_reference_summary.get(
+                            "reference_build_hints", []
+                        )
                     ),
-                    (
-                        "Annotation build",
-                        _format_hint_values(
-                            annotation_reference_summary.get(
-                                "annotation_build_hints", []
-                            )
-                        ),
+                ),
+                (
+                    "Annotation build",
+                    _format_hint_values(
+                        annotation_reference_summary.get(
+                            "annotation_build_hints", []
+                        )
                     ),
-                    (
-                        "Reference provider",
-                        _format_hint_values(
-                            annotation_reference_summary.get(
-                                "reference_provider_hints", []
-                            )
-                        ),
+                ),
+                (
+                    "Reference provider",
+                    _format_hint_values(
+                        annotation_reference_summary.get(
+                            "reference_provider_hints", []
+                        )
                     ),
-                    (
-                        "Annotation provider",
-                        _format_hint_values(
-                            annotation_reference_summary.get(
-                                "annotation_provider_hints", []
-                            )
-                        ),
+                ),
+                (
+                    "Annotation provider",
+                    _format_hint_values(
+                        annotation_reference_summary.get(
+                            "annotation_provider_hints", []
+                        )
                     ),
-                ]
-                DataTable.from_pandas(
-                    pd.DataFrame(hint_rows, columns=["Evidence", "Hints"]),
-                    paging=False,
-                    searchable=False,
-                )
+                ),
+            ]
+            DataTable.from_pandas(
+                pd.DataFrame(hint_rows, columns=["Evidence", "Hints"]),
+                paging=False,
+                searchable=False,
+                use_index=False,
+            )
 
             examples = annotation_summary.get("unstranded_examples") or []
             if examples:
-                with h3("Unstranded Annotation Examples"):
-                    pre("\n".join(examples))
+                h4("Unstranded Annotation Examples")
+                pre("\n".join(examples))
 
     # Add Bambu QC section with warnings
     if bambu_qc:
@@ -422,110 +425,129 @@ def main(args):
                     level="warning",
                 )
 
-            # Library size statistics
-            with h3("Library Size Statistics"):
-                lib_stats = pd.DataFrame(
-                    [
-                        ("Samples analyzed", bambu_qc.get("samples", "N/A")),
-                        (
-                            "Median library size",
-                            "{} reads".format(
-                                _format_count_value(
-                                    bambu_qc.get("median_library_size", 0)
-                                )
-                            ),
+            h4("Library Size Statistics")
+            lib_stats = pd.DataFrame(
+                [
+                    ("Samples analyzed", bambu_qc.get("samples", "N/A")),
+                    (
+                        "Median library size",
+                        "{} reads".format(
+                            _format_count_value(
+                                bambu_qc.get("median_library_size", 0)
+                            )
                         ),
-                        (
-                            "Min library size",
-                            "{} reads".format(
-                                _format_count_value(
-                                    bambu_qc.get("min_library_size", 0)
-                                )
-                            ),
+                    ),
+                    (
+                        "Min library size",
+                        "{} reads".format(
+                            _format_count_value(
+                                bambu_qc.get("min_library_size", 0)
+                            )
                         ),
-                        (
-                            "Max library size",
-                            "{} reads".format(
-                                _format_count_value(
-                                    bambu_qc.get("max_library_size", 0)
-                                )
-                            ),
+                    ),
+                    (
+                        "Max library size",
+                        "{} reads".format(
+                            _format_count_value(
+                                bambu_qc.get("max_library_size", 0)
+                            )
                         ),
-                        (
-                            "Library size ratio (max/min)",
-                            _format_ratio_value(
-                                bambu_qc.get("library_size_ratio", 1.0)
-                            ),
+                    ),
+                    (
+                        "Library size ratio (max/min)",
+                        _format_ratio_value(
+                            bambu_qc.get("library_size_ratio", 1.0)
                         ),
-                    ],
-                    columns=["Metric", "Value"],
-                )
-                DataTable.from_pandas(lib_stats, paging=False, searchable=False)
+                    ),
+                ],
+                columns=["Metric", "Value"],
+            )
+            DataTable.from_pandas(
+                lib_stats,
+                paging=False,
+                searchable=False,
+                use_index=False,
+            )
 
             # Transcript discovery statistics
-            with h3("Transcript Discovery"):
-                discovery_stats = pd.DataFrame(
-                    [
-                        (
-                            "Transcriptome mode",
-                            bambu_qc.get("transcriptome_mode", "N/A"),
-                        ),
-                        ("NDR used", str(bambu_qc.get("ndr_used", "N/A"))),
-                        (
-                            "Transcripts before filtering",
-                            bambu_qc.get("total_transcripts_before_filter", 0),
-                        ),
-                        (
-                            "Transcripts after filtering",
-                            bambu_qc.get("total_transcripts_after_filter", 0),
-                        ),
-                        (
-                            "Transcripts removed",
-                            bambu_qc.get("transcripts_filtered", 0),
-                        ),
-                        (
-                            "Median transcripts per sample",
-                            bambu_qc.get("median_transcripts_detected", 0),
-                        ),
-                        (
-                            "Unique genes (after filter)",
-                            bambu_qc.get("total_genes_after_filter", 0),
-                        ),
-                    ],
-                    columns=["Metric", "Value"],
-                )
-                DataTable.from_pandas(discovery_stats, paging=False, searchable=False)
+            h4("Transcript Discovery")
+            discovery_stats = pd.DataFrame(
+                [
+                    (
+                        "Transcriptome mode",
+                        bambu_qc.get("transcriptome_mode", "N/A"),
+                    ),
+                    ("NDR used", str(bambu_qc.get("ndr_used", "N/A"))),
+                    (
+                        "Transcripts before filtering",
+                        bambu_qc.get("total_transcripts_before_filter", 0),
+                    ),
+                    (
+                        "Transcripts after filtering",
+                        bambu_qc.get("total_transcripts_after_filter", 0),
+                    ),
+                    (
+                        "Transcripts removed",
+                        bambu_qc.get("transcripts_filtered", 0),
+                    ),
+                    (
+                        "Median transcripts per sample",
+                        bambu_qc.get("median_transcripts_detected", 0),
+                    ),
+                    (
+                        "Unique genes (after filter)",
+                        bambu_qc.get("total_genes_after_filter", 0),
+                    ),
+                ],
+                columns=["Metric", "Value"],
+            )
+            DataTable.from_pandas(
+                discovery_stats,
+                paging=False,
+                searchable=False,
+                use_index=False,
+            )
 
             # Per-sample library sizes
             if "library_sizes" in bambu_qc and bambu_qc["library_sizes"]:
-                with h3("Per-Sample Library Sizes"):
-                    lib_size_data = []
-                    for sample, size in bambu_qc["library_sizes"].items():
-                        numeric_size = _coerce_float(size)
-                        lib_size_data.append(
-                            {
-                                "Sample": sample,
-                                "Library Size": _format_count_value(size),
-                                "Reads": (
-                                    numeric_size if numeric_size is not None else -1
-                                ),
-                            }
-                        )
-                    lib_df = pd.DataFrame(lib_size_data).sort_values(
-                        "Reads", ascending=False
+                h4("Per-Sample Library Sizes")
+                lib_size_data = []
+                for sample, size in bambu_qc["library_sizes"].items():
+                    numeric_size = _coerce_float(size)
+                    lib_size_data.append(
+                        {
+                            "Sample": sample,
+                            "Library Size": _format_count_value(size),
+                            "Reads": (
+                                numeric_size if numeric_size is not None else -1
+                            ),
+                        }
                     )
-                    DataTable.from_pandas(
-                        lib_df[["Sample", "Library Size"]],
-                        paging=False,
-                        use_index=False,
-                    )
+                lib_df = pd.DataFrame(lib_size_data).sort_values(
+                    "Reads", ascending=False
+                )
+                DataTable.from_pandas(
+                    lib_df[["Sample", "Library Size"]],
+                    paging=False,
+                    use_index=False,
+                )
 
     with report.add_section("Cohort transcriptome", "Cohort"):
         cohort_metrics, cohort_classes = _cohort_summary(args.cohort_dir)
         if cohort_metrics is not None:
-            DataTable.from_pandas(cohort_metrics, paging=False, searchable=False)
+            DataTable.from_pandas(
+                cohort_metrics,
+                paging=False,
+                searchable=False,
+                use_index=False,
+            )
         if cohort_classes is not None:
-            DataTable.from_pandas(cohort_classes, paging=False, searchable=False)
+            DataTable.from_pandas(
+                cohort_classes,
+                paging=False,
+                searchable=False,
+                use_index=False,
+            )
 
         tx_counts = _read_table(Path(args.cohort_dir) / "transcript_counts.tsv")
         if tx_counts is not None and not tx_counts.empty:
@@ -536,7 +558,12 @@ def main(args):
         tabs = Tabs()
         for sample, summary_df in _sample_summaries(args.samples_dir).items():
             with tabs.add_tab(sample):
-                DataTable.from_pandas(summary_df, paging=False, searchable=False)
+                DataTable.from_pandas(
+                    summary_df,
+                    paging=False,
+                    searchable=False,
+                    use_index=False,
+                )
 
     if args.alignment_stats_dir and Path(args.alignment_stats_dir).exists():
         with report.add_section("Alignment statistics", "Alignments"):
@@ -656,184 +683,189 @@ def main(args):
                     has_warnings = True
 
                 # Experimental design summary
-                with h3("Experimental Design"):
-                    covariates = _as_string_list(de_qc.get("covariates"))
-                    covariates_value = ", ".join(covariates) if covariates else "none"
-                    design_stats = pd.DataFrame(
-                        [
-                            ("Total samples", de_qc.get("total_samples", 0)),
-                            (
-                                "Condition column",
-                                de_qc.get("condition_column", "N/A"),
-                            ),
-                            (
-                                "Reference level",
-                                de_qc.get("reference_level", "N/A"),
-                            ),
-                            ("Covariates", covariates_value),
-                            (
-                                "Number of contrasts",
-                                de_qc.get("num_contrasts", 0),
-                            ),
-                        ],
-                        columns=["Parameter", "Value"],
-                    )
-                    DataTable.from_pandas(design_stats, paging=False, searchable=False)
+                h4("Experimental Design")
+                covariates = _as_string_list(de_qc.get("covariates"))
+                covariates_value = ", ".join(covariates) if covariates else "none"
+                design_stats = pd.DataFrame(
+                    [
+                        ("Total samples", de_qc.get("total_samples", 0)),
+                        (
+                            "Condition column",
+                            de_qc.get("condition_column", "N/A"),
+                        ),
+                        (
+                            "Reference level",
+                            de_qc.get("reference_level", "N/A"),
+                        ),
+                        ("Covariates", covariates_value),
+                        (
+                            "Number of contrasts",
+                            de_qc.get("num_contrasts", 0),
+                        ),
+                    ],
+                    columns=["Parameter", "Value"],
+                )
+                DataTable.from_pandas(
+                    design_stats,
+                    paging=False,
+                    searchable=False,
+                    use_index=False,
+                )
 
                 # Sample sizes per group
                 if "samples_per_group" in de_qc:
-                    with h3("Sample Sizes per Group"):
-                        sample_size_data = []
-                        for group, count in de_qc["samples_per_group"].items():
-                            status = (
-                                "✓" if count >= 3 else "⚠️" if count >= 2 else "❌"
-                            )
-                            note = (
-                                "OK"
-                                if count >= 3
-                                else "Low power"
-                                if count >= 2
-                                else "Too few"
-                            )
-                            sample_size_data.append(
-                                {
-                                    "Group": group,
-                                    "Samples": count,
-                                    "Status": status,
-                                    "Note": note,
-                                }
-                            )
-                        sample_df = pd.DataFrame(sample_size_data)
-                        DataTable.from_pandas(
-                            sample_df,
-                            paging=False,
-                            use_index=False,
+                    h4("Sample Sizes per Group")
+                    sample_size_data = []
+                    for group, count in de_qc["samples_per_group"].items():
+                        status = (
+                            "✓" if count >= 3 else "⚠️" if count >= 2 else "❌"
                         )
+                        note = (
+                            "OK"
+                            if count >= 3
+                            else "Low power"
+                            if count >= 2
+                            else "Too few"
+                        )
+                        sample_size_data.append(
+                            {
+                                "Group": group,
+                                "Samples": count,
+                                "Status": status,
+                                "Note": note,
+                            }
+                        )
+                    sample_df = pd.DataFrame(sample_size_data)
+                    DataTable.from_pandas(
+                        sample_df,
+                        paging=False,
+                        use_index=False,
+                    )
 
-                with h3("Statistical Methods & Warnings"):
-                    if method_rows:
-                        method_df = pd.DataFrame(method_rows)
-                        DataTable.from_pandas(
-                            method_df,
-                            paging=False,
-                            use_index=False,
-                        )
-                    else:
-                        p("No contrast-level QC metadata was found.")
+                h4("Statistical Methods & Warnings")
+                if method_rows:
+                    method_df = pd.DataFrame(method_rows)
+                    DataTable.from_pandas(
+                        method_df,
+                        paging=False,
+                        use_index=False,
+                    )
+                else:
+                    p("No contrast-level QC metadata was found.")
 
                 # Per-contrast summary
                 if "contrasts" in de_qc:
-                    with h3("Results Summary by Contrast"):
-                        contrast_summary_data = []
-                        for contrast_name, contrast_data in de_qc["contrasts"].items():
-                            dtu_genes = (
-                                contrast_data.get("dtu_significant_genes", 0)
-                                if contrast_data.get("dtu_status") == "SUCCESS"
-                                else "N/A"
-                            )
-                            contrast_summary_data.append(
-                                {
-                                    "Contrast": contrast_name,
-                                    "Samples": (
-                                        f"{contrast_data.get('n_target', 0)} "
-                                        f"vs "
-                                        f"{contrast_data.get('n_reference', 0)}"
-                                    ),
-                                    "DGE Status": contrast_data.get(
-                                        "dge_status", "N/A"
-                                    ),
-                                    "DGE Significant (FDR<0.05)": (
-                                        contrast_data.get(
-                                            "dge_significant_fdr05", 0
-                                        )
-                                        if contrast_data.get("dge_status") == "SUCCESS"
-                                        else "N/A"
-                                    ),
-                                    "DGE Up": (
-                                        contrast_data.get("dge_upregulated", 0)
-                                        if contrast_data.get("dge_status") == "SUCCESS"
-                                        else "N/A"
-                                    ),
-                                    "DGE Down": (
-                                        contrast_data.get("dge_downregulated", 0)
-                                        if contrast_data.get("dge_status") == "SUCCESS"
-                                        else "N/A"
-                                    ),
-                                    "DTU Status": contrast_data.get(
-                                        "dtu_status", "N/A"
-                                    ),
-                                    "DTU Genes (q<0.05)": dtu_genes,
-                                }
-                            )
-                        contrast_summary_df = pd.DataFrame(contrast_summary_data)
-                        DataTable.from_pandas(
-                            contrast_summary_df,
-                            paging=False,
-                            use_index=False,
+                    h4("Results Summary by Contrast")
+                    contrast_summary_data = []
+                    for contrast_name, contrast_data in de_qc["contrasts"].items():
+                        dtu_genes = (
+                            contrast_data.get("dtu_significant_genes", 0)
+                            if contrast_data.get("dtu_status") == "SUCCESS"
+                            else "N/A"
                         )
+                        contrast_summary_data.append(
+                            {
+                                "Contrast": contrast_name,
+                                "Samples": (
+                                    f"{contrast_data.get('n_target', 0)} "
+                                    f"vs "
+                                    f"{contrast_data.get('n_reference', 0)}"
+                                ),
+                                "DGE Status": contrast_data.get(
+                                    "dge_status", "N/A"
+                                ),
+                                "DGE Significant (FDR<0.05)": (
+                                    contrast_data.get(
+                                        "dge_significant_fdr05", 0
+                                    )
+                                    if contrast_data.get("dge_status") == "SUCCESS"
+                                    else "N/A"
+                                ),
+                                "DGE Up": (
+                                    contrast_data.get("dge_upregulated", 0)
+                                    if contrast_data.get("dge_status") == "SUCCESS"
+                                    else "N/A"
+                                ),
+                                "DGE Down": (
+                                    contrast_data.get("dge_downregulated", 0)
+                                    if contrast_data.get("dge_status") == "SUCCESS"
+                                    else "N/A"
+                                ),
+                                "DTU Status": contrast_data.get(
+                                    "dtu_status", "N/A"
+                                ),
+                                "DTU Genes (q<0.05)": dtu_genes,
+                            }
+                        )
+                    contrast_summary_df = pd.DataFrame(contrast_summary_data)
+                    DataTable.from_pandas(
+                        contrast_summary_df,
+                        paging=False,
+                        use_index=False,
+                    )
 
                 # Warnings summary table
                 if has_warnings:
-                    with h3("Quality Warnings Summary"):
-                        warnings_data = []
-                        if sample_size_warnings:
-                            warnings_data.append(
-                                {
-                                    "Warning Type": "Sample Size",
-                                    "Details": "; ".join(sample_size_warnings),
-                                }
-                            )
-                        if deseq2_gene_wise or dexseq_gene_wise:
-                            engines = []
-                            if deseq2_gene_wise:
-                                engines.append(
-                                    f"DESeq2 ({len(deseq2_gene_wise)} contrasts)"
-                                )
-                            if dexseq_gene_wise:
-                                engines.append(
-                                    f"DEXSeq ({len(dexseq_gene_wise)} contrasts)"
-                                )
-                            warnings_data.append(
-                                {
-                                    "Warning Type": "Gene-wise Dispersion Fallback",
-                                    "Details": "; ".join(engines),
-                                }
-                            )
-                        if dexseq_covariate_drops:
-                            warnings_data.append(
-                                {
-                                    "Warning Type": "DEXSeq Covariates Dropped",
-                                    "Details": (
-                                        f"{len(dexseq_covariate_drops)} "
-                                        "contrasts affected"
-                                    ),
-                                }
-                            )
-                        if failed_dtu:
-                            warnings_data.append(
-                                {
-                                    "Warning Type": "DTU Failure",
-                                    "Details": (
-                                        f"{len(failed_dtu)} contrasts failed"
-                                    ),
-                                }
-                            )
-                        if failed_dge:
-                            warnings_data.append(
-                                {
-                                    "Warning Type": "DGE Failure",
-                                    "Details": (
-                                        f"{len(failed_dge)} contrasts failed"
-                                    ),
-                                }
-                            )
-
-                        warnings_df = pd.DataFrame(warnings_data)
-                        DataTable.from_pandas(
-                            warnings_df,
-                            paging=False,
-                            use_index=False,
+                    h4("Quality Warnings Summary")
+                    warnings_data = []
+                    if sample_size_warnings:
+                        warnings_data.append(
+                            {
+                                "Warning Type": "Sample Size",
+                                "Details": "; ".join(sample_size_warnings),
+                            }
                         )
+                    if deseq2_gene_wise or dexseq_gene_wise:
+                        engines = []
+                        if deseq2_gene_wise:
+                            engines.append(
+                                f"DESeq2 ({len(deseq2_gene_wise)} contrasts)"
+                            )
+                        if dexseq_gene_wise:
+                            engines.append(
+                                f"DEXSeq ({len(dexseq_gene_wise)} contrasts)"
+                            )
+                        warnings_data.append(
+                            {
+                                "Warning Type": "Gene-wise Dispersion Fallback",
+                                "Details": "; ".join(engines),
+                            }
+                        )
+                    if dexseq_covariate_drops:
+                        warnings_data.append(
+                            {
+                                "Warning Type": "DEXSeq Covariates Dropped",
+                                "Details": (
+                                    f"{len(dexseq_covariate_drops)} "
+                                    "contrasts affected"
+                                ),
+                            }
+                        )
+                    if failed_dtu:
+                        warnings_data.append(
+                            {
+                                "Warning Type": "DTU Failure",
+                                "Details": (
+                                    f"{len(failed_dtu)} contrasts failed"
+                                ),
+                            }
+                        )
+                    if failed_dge:
+                        warnings_data.append(
+                            {
+                                "Warning Type": "DGE Failure",
+                                "Details": (
+                                    f"{len(failed_dge)} contrasts failed"
+                                ),
+                            }
+                        )
+
+                    warnings_df = pd.DataFrame(warnings_data)
+                    DataTable.from_pandas(
+                        warnings_df,
+                        paging=False,
+                        use_index=False,
+                    )
 
         with report.add_section("Differential gene expression", "DGE"):
             tabs = Tabs()
