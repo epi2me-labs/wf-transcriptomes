@@ -223,6 +223,35 @@ testthat::test_that("sample sheet reordered to match BAMs", {
     )
 })
 
+testthat::test_that("numeric alias and sample_id values are preserved as strings", {
+    sample_sheet <- tempfile(fileext = ".csv")
+    writeLines(
+        paste(
+            "barcode,sample_id,alias,condition",
+            "barcode01,01,01,control",
+            "barcode02,02,02,treated",
+            sep = "\n"
+        ),
+        sample_sheet
+    )
+
+    args <- list(
+        bams = "sample1.bam,sample2.bam",
+        aliases = "01,02",
+        sample_sheet = sample_sheet
+    )
+    resolved <- bambu_resolve_inputs(
+        args,
+        bamfile_list_ctor = function(paths, yieldSize) paths
+    )
+
+    testthat::expect_equal(resolved$aliases, c("01", "02"))
+    testthat::expect_equal(resolved$sample_df$alias, c("01", "02"))
+    testthat::expect_equal(resolved$sample_df$sample_id, c("01", "02"))
+    testthat::expect_type(resolved$sample_df$alias, "character")
+    testthat::expect_type(resolved$sample_df$sample_id, "character")
+})
+
 # Explicit discovery/quant flags are passed through to bambu consistently.
 # NDR is only passed during discovery and omitted when automatic selection is wanted.
 testthat::test_that("bambu args include requested discovery and quant flags", {
