@@ -201,29 +201,64 @@ de_run_deseq_with_fallback <- function(
     )
 
     de_out <- tryCatch(
-        DESeq2::DESeq(dds, quiet = TRUE, sfType = sf_type),
+        list(
+            dds = DESeq2::DESeq(dds, quiet = TRUE, sfType = sf_type),
+            deseq2_dispersion_fallback = fallback_info
+        ),
         error = function(err) {
-            if (!grepl(
-                "all gene-wise dispersion estimates are within 2 orders of magnitude",
-                conditionMessage(err),
+            msg <- conditionMessage(err)
+            zero_geometric_means <- grepl(
+                "every gene contains at least one zero",
+                msg,
                 fixed = TRUE
-            )) {
+            )
+
+            # Size factor estimation failure: all genes have at least one zero.
+            # de_choose_size_factor_type should prevent this proactively, but as
+            # a safety net switch to poscounts so the gene-wise fallback below
+            # can call estimateSizeFactors without failing again.
+            fallback_sf_type <- if (zero_geometric_means) "poscounts" else sf_type
+
+            recoverable <- grepl(
+                "all gene-wise dispersion estimates are within 2 orders of magnitude",
+                msg,
+                fixed = TRUE
+            ) || grepl(
+                "newsplit: out of vertex space",
+                msg,
+                fixed = TRUE
+            ) || grepl(
+                "every gene contains at least one zero",
+                msg,
+                fixed = TRUE
+            )
+            if (!recoverable) {
                 stop(err)
             }
 
-            warning(
-                "STATISTICAL POWER REDUCED: DESeq2 dispersion estimation failed for ",
-                contrast_name,
-                ".\n",
-                "This usually indicates:\n",
-                "  1. Too few replicates (recommend n>=3 per group)\n",
-                "  2. High biological variability\n",
-                "  3. Poor data quality\n",
-                "Falling back to gene-wise dispersion (no information sharing).\n",
-                "Results will have reduced power and wider confidence intervals."
-            )
+            if (zero_geometric_means) {
+                warning(
+                    "STATISTICAL POWER REDUCED: DESeq2 default size-factor estimation failed for ",
+                    contrast_name,
+                    " because every gene contains at least one zero.\n",
+                    "Switching to sfType='poscounts' and using gene-wise dispersion estimates.\n",
+                    "Results will have reduced power and wider confidence intervals."
+                )
+            } else {
+                warning(
+                    "STATISTICAL POWER REDUCED: DESeq2 dispersion estimation failed for ",
+                    contrast_name,
+                    ".\n",
+                    "This usually indicates:\n",
+                    "  1. Too few replicates (recommend n>=3 per group)\n",
+                    "  2. High biological variability\n",
+                    "  3. Poor data quality\n",
+                    "Falling back to gene-wise dispersion (no information sharing).\n",
+                    "Results will have reduced power and wider confidence intervals."
+                )
+            }
 
-            dds <- DESeq2::estimateSizeFactors(dds, type = sf_type)
+            dds <- DESeq2::estimateSizeFactors(dds, type = fallback_sf_type)
             dds <- DESeq2::estimateDispersionsGeneEst(dds)
             dispersions_setter <- get("dispersions<-", envir = asNamespace("DESeq2"))
             dds <- dispersions_setter(dds, value = S4Vectors::mcols(dds)$dispGeneEst)
@@ -241,17 +276,35 @@ de_run_deseq_with_fallback <- function(
             }
 
             diag_content <- c(
-                "DESeq2 Dispersion Estimation Fallback Applied",
-                "==============================================",
+                if (zero_geometric_means) {
+                    "DESeq2 Poscounts and Gene-wise Fallback Applied"
+                } else {
+                    "DESeq2 Dispersion Estimation Fallback Applied"
+                },
+                if (zero_geometric_means) {
+                    "============================================="
+                } else {
+                    "=============================================="
+                },
                 "",
                 sprintf("Timestamp: %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
                 sprintf("Contrast: %s", contrast_name),
                 sprintf("Samples: %d", ncol(dds)),
                 sprintf("Genes tested: %d", nrow(dds)),
+                sprintf("Size factor method: %s", fallback_sf_type),
                 dispersion_range,
                 "",
                 "WHAT HAPPENED:",
-                "  Curve fitting failed. Using gene-wise dispersion estimates.",
+                if (zero_geometric_means) {
+                    "  Every gene contained at least one zero, so DESeq2's default size-factor estimator was undefined."
+                } else {
+                    "  Curve fitting failed. Using gene-wise dispersion estimates."
+                },
+                if (zero_geometric_means) {
+                    "  The analysis switched to sfType='poscounts' and used gene-wise dispersion estimates."
+                } else {
+                    NULL
+                },
                 "",
                 "IMPLICATIONS:",
                 "  - No information sharing across genes",
@@ -260,14 +313,34 @@ de_run_deseq_with_fallback <- function(
                 "  - More conservative results (fewer discoveries)",
                 "",
                 "LIKELY CAUSES:",
-                "  1. Too few replicates (recommend n>=3 per group)",
-                "  2. High biological variability",
-                "  3. Poor data quality or outlier samples",
+                if (zero_geometric_means) {
+                    c(
+                        "  1. Sparse count matrices with many zeros",
+                        "  2. Low-expression features dominating the design",
+                        "  3. Small or weakly separated groups"
+                    )
+                } else {
+                    c(
+                        "  1. Too few replicates (recommend n>=3 per group)",
+                        "  2. High biological variability",
+                        "  3. Poor data quality or outlier samples"
+                    )
+                },
                 "",
                 "RECOMMENDATIONS:",
-                "  - Add more biological replicates if possible",
-                "  - Check sample quality metrics",
-                "  - Consider filtering low-count genes more stringently"
+                if (zero_geometric_means) {
+                    c(
+                        "  - Check whether the contrast is dominated by zeros or nearly identical samples",
+                        "  - Add more biological replicates if possible",
+                        "  - Consider filtering very low-count genes more stringently"
+                    )
+                } else {
+                    c(
+                        "  - Add more biological replicates if possible",
+                        "  - Check sample quality metrics",
+                        "  - Consider filtering low-count genes more stringently"
+                    )
+                }
             )
 
             diag_file <- file.path(
@@ -278,18 +351,19 @@ de_run_deseq_with_fallback <- function(
                 )
             )
             writeLines(diag_content, diag_file)
-            fallback_info <<- list(
-                applied = TRUE,
-                method_used = "gene-wise",
-                reason = conditionMessage(err),
-                diagnostic_file = basename(diag_file),
-                size_factor_type = sf_type
+            list(
+                dds = DESeq2::nbinomWaldTest(dds),
+                deseq2_dispersion_fallback = list(
+                    applied = TRUE,
+                    method_used = "gene-wise",
+                    reason = conditionMessage(err),
+                    diagnostic_file = basename(diag_file),
+                    size_factor_type = fallback_sf_type
+                )
             )
-
-            DESeq2::nbinomWaldTest(dds)
         }
     )
-    list(dds = de_out, deseq2_dispersion_fallback = fallback_info)
+    de_out
 }
 
 de_estimate_dispersions_with_fallback <- function(
@@ -297,6 +371,15 @@ de_estimate_dispersions_with_fallback <- function(
     context_label,
     allow_gene_est = TRUE
 ) {
+    de_dispersion_recoverable <- function(msg) {
+        grepl(
+            "all gene-wise dispersion estimates are within 2 orders of magnitude",
+            msg, fixed = TRUE
+        ) || grepl(
+            "newsplit: out of vertex space",
+            msg, fixed = TRUE
+        )
+    }
     tryCatch(
         list(
             object = DESeq2::estimateDispersions(object),
@@ -304,11 +387,7 @@ de_estimate_dispersions_with_fallback <- function(
             fallback_applied = FALSE
         ),
         error = function(err) {
-            if (!grepl(
-                "all gene-wise dispersion estimates are within 2 orders of magnitude",
-                conditionMessage(err),
-                fixed = TRUE
-            )) {
+            if (!de_dispersion_recoverable(conditionMessage(err))) {
                 stop(err)
             }
 
@@ -323,11 +402,7 @@ de_estimate_dispersions_with_fallback <- function(
                     fallback_applied = TRUE
                 ),
                 error = function(local_err) {
-                    if (!grepl(
-                        "all gene-wise dispersion estimates are within 2 orders of magnitude",
-                        conditionMessage(local_err),
-                        fixed = TRUE
-                    )) {
+                    if (!de_dispersion_recoverable(conditionMessage(local_err))) {
                         stop(local_err)
                     }
 
@@ -342,11 +417,7 @@ de_estimate_dispersions_with_fallback <- function(
                             fallback_applied = TRUE
                         ),
                         error = function(mean_err) {
-                            if (!grepl(
-                                "all gene-wise dispersion estimates are within 2 orders of magnitude",
-                                conditionMessage(mean_err),
-                                fixed = TRUE
-                            )) {
+                            if (!de_dispersion_recoverable(conditionMessage(mean_err))) {
                                 stop(mean_err)
                             }
                             if (!allow_gene_est) {
@@ -389,7 +460,39 @@ de_is_recoverable_dexseq_error <- function(message_text) {
         "replacement has 1 row, data has 0",
         message_text,
         fixed = TRUE
+    ) || grepl(
+        "newsplit: out of vertex space",
+        message_text,
+        fixed = TRUE
+    ) || grepl(
+        "every gene contains at least one zero",
+        message_text,
+        fixed = TRUE
     )
+}
+
+de_dexseq_failure_hint <- function(message_text) {
+    if (grepl("nb of cols in 'assay'", message_text, fixed = TRUE)) {
+        return(
+            paste(
+                "Probable cause: degenerate or near-identical sample groups can",
+                "drive DEXSeq into an internal object-shape mismatch during model",
+                "fitting. This is often seen when the contrast has little real",
+                "separation or too few informative non-zero features."
+            )
+        )
+    }
+    if (grepl("'x' must be an array of at least two dimensions", message_text, fixed = TRUE)) {
+        return(
+            paste(
+                "Probable cause: degenerate or near-identical sample groups can",
+                "leave DEXSeq with too little informative structure for downstream",
+                "gene-level DTU summarisation. This is often seen when the contrast",
+                "has little real separation or too few informative non-zero features."
+            )
+        )
+    }
+    NULL
 }
 
 de_write_placeholder_pdf <- function(path, label) {
@@ -397,6 +500,50 @@ de_write_placeholder_pdf <- function(path, label) {
     graphics::plot.new()
     graphics::text(0.5, 0.5, label, cex = 0.9)
     grDevices::dev.off()
+}
+
+de_write_dtu_failure_outputs <- function(
+    contrast_dir,
+    target_level,
+    reference_level,
+    contrast_samples,
+    condition_column,
+    tx_counts,
+    message_text,
+    failure_hint
+) {
+    failure_content <- c(
+        "DTU Analysis Failed",
+        "===================",
+        "",
+        sprintf("Timestamp: %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+        sprintf("Contrast: %s vs %s", target_level, reference_level),
+        sprintf(
+            "Samples: %d (%d %s, %d %s)",
+            nrow(contrast_samples),
+            sum(contrast_samples[[condition_column]] == target_level),
+            target_level,
+            sum(contrast_samples[[condition_column]] == reference_level),
+            reference_level
+        ),
+        sprintf("Transcripts: %d", nrow(tx_counts)),
+        "",
+        "ERROR MESSAGE:",
+        sprintf("  %s", message_text),
+        if (!is.null(failure_hint)) {
+            c(
+                "",
+                "PROBABLE CAUSE:",
+                sprintf("  %s", failure_hint)
+            )
+        } else {
+            NULL
+        },
+        "",
+        "DTU RESULTS CANNOT BE INTERPRETED",
+        ""
+    )
+    writeLines(failure_content, file.path(contrast_dir, "DTU_ANALYSIS_FAILED.txt"))
 }
 
 de_run_deseq2_result <- function(
@@ -453,9 +600,7 @@ de_run_dexseq_result <- function(
     for (covariate in covariates) {
         coldata[[covariate]] <- factor(coldata[[covariate]])
     }
-    dropped_covariates <- character(0)
-
-    run_inner <- function(active_covariates) {
+    run_inner <- function(active_covariates, dropped_covariates = character(0)) {
         covariate_exon_terms <- if (length(active_covariates) > 0) {
             paste0(active_covariates, ":exon")
         } else {
@@ -498,7 +643,8 @@ de_run_dexseq_result <- function(
                 dxd = dxd,
                 dxr = dxr,
                 dexseq_dispersion_method = dispersion_method,
-                dexseq_size_factor_type = dexseq_sf_type
+                dexseq_size_factor_type = dexseq_sf_type,
+                dexseq_covariates_dropped = dropped_covariates
             )
         }, error = function(err) {
             if (length(active_covariates) == 0 || !grepl(
@@ -511,20 +657,22 @@ de_run_dexseq_result <- function(
 
             dropped_covariate <- tail(active_covariates, 1)
             kept_covariates <- head(active_covariates, -1)
-            dropped_covariates <<- c(dropped_covariates, dropped_covariate)
             message(
                 "DEXSeq design was not full rank with covariate '",
                 dropped_covariate,
                 "'; retrying without it."
             )
-            run_inner(kept_covariates)
+            run_inner(
+                kept_covariates,
+                c(dropped_covariates, dropped_covariate)
+            )
         })
     }
 
-    result <- run_inner(covariates)
-    result$dexseq_covariates_dropped <- dropped_covariates
-    result
+    run_inner(covariates)
 }
+
+de_dge_columns <- c("GENEID", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj")
 
 de_dtu_transcript_columns <- c(
     "featureID",
@@ -555,6 +703,81 @@ de_extract_dtu_transcript_table <- function(dex_df, contrast_name) {
         names(dex_df)
     ), drop = FALSE]
     workflow_glue_r_normalise_tsv_df(tx_dtu)
+}
+
+de_postprocess_dexseq_result <- function(
+    dex_res,
+    contrast_dir,
+    target_level,
+    reference_level,
+    contrast_samples,
+    condition_column,
+    tx_counts,
+    contrast_name,
+    per_gene_qvalue_fn = DEXSeq::perGeneQValue,
+    plot_writer = function(dex_res, contrast_dir) {
+        grDevices::pdf(file.path(contrast_dir, "results_dtu.pdf"))
+        DESeq2::plotMA(dex_res$dxr, cex = 0.8, alpha = 0.05)
+        DESeq2::plotDispEsts(dex_res$dxd)
+        grDevices::dev.off()
+    }
+) {
+    tryCatch(
+        {
+            dex_df <- as.data.frame(dex_res$dxr)
+            dex_df <- workflow_glue_r_normalise_tsv_df(dex_df)
+            tx_dtu <- de_extract_dtu_transcript_table(dex_df, contrast_name)
+            gene_q <- per_gene_qvalue_fn(dex_res$dxr)
+            gene_dtu <- data.frame(
+                GENEID = names(gene_q),
+                qval = unname(gene_q),
+                row.names = NULL
+            )
+            plot_writer(dex_res, contrast_dir)
+            list(
+                ok = TRUE,
+                dex_df = dex_df,
+                tx_dtu = tx_dtu,
+                gene_dtu = gene_dtu,
+                failure_hint = NULL
+            )
+        },
+        error = function(err) {
+            message_text <- conditionMessage(err)
+            failure_hint <- de_dexseq_failure_hint(message_text)
+
+            warning(
+                "DEXSeq post-processing failed for contrast ",
+                target_level,
+                " vs ",
+                reference_level,
+                if (!is.null(failure_hint)) {
+                    paste0("\nProbable cause: ", failure_hint)
+                } else {
+                    ""
+                },
+                "\nError: ",
+                message_text
+            )
+            de_write_dtu_failure_outputs(
+                contrast_dir = contrast_dir,
+                target_level = target_level,
+                reference_level = reference_level,
+                contrast_samples = contrast_samples,
+                condition_column = condition_column,
+                tx_counts = tx_counts,
+                message_text = message_text,
+                failure_hint = failure_hint
+            )
+            list(
+                ok = FALSE,
+                dex_df = NULL,
+                tx_dtu = NULL,
+                gene_dtu = NULL,
+                failure_hint = failure_hint
+            )
+        }
+    )
 }
 
 main_run_de_analysis <- function(args) {
@@ -693,7 +916,9 @@ main_run_de_analysis <- function(args) {
             ),
             dexseq_size_factor_method = "ratio",
             dexseq_dispersion_method = "parametric",
-            dexseq_covariates_dropped = list()
+            dexseq_covariates_dropped = list(),
+            dtu_failure_hint = NULL,
+            dge_status = "SUCCESS"
         )
 
         if (nrow(contrast_samples) < 6) {
@@ -709,87 +934,25 @@ main_run_de_analysis <- function(args) {
         contrast_qc$genes_tested <- nrow(gene_counts)
         contrast_qc$transcripts_tested <- nrow(tx_counts)
 
-        dge_run <- de_run_deseq2_result(
-            gene_counts,
-            contrast_samples,
-            target_level,
-            reference_level,
-            args$condition_column,
-            covariates,
-            args$out_dir,
-            contrast_name
-        )
-        if (!is.null(dge_run$deseq2_dispersion_fallback)) {
-            fallback <- dge_run$deseq2_dispersion_fallback
-            fallback_applied <- isTRUE(fallback$applied)
-            fallback_method <- fallback$method_used
-            if (is.null(fallback_method) || identical(fallback_method, "")) {
-                fallback_method <- if (fallback_applied) "gene-wise" else "parametric"
-            }
-            if (!is.null(fallback$size_factor_type) && !identical(fallback$size_factor_type, "")) {
-                contrast_qc$deseq2_size_factor_method <- fallback$size_factor_type
-            }
-            contrast_qc$deseq2_dispersion_fallback <- list(
-                applied = fallback_applied,
-                method_used = fallback_method,
-                reason = fallback$reason,
-                diagnostic_file = fallback$diagnostic_file
-            )
-        }
-        dge_res <- as.data.frame(dge_run$result)
-        dge_res$GENEID <- rownames(dge_res)
-        dge_res <- merge(gene_meta, dge_res, by = "GENEID", all.y = TRUE, sort = FALSE)
-        dge_res <- workflow_glue_r_normalise_tsv_df(dge_res)
-
-        contrast_qc$dge_total_genes <- nrow(dge_res)
-        contrast_qc$dge_significant_fdr05 <- sum(dge_res$padj < 0.05, na.rm = TRUE)
-        contrast_qc$dge_significant_fdr01 <- sum(dge_res$padj < 0.01, na.rm = TRUE)
-        contrast_qc$dge_upregulated <- sum(
-            dge_res$padj < 0.05 & dge_res$log2FoldChange > 0,
-            na.rm = TRUE
-        )
-        contrast_qc$dge_downregulated <- sum(
-            dge_res$padj < 0.05 & dge_res$log2FoldChange < 0,
-            na.rm = TRUE
-        )
-
-        utils::write.table(
-            dge_res[order(dge_res$padj), ],
-            file = file.path(contrast_dir, "results_dge.tsv"),
-            sep = "\t",
-            quote = FALSE,
-            row.names = FALSE
-        )
-
-        grDevices::pdf(file.path(contrast_dir, "results_dge.pdf"))
-        DESeq2::plotMA(dge_run$result)
-        grDevices::dev.off()
-
-        dex_res <- tryCatch(
-            de_run_dexseq_result(
-                tx_counts,
-                tx_meta,
+        dge_run <- tryCatch(
+            de_run_deseq2_result(
+                gene_counts,
                 contrast_samples,
+                target_level,
+                reference_level,
                 args$condition_column,
-                covariates
+                covariates,
+                args$out_dir,
+                contrast_name
             ),
             error = function(err) {
-                message_text <- conditionMessage(err)
-                if (!de_is_recoverable_dexseq_error(message_text)) {
-                    stop(err)
-                }
-
                 warning(
-                    "DEXSeq failed for contrast ",
-                    target_level,
-                    " vs ",
-                    reference_level,
-                    "\nError: ",
-                    message_text
+                    "DESeq2 DGE failed for contrast ",
+                    target_level, " vs ", reference_level,
+                    "\nError: ", conditionMessage(err)
                 )
-
                 failure_content <- c(
-                    "DTU Analysis Failed",
+                    "DGE Analysis Failed",
                     "===================",
                     "",
                     sprintf("Timestamp: %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
@@ -802,18 +965,134 @@ main_run_de_analysis <- function(args) {
                         sum(contrast_samples[[args$condition_column]] == reference_level),
                         reference_level
                     ),
-                    sprintf("Transcripts: %d", nrow(tx_counts)),
+                    sprintf("Genes: %d", nrow(gene_counts)),
                     "",
                     "ERROR MESSAGE:",
-                    sprintf("  %s", message_text),
+                    sprintf("  %s", conditionMessage(err)),
                     "",
-                    "DTU RESULTS CANNOT BE INTERPRETED",
+                    "DGE RESULTS CANNOT BE INTERPRETED",
                     ""
                 )
-                writeLines(failure_content, file.path(contrast_dir, "DTU_ANALYSIS_FAILED.txt"))
+                writeLines(failure_content, file.path(contrast_dir, "DGE_ANALYSIS_FAILED.txt"))
                 NULL
             }
         )
+
+        if (is.null(dge_run)) {
+            dge_res <- workflow_glue_r_empty_tsv(de_dge_columns)
+            contrast_qc$dge_status <- "FAILED"
+            contrast_qc$dge_total_genes <- 0
+            contrast_qc$dge_significant_fdr05 <- 0
+            contrast_qc$dge_significant_fdr01 <- 0
+            contrast_qc$dge_upregulated <- 0
+            contrast_qc$dge_downregulated <- 0
+            de_write_placeholder_pdf(
+                file.path(contrast_dir, "results_dge.pdf"),
+                "DESeq2 did not converge for this contrast.\nSee DGE_ANALYSIS_FAILED.txt for details."
+            )
+        } else {
+            if (!is.null(dge_run$deseq2_dispersion_fallback)) {
+                fallback <- dge_run$deseq2_dispersion_fallback
+                fallback_applied <- isTRUE(fallback$applied)
+                fallback_method <- fallback$method_used
+                if (is.null(fallback_method) || identical(fallback_method, "")) {
+                    fallback_method <- if (fallback_applied) "gene-wise" else "parametric"
+                }
+                if (!is.null(fallback$size_factor_type) && !identical(fallback$size_factor_type, "")) {
+                    contrast_qc$deseq2_size_factor_method <- fallback$size_factor_type
+                }
+                contrast_qc$deseq2_dispersion_fallback <- list(
+                    applied = fallback_applied,
+                    method_used = fallback_method,
+                    reason = fallback$reason,
+                    diagnostic_file = fallback$diagnostic_file
+                )
+            }
+            dge_res <- as.data.frame(dge_run$result)
+            dge_res$GENEID <- rownames(dge_res)
+            dge_res <- merge(gene_meta, dge_res, by = "GENEID", all.y = TRUE, sort = FALSE)
+            dge_res <- workflow_glue_r_normalise_tsv_df(dge_res)
+            contrast_qc$dge_status <- "SUCCESS"
+            contrast_qc$dge_total_genes <- nrow(dge_res)
+            contrast_qc$dge_significant_fdr05 <- sum(dge_res$padj < 0.05, na.rm = TRUE)
+            contrast_qc$dge_significant_fdr01 <- sum(dge_res$padj < 0.01, na.rm = TRUE)
+            contrast_qc$dge_upregulated <- sum(
+                dge_res$padj < 0.05 & dge_res$log2FoldChange > 0,
+                na.rm = TRUE
+            )
+            contrast_qc$dge_downregulated <- sum(
+                dge_res$padj < 0.05 & dge_res$log2FoldChange < 0,
+                na.rm = TRUE
+            )
+            grDevices::pdf(file.path(contrast_dir, "results_dge.pdf"))
+            DESeq2::plotMA(dge_run$result)
+            grDevices::dev.off()
+        }
+
+        utils::write.table(
+            dge_res[order(dge_res$padj), ],
+            file = file.path(contrast_dir, "results_dge.tsv"),
+            sep = "\t",
+            quote = FALSE,
+            row.names = FALSE
+        )
+
+        dex_run <- tryCatch(
+            list(
+                ok = TRUE,
+                result = de_run_dexseq_result(
+                    tx_counts,
+                    tx_meta,
+                    contrast_samples,
+                    args$condition_column,
+                    covariates
+                ),
+                failure_hint = NULL
+            ),
+            error = function(err) {
+                message_text <- conditionMessage(err)
+                is_known_failure <- de_is_recoverable_dexseq_error(message_text)
+                failure_hint <- de_dexseq_failure_hint(message_text)
+
+                warning(
+                    "DEXSeq failed for contrast ",
+                    target_level,
+                    " vs ",
+                    reference_level,
+                    if (!is_known_failure) {
+                        "\nThis error did not match a known statistical fallback pattern."
+                    } else {
+                        ""
+                    },
+                    if (!is.null(failure_hint)) {
+                        paste0("\nProbable cause: ", failure_hint)
+                    } else {
+                        ""
+                    },
+                    "\nError: ",
+                    message_text
+                )
+                de_write_dtu_failure_outputs(
+                    contrast_dir = contrast_dir,
+                    target_level = target_level,
+                    reference_level = reference_level,
+                    contrast_samples = contrast_samples,
+                    condition_column = args$condition_column,
+                    tx_counts = tx_counts,
+                    message_text = message_text,
+                    failure_hint = failure_hint
+                )
+                list(ok = FALSE, result = NULL, failure_hint = failure_hint)
+            }
+        )
+
+        if (!isTRUE(dex_run$ok)) {
+            dex_res <- NULL
+            dtu_failure_hint <- dex_run$failure_hint
+        } else {
+            dex_res <- dex_run$result
+            dtu_failure_hint <- NULL
+        }
 
         if (is.null(dex_res)) {
             dex_df <- workflow_glue_r_empty_tsv(de_dtu_transcript_columns)
@@ -824,6 +1103,7 @@ main_run_de_analysis <- function(args) {
                 "DEXSeq did not converge for this contrast.\nSee DTU_ANALYSIS_FAILED.txt for details."
             )
             contrast_qc$dtu_status <- "FAILED"
+            contrast_qc$dtu_failure_hint <- dtu_failure_hint
             contrast_qc$dtu_significant_transcripts <- 0
             contrast_qc$dtu_significant_genes <- 0
         } else {
@@ -836,28 +1116,39 @@ main_run_de_analysis <- function(args) {
             if (!is.null(dex_res$dexseq_covariates_dropped)) {
                 contrast_qc$dexseq_covariates_dropped <- as.list(dex_res$dexseq_covariates_dropped)
             }
-            dex_df <- as.data.frame(dex_res$dxr)
-            dex_df <- workflow_glue_r_normalise_tsv_df(dex_df)
-            tx_dtu <- de_extract_dtu_transcript_table(
-                dex_df,
-                paste(target_level, reference_level, sep = "_")
+
+            postprocess_run <- de_postprocess_dexseq_result(
+                dex_res = dex_res,
+                contrast_dir = contrast_dir,
+                target_level = target_level,
+                reference_level = reference_level,
+                contrast_samples = contrast_samples,
+                condition_column = args$condition_column,
+                tx_counts = tx_counts,
+                contrast_name = paste(target_level, reference_level, sep = "_")
             )
 
-            gene_q <- DEXSeq::perGeneQValue(dex_res$dxr)
-            gene_dtu <- data.frame(
-                GENEID = names(gene_q),
-                qval = unname(gene_q),
-                row.names = NULL
-            )
+            if (!isTRUE(postprocess_run$ok)) {
+                dex_df <- workflow_glue_r_empty_tsv(de_dtu_transcript_columns)
+                tx_dtu <- dex_df
+                gene_dtu <- workflow_glue_r_empty_tsv(c("GENEID", "qval"))
+                de_write_placeholder_pdf(
+                    file.path(contrast_dir, "results_dtu.pdf"),
+                    "DEXSeq did not converge for this contrast.\nSee DTU_ANALYSIS_FAILED.txt for details."
+                )
+                contrast_qc$dtu_status <- "FAILED"
+                contrast_qc$dtu_failure_hint <- postprocess_run$failure_hint
+                contrast_qc$dtu_significant_transcripts <- 0
+                contrast_qc$dtu_significant_genes <- 0
+            } else {
+                dex_df <- postprocess_run$dex_df
+                tx_dtu <- postprocess_run$tx_dtu
+                gene_dtu <- postprocess_run$gene_dtu
 
-            contrast_qc$dtu_status <- "SUCCESS"
-            contrast_qc$dtu_significant_transcripts <- sum(tx_dtu$padj < 0.05, na.rm = TRUE)
-            contrast_qc$dtu_significant_genes <- sum(gene_dtu$qval < 0.05, na.rm = TRUE)
-
-            grDevices::pdf(file.path(contrast_dir, "results_dtu.pdf"))
-            DESeq2::plotMA(dex_res$dxr, cex = 0.8, alpha = 0.05)
-            DESeq2::plotDispEsts(dex_res$dxd)
-            grDevices::dev.off()
+                contrast_qc$dtu_status <- "SUCCESS"
+                contrast_qc$dtu_significant_transcripts <- sum(tx_dtu$padj < 0.05, na.rm = TRUE)
+                contrast_qc$dtu_significant_genes <- sum(gene_dtu$qval < 0.05, na.rm = TRUE)
+            }
         }
 
         utils::write.table(
@@ -899,12 +1190,25 @@ main_run_de_analysis <- function(args) {
             sprintf("  Total samples: %d", contrast_qc$n_samples),
             "",
             "DGE Results:",
+            sprintf("  Status: %s", contrast_qc$dge_status),
             sprintf("  Genes tested: %d", contrast_qc$genes_tested),
             sprintf("  Size factor method: %s", contrast_qc$deseq2_size_factor_method),
-            sprintf("  Significant (FDR < 0.05): %d", contrast_qc$dge_significant_fdr05),
-            sprintf("  Significant (FDR < 0.01): %d", contrast_qc$dge_significant_fdr01),
-            sprintf("  Upregulated: %d", contrast_qc$dge_upregulated),
-            sprintf("  Downregulated: %d", contrast_qc$dge_downregulated),
+            if (contrast_qc$dge_status == "SUCCESS") {
+                c(
+                    sprintf("  Significant (FDR < 0.05): %d", contrast_qc$dge_significant_fdr05),
+                    sprintf("  Significant (FDR < 0.01): %d", contrast_qc$dge_significant_fdr01),
+                    sprintf("  Upregulated: %d", contrast_qc$dge_upregulated),
+                    sprintf("  Downregulated: %d", contrast_qc$dge_downregulated)
+                )
+            } else {
+                c(
+                    "  Significant (FDR < 0.05): N/A",
+                    "  Significant (FDR < 0.01): N/A",
+                    "  Upregulated: N/A",
+                    "  Downregulated: N/A",
+                    "  See DGE_ANALYSIS_FAILED.txt for details"
+                )
+            },
             "",
             "DTU Results:",
             sprintf("  Status: %s", contrast_qc$dtu_status),
@@ -919,7 +1223,14 @@ main_run_de_analysis <- function(args) {
                     sprintf("  Genes with DTU (q < 0.05): %d", contrast_qc$dtu_significant_genes)
                 )
             } else {
-                "  See DTU_ANALYSIS_FAILED.txt for details"
+                c(
+                    if (!is.null(contrast_qc$dtu_failure_hint)) {
+                        paste0("  Probable cause: ", contrast_qc$dtu_failure_hint)
+                    } else {
+                        NULL
+                    },
+                    "  See DTU_ANALYSIS_FAILED.txt for details"
+                )
             },
             if (!is.null(contrast_qc$dtu_power_warning)) paste0("  WARNING: ", contrast_qc$dtu_power_warning) else NULL,
             ""
@@ -927,6 +1238,15 @@ main_run_de_analysis <- function(args) {
         writeLines(contrast_qc_summary, file.path(contrast_dir, "contrast_qc_summary.txt"))
         de_qc_stats$contrasts[[contrast_name]] <- contrast_qc
     }
+
+    failed_dge_contrasts <- names(Filter(
+        function(cqc) identical(cqc$dge_status, "FAILED"),
+        de_qc_stats$contrasts
+    ))
+    failed_dtu_contrasts <- names(Filter(
+        function(cqc) identical(cqc$dtu_status, "FAILED"),
+        de_qc_stats$contrasts
+    ))
 
     deseq2_dispersion_fallbacks <- names(Filter(
         function(cqc) isTRUE(cqc$deseq2_dispersion_fallback$applied),
@@ -965,6 +1285,10 @@ main_run_de_analysis <- function(args) {
         integer(1)
     ))
     de_qc_stats$analysis_fallbacks <- list(
+        failed_dge_contrasts = length(failed_dge_contrasts),
+        failed_dge_contrast_names = as.list(failed_dge_contrasts),
+        failed_dtu_contrasts = length(failed_dtu_contrasts),
+        failed_dtu_contrast_names = as.list(failed_dtu_contrasts),
         deseq2_dispersion_fallback_contrasts = length(deseq2_dispersion_fallbacks),
         deseq2_dispersion_fallback_contrast_names = as.list(deseq2_dispersion_fallbacks),
         deseq2_gene_wise_contrasts = length(deseq2_gene_wise),
@@ -1015,8 +1339,14 @@ main_run_de_analysis <- function(args) {
                 "",
                 sprintf("  %s:", cname),
                 sprintf("    Samples: %d (%d vs %d)", cqc$n_samples, cqc$n_target, cqc$n_reference),
-                sprintf("    DGE significant: %d genes (FDR<0.05)", cqc$dge_significant_fdr05),
+                sprintf("    DGE status: %s", cqc$dge_status),
+                if (cqc$dge_status == "SUCCESS") {
+                    sprintf("    DGE significant: %d genes (FDR<0.05)", cqc$dge_significant_fdr05)
+                } else {
+                    "    DGE significant: N/A (analysis failed)"
+                },
                 sprintf("    DESeq2 size factors: %s", cqc$deseq2_size_factor_method),
+                if (cqc$dge_status != "SUCCESS") "    See DGE_ANALYSIS_FAILED.txt for details" else NULL,
                 sprintf("    DTU status: %s", cqc$dtu_status),
                 sprintf("    DEXSeq size factors: %s", cqc$dexseq_size_factor_method),
                 if (cqc$dtu_status == "SUCCESS") sprintf("    DTU significant: %d genes", cqc$dtu_significant_genes) else NULL

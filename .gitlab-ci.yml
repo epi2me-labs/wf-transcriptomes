@@ -65,7 +65,7 @@ docker-run:
     parallel:
         matrix:
             - MATRIX_NAME: [
-                "int_discover_dna", "int_fixed_rna",
+                "int_discover_dna", "int_fixed_rna", "int_de_control_vs_control",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
             ]
     rules:
@@ -77,7 +77,7 @@ docker-run:
           when: never
 
         # Integration: larger discover-mode run on representative cDNA test bundle.
-        - if: $MATRIX_NAME == "discover"
+        - if: $MATRIX_NAME == "int_discover_dna"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/wf-isoforms_test_data.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/wf-isoforms_test_data.tar.gz -C ${CI_PROJECT_NAME}/data/ &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config;"
               NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/ERR6053095_chr20.fastq \
@@ -102,6 +102,37 @@ docker-run:
               NF_IGNORE_PROCESSES: >
                 gz_faidx,merge_transcriptomes,assemble_transcripts,decompress_annotation,decompress_ref,
                 build_minimap_index,validate_ref_annotation,get_transcriptome,merge_gff_bundles,run_gffcompare,build_minimap_index,split_bam,decompress_transcriptome,preprocess_ref_transcriptome
+        
+        # Integration: demo-data control-vs-control to test pathological DE/DTU failure modes and graceful failure handling.
+        #              See also unit tests in test_de_analysis.R
+        - if: $MATRIX_NAME == "int_de_control_vs_control"
+          variables:
+              NF_BEFORE_SCRIPT: "\
+                  mkdir -p ${CI_PROJECT_NAME}/data/ \
+                  && echo 'Downlading demo data bundle and config' \
+                  && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz \
+                  && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/ \
+                  && wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config \
+                  && echo 'Simulating control-vs-control by copying each sample to a replicate with identical reads' \
+                  && rm -rf ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode04 ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode05 ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode06 \
+                  && cp -R ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode01 ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode04 \
+                  && cp -R ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode02 ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode05 \
+                  && cp -R ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode03 ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq/barcode06 \
+                  && echo 'Finished data preparation step' \
+                  "
+              NF_WORKFLOW_OPTS: "--fastq ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
+                  --de_analysis \
+                  --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
+                  --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gtf \
+                  --direct_rna \
+                  --sample_sheet test_data/sample_sheet.csv \
+                  -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
+              AFTER_NEXTFLOW_CMD: >
+                  test -f ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json &&
+                  test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
+                  test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv &&
+                  jq -e '.contrasts["condition_treated_vs_control"].dge_status | IN("SUCCESS", "FAILED")' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json >/dev/null &&
+                  jq -e '.contrasts["condition_treated_vs_control"].dtu_status | IN("SUCCESS", "FAILED")' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json >/dev/null
 
         # Smoke: quick discover-mode sanity check for core cohort and per-sample outputs.
         - if: $MATRIX_NAME == "smoke_discover"

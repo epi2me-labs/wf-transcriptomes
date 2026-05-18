@@ -177,6 +177,7 @@ def _collect_de_method_rows(de_qc):
     deseq2_gene_wise = []
     dexseq_gene_wise = []
     dexseq_covariate_drops = []
+    failed_dge = []
 
     for contrast_name, contrast_data in de_qc.get("contrasts", {}).items():
         fallback = contrast_data.get("deseq2_dispersion_fallback") or {}
@@ -201,6 +202,9 @@ def _collect_de_method_rows(de_qc):
         if dropped_covariates:
             dexseq_covariate_drops.append((contrast_name, dropped_covariates))
 
+        if contrast_data.get("dge_status") == "FAILED":
+            failed_dge.append(contrast_name)
+
         rows.append(
             {
                 "Contrast": contrast_name,
@@ -215,11 +219,12 @@ def _collect_de_method_rows(de_qc):
                 "DEXSeq covariates dropped": (
                     ", ".join(dropped_covariates) if dropped_covariates else "none"
                 ),
+                "DGE status": contrast_data.get("dge_status", "N/A"),
                 "DTU status": contrast_data.get("dtu_status", "N/A"),
             }
         )
 
-    return rows, deseq2_gene_wise, dexseq_gene_wise, dexseq_covariate_drops
+    return rows, deseq2_gene_wise, dexseq_gene_wise, dexseq_covariate_drops, failed_dge
 
 
 def main(args):
@@ -529,6 +534,7 @@ def main(args):
                     deseq2_gene_wise,
                     dexseq_gene_wise,
                     dexseq_covariate_drops,
+                    failed_dge,
                 ) = _collect_de_method_rows(de_qc)
 
                 if sample_size_warnings:
@@ -575,6 +581,17 @@ def main(args):
                         "DEXSeq covariates dropped due to rank-deficient design. "
                         f"Affected: {'; '.join(drop_details)}",
                         level="warning",
+                    )
+                    has_warnings = True
+
+                if failed_dge:
+                    _create_warning_banner(
+                        "DGE Analysis Failed: "
+                        f"{len(failed_dge)} contrast(s) could not complete "
+                        "DGE testing. "
+                        f"Affected: {', '.join(failed_dge)}. "
+                        "See DGE_ANALYSIS_FAILED.txt files for details.",
+                        level="danger",
                     )
                     has_warnings = True
 
@@ -681,16 +698,25 @@ def main(args):
                                         f"vs "
                                         f"{contrast_data.get('n_reference', 0)}"
                                     ),
+                                    "DGE Status": contrast_data.get(
+                                        "dge_status", "N/A"
+                                    ),
                                     "DGE Significant (FDR<0.05)": (
                                         contrast_data.get(
                                             "dge_significant_fdr05", 0
                                         )
+                                        if contrast_data.get("dge_status") == "SUCCESS"
+                                        else "N/A"
                                     ),
-                                    "DGE Up": contrast_data.get(
-                                        "dge_upregulated", 0
+                                    "DGE Up": (
+                                        contrast_data.get("dge_upregulated", 0)
+                                        if contrast_data.get("dge_status") == "SUCCESS"
+                                        else "N/A"
                                     ),
-                                    "DGE Down": contrast_data.get(
-                                        "dge_downregulated", 0
+                                    "DGE Down": (
+                                        contrast_data.get("dge_downregulated", 0)
+                                        if contrast_data.get("dge_status") == "SUCCESS"
+                                        else "N/A"
                                     ),
                                     "DTU Status": contrast_data.get(
                                         "dtu_status", "N/A"
@@ -751,6 +777,15 @@ def main(args):
                                     ),
                                 }
                             )
+                        if failed_dge:
+                            warnings_data.append(
+                                {
+                                    "Warning Type": "DGE Failure",
+                                    "Details": (
+                                        f"{len(failed_dge)} contrasts failed"
+                                    ),
+                                }
+                            )
 
                         warnings_df = pd.DataFrame(warnings_data)
                         DataTable.from_pandas(
@@ -766,7 +801,19 @@ def main(args):
                     # Check for contrast-specific warnings
                     if de_qc and contrast in de_qc.get("contrasts", {}):
                         contrast_data = de_qc["contrasts"][contrast]
-                        if contrast_data.get("dtu_power_warning"):
+                        if contrast_data.get("dge_status") == "FAILED":
+                            _create_warning_banner(
+                                "DGE analysis failed for this contrast. "
+                                f"See {contrast}/"
+                                "DGE_ANALYSIS_FAILED.txt for detailed "
+                                "explanation.",
+                                level="danger",
+                            )
+                            p(
+                                "Empty results indicate analysis failure, "
+                                "not 'no DGE detected'."
+                            )
+                        elif contrast_data.get("dtu_power_warning"):
                             with div(
                                 style=(
                                     "padding: 10px; margin-bottom: 10px; "
@@ -801,6 +848,9 @@ def main(args):
                                 "explanation.",
                                 level="danger",
                             )
+                            failure_hint = contrast_data.get("dtu_failure_hint")
+                            if failure_hint:
+                                p(f"Probable cause: {failure_hint}")
                             p(
                                 "Empty results indicate analysis failure, "
                                 "not 'no DTU detected'."
