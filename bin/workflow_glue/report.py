@@ -1,6 +1,7 @@
 """Create workflow report for wf-transcriptomes."""
 
 import json
+import math
 from pathlib import Path
 
 from dominate.tags import div, h3, p, pre, strong
@@ -23,6 +24,35 @@ def _read_table(path, **kwargs):
     if path is None or not Path(path).exists():
         return None
     return pd.read_csv(path, sep="\t", **kwargs)
+
+
+def _coerce_float(value):
+    """Return a finite float when possible, otherwise None."""
+    if value in (None, "", "N/A", "NA", "nan", "NaN"):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
+def _format_count_value(value):
+    """Format count-like values for the report, tolerating NA-like strings."""
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "N/A"
+    return format(round(numeric), ",")
+
+
+def _format_ratio_value(value):
+    """Format ratio values for the report, tolerating NA-like strings."""
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "N/A"
+    return f"{numeric:.2f}x"
 
 
 def _cohort_summary(cohort_dir):
@@ -262,12 +292,23 @@ def main(args):
                 stats = stats[0]
                 flagstats = flagstats[0]
                 sample_names = sample_names[0] if sample_names else None
-            fastcat.SeqSummary(
-                stats,
-                flagstat=flagstats,
-                sample_names=sample_names,
-                alignment_stats=True,
-            )
+            try:
+                fastcat.SeqSummary(
+                    stats,
+                    flagstat=flagstats,
+                    sample_names=sample_names,
+                    alignment_stats=True,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Skipping read summary plot: %s", exc)
+                _create_warning_banner(
+                    (
+                        "Read summary plots could not be rendered for this run. "
+                        "This can happen for degenerate or extremely "
+                        "small input statistics."
+                    ),
+                    level="info",
+                )
 
     with report.add_section("Sample metadata", "Samples"):
         tabs = Tabs()
@@ -389,33 +430,30 @@ def main(args):
                         (
                             "Median library size",
                             "{} reads".format(
-                                format(
-                                    bambu_qc.get("median_library_size", 0),
-                                    ",",
+                                _format_count_value(
+                                    bambu_qc.get("median_library_size", 0)
                                 )
                             ),
                         ),
                         (
                             "Min library size",
                             "{} reads".format(
-                                format(
-                                    bambu_qc.get("min_library_size", 0),
-                                    ",",
+                                _format_count_value(
+                                    bambu_qc.get("min_library_size", 0)
                                 )
                             ),
                         ),
                         (
                             "Max library size",
                             "{} reads".format(
-                                format(
-                                    bambu_qc.get("max_library_size", 0),
-                                    ",",
+                                _format_count_value(
+                                    bambu_qc.get("max_library_size", 0)
                                 )
                             ),
                         ),
                         (
                             "Library size ratio (max/min)",
-                            "{:.2f}x".format(
+                            _format_ratio_value(
                                 bambu_qc.get("library_size_ratio", 1.0)
                             ),
                         ),
@@ -463,11 +501,14 @@ def main(args):
                 with h3("Per-Sample Library Sizes"):
                     lib_size_data = []
                     for sample, size in bambu_qc["library_sizes"].items():
+                        numeric_size = _coerce_float(size)
                         lib_size_data.append(
                             {
                                 "Sample": sample,
-                                "Library Size": format(size, ","),
-                                "Reads": size,
+                                "Library Size": _format_count_value(size),
+                                "Reads": (
+                                    numeric_size if numeric_size is not None else -1
+                                ),
                             }
                         )
                     lib_df = pd.DataFrame(lib_size_data).sort_values(
