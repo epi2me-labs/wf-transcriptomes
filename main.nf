@@ -228,42 +228,6 @@ workflow pipeline {
             .concat(transcriptome.joint_sqanti_dir.map { [it, "cohort"] })
             .concat(transcriptome.sample_sqanti_dirs.map { meta, sqanti_dir -> [sqanti_dir, "samples/${meta.alias}"] })
 
-        reference_basename = file(params.ref_genome).getName()
-        if (params.igv) {
-            //todo ???
-            //results = results
-            //    .concat(transcriptome.reference.map { [it, "igv_reference"] })
-            //    .concat(transcriptome.reference_fai.map { [it, "igv_reference"] })
-            //    .concat(transcriptome.reference_gzi.map { [it, "igv_reference"] })
-            results = Channel.empty()
-
-            //igv_index_paths = transcriptome.reference_fai
-            //    .map { "igv_reference/${it.getName()}" }
-            //    .concat(transcriptome.reference_gzi.map { "igv_reference/${it.getName()}" })
-            igv_index_paths = Channel.empty()
-
-            igv_alignment_paths = reads
-                .map { meta, bam, bai, stat -> [
-                    meta.src_xam ?: "cohort/alignments/${meta.alias}/reads.bam",
-                    meta.src_xai ?: "cohort/alignments/${meta.alias}/reads.bam.bai"
-                ] }
-                .flatten()
-
-            igv_files = Channel.of("igv_reference/${reference_basename}")
-                .concat(igv_index_paths)
-                .concat(igv_alignment_paths)
-                .collectFile(name: "igv-files.txt", newLine: true, sort: false)
-
-            igv_conf = configure_igv(
-                igv_files,
-                "",
-                [displayMode: "SQUISHED", colorBy: "strand"],
-                [:],
-                false
-            )
-            results = results.concat(igv_conf.map { [it, null] })
-        }
-
         if (params.de_analysis) {
             results = results.concat(de_dir.map { [it, null] })
         }
@@ -351,11 +315,55 @@ workflow {
             throw new Exception("No samples with reads were available for transcriptome analysis.")
         }
 
-
     processed_samples = analysis_samples
 
     pipeline_run = pipeline(processed_samples, sample_sheet, ref_genome, ref_annotation)
-    publishResults(pipeline_run.results)
+    results = pipeline_run.results
+
+    reference_basename = file(params.ref_genome).getName()
+    if (params.igv) {
+        results = results
+            .concat(ref_genome.map { fasta, faidx -> [fasta, "igv_reference"] })
+            .concat(ref_genome.map { fasta, faidx -> [faidx, "igv_reference"] })
+
+        is_compressed = params.ref_genome.toLowerCase().endsWith("gz")
+
+        if (is_compressed) {
+            // ref files are directly publish into output
+            igv_files = Channel.of("${reference_basename}")
+            igv_index_paths = prepared_reference.ref_gzidx.map {
+                    fasta, faidx, gzidx -> "${faidx.getName()}"
+                }
+                .concat(prepared_reference.ref_gzidx.map {
+                    fasta, faidx, gzidx -> "${gzidx.getName()}"
+                })
+        } else {
+            igv_files = Channel.of("igv_reference/${reference_basename}")
+            igv_index_paths = ref_genome.map { fasta, faidx -> "igv_reference/${faidx.getName()}"}
+        }
+
+        igv_alignment_paths = processed_samples
+            .map { meta, bam, bai, stat -> [
+                meta.src_xam ?: "${meta.alias},cohort/alignments/${meta.alias}/reads.bam",
+                meta.src_xai ?: "${meta.alias},cohort/alignments/${meta.alias}/reads.bam.bai"
+            ] }
+            .flatten()
+
+        igv_files = igv_files
+            .concat(igv_index_paths)
+            .concat(igv_alignment_paths)
+            .collectFile(name: "igv-files.txt", newLine: true, sort: false)
+
+        igv_conf = configure_igv(
+            igv_files,
+            "",
+            [displayMode: "SQUISHED", colorBy: "strand"],
+            [:],
+            false
+        )
+        results = results.concat(igv_conf.map { [it, null] })
+    }
+    publishResults(results)
 }
 
 
