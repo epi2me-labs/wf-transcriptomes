@@ -277,8 +277,8 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 The published outputs are organised around a small number of top-level
 directories:
 
-+ `ingress_results/<alias>/` contains prepared reads, read statistics, sample
-  metadata, and optional `pychopper` outputs for each sample
++ `ingress_results/<alias>/` contains prepared reads, read statistics, and sample
+  metadata for each sample
 + `cohort/` contains the primary joint `bambu` transcriptome, count tables,
   alignments, and optional cohort `SQANTI3` outputs
 + `samples/<alias>/` contains the independent per-sample `bambu` outputs and
@@ -583,7 +583,6 @@ Yes. Use `--transcriptome_mode fixed_annotation` together with `--ref_genome`,
 
 Expect the report and output folder to emphasise:
 
-+ optional `pychopper` preprocessing outputs under `ingress_results/<alias>/`
 + the joint cohort `bambu` transcriptome under `cohort/`
 + the per-sample `bambu` transcriptomes under `samples/<alias>/`
 + optional `SQANTI3` results under cohort and per-sample directories
