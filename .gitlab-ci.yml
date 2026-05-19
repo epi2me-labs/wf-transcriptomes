@@ -16,7 +16,7 @@ variables:
               PYTEST_TESTS_PATH: "bin/workflow_glue/tests/common"
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
-              WF_TEMPLATE_ENFORCEMENT_BRANCH: "CW-6552"
+              WF_TEMPLATE_ENFORCEMENT_BRANCH: "ruo-next"
 
 pytest_wfcontainer:
     extends: pytest
