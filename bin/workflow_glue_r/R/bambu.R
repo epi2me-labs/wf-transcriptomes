@@ -277,7 +277,10 @@ bambu_build_args <- function(args, reads, annotation_obj, discovery, quant) {
     if (quant) {
         # Chunked quant re-estimates degradation bias per chunk, which changes
         # the EM inputs and breaks equivalence with unchunked bambu quant.
-        bambu_args$opt.em <- list(degradationBias = FALSE)
+        # Use bambu's documented EM convergence threshold here. The looser
+        # implemented default (1e-2) leaves small deterministic chunk-vs-global
+        # quant discrepancies in the split workflow.
+        bambu_args$opt.em <- list(degradationBias = FALSE, conv = 1e-4)
     }
 
     bambu_args
