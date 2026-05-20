@@ -77,7 +77,7 @@ def cli():
     # importing everything can take time, try to shortcut
     if len(sys.argv) > 1:
         components = get_components(allowed_components=[sys.argv[1]])
-        if not sys.argv[1] in components:
+        if sys.argv[1] not in components:
             logger.warn("Importing all modules, this may take some time.")
             components = get_components()
     else:

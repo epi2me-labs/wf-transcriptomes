@@ -1,4 +1,5 @@
 import java.nio.file.NoSuchFileException
+import groovy.json.JsonBuilder
 
 import ArgumentParser
 
@@ -1341,7 +1342,7 @@ def get_sample_sheet(Path sample_sheet, ArrayList required_sample_types) {
  * @return: string (optional)
  */
 process validate_sample_sheet {
-    publishDir params.out_dir, mode: 'copy', overwrite: true
+    publishDir params.out_dir, pattern: 'sample_sheet.csv', mode: 'copy', overwrite: true
     cpus 1
     label "ingress"
     label "wf_common"
@@ -1355,8 +1356,10 @@ process validate_sample_sheet {
     script:
     String req_types_arg = required_sample_types ? "--required_sample_types "+required_sample_types.join(" ") : ""
     String no_barcode_arg = no_barcode ? "--no_barcode" : ""
+    def paramsJSON = new JsonBuilder(params).toPrettyString().replaceAll("'", "'\\\\''")
     """
-    workflow-glue check_sample_sheet sample_sheet.csv $req_types_arg $no_barcode_arg
+    echo '$paramsJSON' > params.json
+    workflow-glue check_sample_sheet sample_sheet.csv params.json $req_types_arg $no_barcode_arg
     """
 }
 
