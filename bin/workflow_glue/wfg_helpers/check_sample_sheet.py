@@ -1,11 +1,19 @@
-"""Check if a sample sheet is valid."""
+"""Check if a sample sheet is valid.
+
+Loads validator classes from modules in the validators package to check various
+aspects of a sample sheet. If any validator fails, the sample sheet is invalid.
+"""
 import codecs
 import csv
+from importlib import import_module
+from inspect import getmembers, isclass
+import json
 import os
-import re
+from pkgutil import iter_modules
 import sys
 
 from ..util import get_named_logger, wf_parser  # noqa: ABS101
+from . import validators  # noqa: ABS101
 
 
 # Some Excel users save their CSV as UTF-8 (and occasionally for a reason beyond my
@@ -31,17 +39,50 @@ def determine_codec(f):
         return None  # will cause file to be opened with default encoding
 
 
-def main(args):
-    """Run the entry point."""
-    logger = get_named_logger("checkSheet")
+def load_validators(modules, wf_params):
+    """Load validator classes."""
+    validator_classes = []
+    for mod in modules:
+        for _, validator_class in getmembers(mod, _is_sample_sheet_validator):
+            validator_classes.append(validator_class(wf_params))
+    return validator_classes
 
-    barcodes = []
-    aliases = []
-    sample_types = []
-    analysis_groups = []
-    allowed_sample_types = [
-        "test_sample", "positive_control", "negative_control", "no_template_control"
+
+def load_validator_modules():
+    """Load all modules from the validators package."""
+    return [
+        import_module(f"{validators.__name__}.{module_info.name}")
+        for module_info in iter_modules(validators.__path__)
     ]
+
+
+def _is_sample_sheet_validator(obj):
+    """Return whether an object is a concrete sample sheet validator class.
+
+    `issubclass(cls, Base)` is true when `cls is Base`, so the base validator
+    class must be excluded explicitly.
+    """
+    return (
+        isclass(obj) and issubclass(obj, validators.SampleSheetValidator)
+        and obj is not validators.SampleSheetValidator
+    )
+
+
+def main(args):
+    """Run the sample sheet checks."""
+    logger = get_named_logger("checkSheet")
+    with open(args.wf_params_path) as f:
+        wf_params = json.load(f)
+    if args.required_sample_types:
+        wf_params['required_sample_types'] = args.required_sample_types
+
+    # `no_barcode` is currently passed as a CLI option,
+    # not through the workflow params JSON.
+    wf_params['no_barcode'] = args.no_barcode
+
+    validator_classes = load_validators(load_validator_modules(), wf_params)
+
+    rows = []
 
     if not os.path.exists(args.sample_sheet) or not os.path.isfile(args.sample_sheet):
         sys.stdout.write("Could not open sample sheet file.")
@@ -66,110 +107,25 @@ def main(args):
                 sys.exit()
             csv_reader = csv.DictReader(f)
             columns = csv_reader.fieldnames
-            alias_field = "alias"
-            required_fields = ["barcode"]
-            prohibited_fields = []
+            rows = list(csv_reader)
 
-            if args.no_barcode:
-                alias_field = "sample_name"
-                required_fields = []
-                prohibited_fields = ["alias", "barcode"]
-
-            required_fields.append(alias_field)
-
-            for field in prohibited_fields:
-                if field in columns:
-                    sys.stdout.write(
-                        f"'{field}' column must not be present with --no_barcode"
-                    )
-                    sys.exit()
-
-            for field in required_fields:
-                if field not in columns:
-                    sys.stdout.write(f"'{field}' column missing")
-                    sys.exit()
-
-            # Skip header row for n_row
-            for n_row, row in enumerate(csv_reader, start=1):
-                if len(row) != len(columns):
-                    sys.stdout.write(
-                        f"Unexpected number of cells in row number {n_row}"
-                    )
-                    sys.exit()
-                if not args.no_barcode:
-                    barcodes.append(row.get("barcode"))
-                aliases.append(row.get(alias_field))
-
-                # Optional fields check for not None, empty strings are falsey
-                sample_type = row.get("type")
-                if sample_type is not None:
-                    sample_types.append(sample_type)
-                analysis_group = row.get("analysis_group")
-                if analysis_group is not None:
-                    analysis_groups.append(analysis_group)
     except Exception as e:
         sys.stdout.write(f"Parsing error: {e}")
         sys.exit()
 
-    # check barcodes are correct format
-    for barcode in barcodes:
-        if not re.match(r'^barcode\d\d+$', barcode):
-            sys.stdout.write("values in 'barcode' column are incorrect format")
-            sys.exit()
+    # Run all the validators.
+    for v in validator_classes:
+        v.on_header(columns)
+    # Skip header row
+    for lineno, row in enumerate(rows, start=1):
+        for v in validator_classes:
+            v.add_sheet_row(row, lineno)
 
-    # check aliases are correct format
-    # for now we have decided they may not start with "barcode"
-    for alias in aliases:
-        if alias.startswith("barcode"):
-            sys.stdout.write(
-                f"values in '{alias_field}' column must "
-                "not begin with 'barcode'")
-            sys.exit()
-
-    # check barcodes are all the same length
-    if barcodes:
-        first_length = len(barcodes[0])
-        for barcode in barcodes[1:]:
-            if len(barcode) != first_length:
-                sys.stdout.write("values in 'barcode' column are different lengths")
-                sys.exit()
-
-    # check barcode and alias values are unique
-    if len(barcodes) > len(set(barcodes)):
-        sys.stdout.write("values in 'barcode' column not unique")
+    if not all((v.is_valid for v in validator_classes)):
+        for v in validator_classes:
+            for e in v.errors:
+                sys.stdout.write(f"{e}\n")
         sys.exit()
-    if len(aliases) > len(set(aliases)):
-        sys.stdout.write(f"values in '{alias_field}' column not unique")
-        sys.exit()
-
-    if sample_types:
-        # check if "type" column has unexpected values
-        unexp_type_vals = set(sample_types) - set(allowed_sample_types)
-
-        if unexp_type_vals:
-            sys.stdout.write(
-                f"found unexpected values in 'type' column: {unexp_type_vals}. "
-                f"Allowed values are: {allowed_sample_types}"
-            )
-            sys.exit()
-
-        if args.required_sample_types:
-            for required_type in args.required_sample_types:
-                if required_type not in allowed_sample_types:
-                    sys.stdout.write(f"Not an allowed sample type: {required_type}")
-                    sys.exit()
-                if sample_types.count(required_type) < 1:
-                    sys.stdout.write(
-                        f"Sample sheet requires at least 1 of {required_type}")
-                    sys.exit()
-    if analysis_groups:
-        # if there was a "analysis_group" column, make sure it had values for all
-        # samples
-        if not all(analysis_groups):
-            sys.stdout.write(
-                "if an 'analysis_group' column exists, it needs values in each row"
-            )
-            sys.exit()
 
     logger.info(f"Checked sample sheet {args.sample_sheet}.")
 
@@ -177,7 +133,8 @@ def main(args):
 def argparser():
     """Argument parser for entrypoint."""
     parser = wf_parser("check_sample_sheet")
-    parser.add_argument("sample_sheet", help="Sample sheet to check")
+    parser.add_argument("sample_sheet", help="Sample sheet path to check")
+    parser.add_argument("wf_params_path", help="Path to WF params JSON")
     parser.add_argument(
         "--required_sample_types",
         help="List of required sample types. Each sample type provided must "
