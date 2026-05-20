@@ -14,7 +14,7 @@ process bambuDiscover {
     input:
         tuple val(meta), val(aliases), path(bams, stageAs: "bams/??.bam"), path(bais, stageAs: "bams/??.bam.bai"), path(sample_sheet)
         path annotation, stageAs: "annotation/*"
-        path reference, stageAs: "reference/*"
+        tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
         tuple val(meta), path("discover"), emit: dir
     script:
@@ -51,7 +51,7 @@ process bambuQuant {
     errorStrategy 'retry'
     input:
         tuple val(meta), val(chunk_id), val(annotation_tx_count), path(chunk_rds), path(discovered_annotation)
-        path reference, stageAs: "reference/*"
+        tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
         tuple val(meta), val(chunk_id), path("${chunk_id}"), emit: dir
     script:

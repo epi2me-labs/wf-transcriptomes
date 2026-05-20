@@ -51,33 +51,17 @@ def _find_patterns(text, patterns):
 class PreparedReference:
     """A reference genome prepared for analysis."""
 
-    def __init__(self, input_path, work_dir):
+    def __init__(self, input_path):
         """Initialize and prepare reference genome."""
         self.input_path = Path(input_path)
-        self.work_dir = Path(work_dir)
-        self.output_path = self.work_dir / "reference.fasta"
         self._seqnames = None
-        self._prepare()
-
-    def _prepare(self):
-        """Prepare reference (decompress if gzipped)."""
-        if _is_gzip(self.input_path):
-            with gzip.open(self.input_path, "rb") as src, open(
-                self.output_path, "wb"
-            ) as dst:
-                shutil.copyfileobj(src, dst)
-        else:
-            shutil.copyfile(self.input_path, self.output_path)
-
-        if not self.output_path.exists() or self.output_path.stat().st_size < 1:
-            raise ValueError(f"Prepared file is empty: {self.output_path}")
 
     @property
     def seqnames(self):
         """Extract and cache sorted FASTA sequence names."""
         if self._seqnames is None:
             ids = set()
-            with open(self.output_path, encoding="utf-8") as f:
+            with open(self.input_path, encoding="utf-8") as f:
                 for line in f:
                     if line.startswith(">"):
                         ids.add(line[1:].split()[0])
@@ -94,7 +78,7 @@ class PreparedReference:
         providers.update(_find_patterns(self.input_path.name, PROVIDER_PATTERNS))
 
         # check headers
-        with open(self.output_path, encoding="utf-8") as f:
+        with open(self.input_path, encoding="utf-8") as f:
             for line in f:
                 if line.startswith(">"):
                     builds.update(_find_patterns(line, BUILD_PATTERNS))
@@ -475,7 +459,7 @@ def prepare_annotation_reference(annotation, reference, out_dir):
     out_dir.mkdir(parents=True, exist_ok=False)
 
     # prepare reference genome
-    ref = PreparedReference(reference, out_dir)
+    ref = PreparedReference(reference)
 
     # prepare annotation (convert to GTF if needed, then filter to stranded)
     ann = Annotation(annotation, out_dir)
@@ -518,7 +502,6 @@ def prepare_annotation_reference(annotation, reference, out_dir):
         },
         "reference": {
             "input": str(ref.input_path),
-            "prepared": str(ref.output_path),
         },
         "seqnames": seqnames,
         "analysis_seqnames": seqnames,
@@ -555,7 +538,7 @@ def main(args):
     logger.info(
         "Prepared annotation %s and reference %s.",
         summary["annotation"]["prepared"],
-        summary["reference"]["prepared"],
+        summary["reference"]["input"],
     )
 
 

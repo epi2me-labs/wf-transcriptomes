@@ -91,7 +91,6 @@ process prepareAnnotationReference {
     output:
         stdout emit: warnings
         path "annotation.gtf", emit: annotation
-        path "reference.fasta", emit: reference
         path "annotation_reference_summary.json", emit: summary
         path "unstranded_annotation.gtf", optional: true, emit: unstranded
     script:
@@ -111,7 +110,7 @@ process buildCohortTranscriptomeFasta {
     memory "4 GB"
     input:
         path "transcripts.gtf"
-        path reference
+        tuple path(reference), path(ref_idx)
     output:
         path "cohort.transcriptome.fa", emit: fasta
     script:
@@ -127,7 +126,7 @@ process buildSampleTranscriptomeFasta {
     memory "4 GB"
     input:
         tuple val(meta), path("transcripts.gtf")
-        path reference
+        tuple path(reference), path(ref_idx)
     output:
         tuple val(meta), path("${meta.alias}.transcriptome.fa"), emit: fasta
     script:
@@ -144,7 +143,7 @@ process runJointSqanti {
     input:
         path gtf
         path annotation, stageAs: "annotation/*"
-        path reference, stageAs: "reference/*"
+        tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
         path "sqanti_cohort", emit: dir
         path "sqanti_cohort/classification_summary.tsv", emit: summary
@@ -177,7 +176,7 @@ process runPerSampleSqanti {
     input:
         tuple val(meta), path(gtf)
         path annotation, stageAs: "annotation/*"
-        path reference, stageAs: "reference/*"
+        tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
         tuple val(meta), path("${meta.alias}_sqanti"), emit: dir
         tuple val(meta), path("${meta.alias}_sqanti/classification_summary.tsv"), emit: summary
@@ -217,8 +216,7 @@ workflow transcriptome_analysis {
             }
         }
         analysis_annotation = prepared_reference_annotation.annotation.first()
-        analysis_reference = prepared_reference_annotation.reference.first()
-
+        analysis_reference = ref_genome.first()
         joint_meta = [alias: "cohort"]
 
         joint_discover = runJointBambuDiscover(
