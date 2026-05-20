@@ -94,13 +94,16 @@ def _build_report_args(tmp_path, de_qc=None):
             contrast_dir.mkdir()
             _write(
                 contrast_dir / "results_dge.tsv",
-                "GENEID\tlog2FoldChange\tpadj\n"
-                "gene1\t1.0\t0.01\n",
+                (
+                    "GENEID\tnewGeneClass\tgene_name\tbaseMean\tlog2FoldChange\tlfcSE"
+                    "\tstat\tpvlaue\tpadj\n"
+                    "gene1\tannotation\tgene2\t100.0\t1.0\t-0.02\t-8.5\t0.001\t0.05\n"
+                )
             )
             _write(
                 contrast_dir / "results_dtu_transcript.tsv",
-                "featureID\tgroupID\tpadj\n"
-                "tx1\tgene1\t0.05\n",
+                "featureID\tgroupID\tlog2FoldChange\tpvalue\tpadj\texonBaseMean\n"
+                "tx1\tgene1\t1.0\t0.01\t0.05\t20.0\n"
             )
 
     out_report = tmp_path / "wf-transcriptomes-report.html"

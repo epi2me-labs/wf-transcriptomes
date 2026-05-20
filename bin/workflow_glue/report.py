@@ -4,23 +4,36 @@ import json
 import math
 from pathlib import Path
 
-from dominate.tags import div, h4, p, pre, strong
+from bokeh.resources import INLINE as BOKEH_INLINE
+from dominate.tags import div, h3, h4, p, pre, script, strong
 from dominate.util import raw
 from ezcharts.components import fastcat
+from ezcharts.components.ezchart import EZChart
 from ezcharts.components.reports import labs
+from ezcharts.components.theme import LAB_head_resources
+from ezcharts.layout.resource import Resource as EZC_Resource
 from ezcharts.layout.snippets import Tabs
 from ezcharts.layout.snippets.table import DataTable
 import pandas as pd
 
 from .util import get_named_logger, wf_parser  # noqa: ABS101
+from .volcano import volcano  # noqa: ABS101
 
 
-def _find_table(directory, pattern):
-    matches = sorted(Path(directory).glob(pattern))
-    return matches[0] if matches else None
+def get_bokeh_widgets_js():
+    """Return the inline Bokeh widgets JavaScript bundle."""
+    widgets_index = BOKEH_INLINE.components_for("js").index("bokeh-widgets")
+    return raw(BOKEH_INLINE.js_raw[widgets_index])
+
+
+def get_bokeh_tables_js():
+    """Return the inline Bokeh tables JavaScript bundle."""
+    tables_index = BOKEH_INLINE.components_for("js").index("bokeh-tables")
+    return raw(BOKEH_INLINE.js_raw[tables_index])
 
 
 def _read_table(path, **kwargs):
+    """Read a TSV file into a DataFrame, returning None if path is absent."""
     if path is None or not Path(path).exists():
         return None
     return pd.read_csv(path, sep="\t", **kwargs)
@@ -56,6 +69,7 @@ def _format_ratio_value(value):
 
 
 def _cohort_summary(cohort_dir):
+    """Return cohort-level metrics and transcript class counts DataFrames."""
     tx_meta = _read_table(Path(cohort_dir) / "transcript_metadata.tsv")
     if tx_meta is None:
         return None, None
@@ -79,6 +93,7 @@ def _cohort_summary(cohort_dir):
 
 
 def _sample_summaries(samples_dir):
+    """Return a dict of per-sample metrics DataFrames keyed by sample name."""
     summaries = {}
     for sample_dir in sorted(Path(samples_dir).iterdir()):
         if not sample_dir.is_dir():
@@ -104,6 +119,7 @@ def _sample_summaries(samples_dir):
 
 
 def _sqanti_tables(sqanti_dir):
+    """Return a dict of SQANTI3 classification summary DataFrames keyed by label."""
     tables = {}
     for summary in sorted(Path(sqanti_dir).rglob("classification_summary.tsv")):
         label = summary.parent.name
@@ -111,7 +127,8 @@ def _sqanti_tables(sqanti_dir):
     return tables
 
 
-def _top_results(de_dir, filename, n=20):
+def _contrast_results(de_dir, filename, n=None):
+    """Return a dict of per-contrast result DataFrames read from filename."""
     tables = {}
     for contrast_dir in sorted(Path(de_dir).iterdir()):
         if not contrast_dir.is_dir():
@@ -119,7 +136,10 @@ def _top_results(de_dir, filename, n=20):
         table = _read_table(contrast_dir / filename)
         if table is None or table.empty:
             continue
-        tables[contrast_dir.name] = table.head(n)
+        data = table
+        if n is not None:
+            data = data.head(n)
+        tables[contrast_dir.name] = data
     return tables
 
 
@@ -266,6 +286,10 @@ def main(args):
         args.params,
         args.versions,
         args.wf_version,
+        head_resources=[
+            *LAB_head_resources,
+            EZC_Resource(func=get_bokeh_widgets_js, tag=script),
+            EZC_Resource(func=get_bokeh_tables_js, tag=script)]
     )
 
     with open(args.metadata, "r") as handle:
@@ -869,7 +893,9 @@ def main(args):
 
         with report.add_section("Differential gene expression", "DGE"):
             tabs = Tabs()
-            for contrast, table in _top_results(args.de_dir, "results_dge.tsv").items():
+            for contrast, table in _contrast_results(
+                args.de_dir, "results_dge.tsv", n=20
+            ).items():
                 with tabs.add_tab(contrast):
                     # Check for contrast-specific warnings
                     if de_qc and contrast in de_qc.get("contrasts", {}):
@@ -900,9 +926,35 @@ def main(args):
 
                     DataTable.from_pandas(table, use_index=False)
 
+                    h3("Gene expression volcano Plot")
+                    vol, class_table, selected_table = volcano(table)
+                    EZChart(vol, width="100%", height="550")
+                    raw("""
+                        <style>
+                        .volcano-table-grid {
+                            display: grid;
+                            grid-template-columns: repeat(2, minmax(0, 1fr));
+                            gap: 20px 10px;
+                            align-items: start;
+                        }
+                        .volcano-table-grid > * {
+                            min-width: 0;
+                        }
+                        @media screen and (max-width: 1000px) {
+                            .volcano-table-grid {
+                                grid-template-columns: 1fr;
+                            }
+                        }
+                        </style>
+                    """)
+                    with div(_class="volcano-table-grid"):
+                        EZChart(class_table, width="100%", height="auto")
+                        EZChart(selected_table, width="100%", height="auto")
+
         with report.add_section("Differential transcript usage", "DTU"):
             tabs = Tabs()
-            dtu_tables = _top_results(args.de_dir, "results_dtu_transcript.tsv")
+            dtu_tables = _contrast_results(
+                args.de_dir, "results_dtu_transcript.tsv", n=20)
 
             for contrast in sorted(Path(args.de_dir).iterdir()):
                 if not contrast.is_dir():
@@ -940,6 +992,9 @@ def main(args):
                             dtu_tables[contrast_name],
                             use_index=False,
                         )
+                        h3("Transcript expression volcano Plot")
+                        # EZChart(volcano(dtu_tables[contrast_name]))
+
                     else:
                         p("No DTU results available for this contrast.")
 
