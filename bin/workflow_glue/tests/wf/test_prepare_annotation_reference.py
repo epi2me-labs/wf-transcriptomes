@@ -73,11 +73,11 @@ MOUSE_GTF = (
     [
         (SIMPLE_REFERENCE, "reference.fa", SIMPLE_GTF,
          "annotation.gtf"),
-        (SIMPLE_REFERENCE, "reference.fa.gz", SIMPLE_GTF,
+        (SIMPLE_REFERENCE, "reference.fa", SIMPLE_GTF,
          "annotation.gtf.gz"),
         (SIMPLE_REFERENCE, "reference.fa", GFF3_INPUT,
          "annotation.gff3.gz"),
-        (NCBI_REFERENCE, "reference.fna.gz", NCBI_GTF,
+        (NCBI_REFERENCE, "reference.fna", NCBI_GTF,
          "annotation.gtf.gz"),
         (SIMPLE_REFERENCE + ">chrExtra\nTTTT\n", "reference.fa",
          MIXED_STRANDED_GTF, "annotation.gtf"),
@@ -94,10 +94,7 @@ def test_prepare_all_formats_produce_valid_outputs(
     """All supported input formats produce annotation.gtf and reference.fasta."""
     # write reference
     ref_path = tmp_path / ref_name
-    if ref_name.endswith(".gz"):
-        _write_gzip(ref_path, ref_data)
-    else:
-        _write(ref_path, ref_data)
+    _write(ref_path, ref_data)
 
     # write annotation
     annot_path = tmp_path / annot_name
@@ -113,15 +110,15 @@ def test_prepare_all_formats_produce_valid_outputs(
 
     # output files must exist
     assert (out_dir / "annotation.gtf").exists()
-    assert (out_dir / "reference.fasta").exists()
+    assert (ref_path).exists()
     assert (out_dir / "annotation_reference_summary.json").exists()
 
     # paths returned in summary must match
     assert summary["annotation"]["prepared"] == str(out_dir / "annotation.gtf")
-    assert summary["reference"]["prepared"] == str(out_dir / "reference.fasta")
+    assert summary["reference"]["input"] == str(ref_path)
 
     # outputs must be valid for downstream tools (Bambu, SQANTI)
-    reference = Path(summary["reference"]["prepared"])
+    reference = Path(summary["reference"]["input"])
     annotation = Path(summary["annotation"]["prepared"])
     assert reference.read_text(encoding="utf-8").startswith(">")
     assert summary["analysis_seqnames"]["has_overlap"] is True
@@ -142,7 +139,7 @@ def test_prepare_all_formats_produce_valid_outputs(
 
 def test_ncbi_format_sanitises_gene_ids(tmp_path):
     """NCBI gene_id='transcript_id' should be sanitised to actual transcript_id."""
-    reference = _write_gzip(tmp_path / "reference.fna.gz", NCBI_REFERENCE)
+    reference = _write(tmp_path / "reference.fna", NCBI_REFERENCE)
     annotation = _write_gzip(tmp_path / "annotation.gtf.gz", NCBI_GTF)
 
     summary = prepare_annotation_reference.prepare_annotation_reference(
