@@ -5,11 +5,7 @@ OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
 
 process bambuDiscover {
     label "wf_transcriptomes"
-    cpus {
-        int requested = (params.threads ?: 4) as int
-        int sampleCount = aliases instanceof Collection ? aliases.size() : 1
-        sampleCount > 1 ? requested : 1
-    }
+    cpus 1
     memory "60 GB"
     input:
         tuple val(meta), val(aliases), path(bams, stageAs: "bams/??.bam"), path(bais, stageAs: "bams/??.bam.bai"), path(sample_sheet)
@@ -32,7 +28,6 @@ process bambuDiscover {
         --annotation "${annotation}" \
         --genome "${reference}" \
         --transcriptome_mode "${params.transcriptome_mode}" \
-        --threads ${task.cpus} \
         ${ndr_arg} \
         --out_dir discover
     """
@@ -41,11 +36,7 @@ process bambuDiscover {
 
 process bambuQuant {
     label "wf_transcriptomes"
-    cpus {
-        int requested = (params.threads ?: 4) as int
-        boolean isJoint = meta instanceof Map && meta.alias == 'cohort'
-        isJoint ? requested : 1
-    }
+    cpus 1
     memory { ["8.GB", "16.GB", "48.GB"][task.attempt - 1] }
     maxRetries 2
     errorStrategy 'retry'
@@ -60,7 +51,6 @@ process bambuQuant {
         --chunk_rds "${chunk_rds}" \
         --discovered_annotation_rds "${discovered_annotation}" \
         --genome "${reference}" \
-        --threads ${task.cpus} \
         --out_dir "${chunk_id}"
     """
 }

@@ -101,11 +101,6 @@ testthat::test_that("invalid discovery settings rejected", {
     testthat::expect_silent(workflow_glue_r_normalise_args(args, bambu_arg_spec()))
     args$ndr <- 1
     testthat::expect_silent(workflow_glue_r_normalise_args(args, bambu_arg_spec()))
-
-    args$ndr <- NULL
-    args$threads <- "2"
-    normalised <- workflow_glue_r_normalise_args(args, bambu_arg_spec())
-    testthat::expect_identical(normalised$threads, 2L)
 })
 
 # Fail fast if --bams is empty rather than passing empty input to bambu.
@@ -259,7 +254,6 @@ testthat::test_that("bambu args include requested discovery and quant flags", {
 
     args <- list(
         genome = "genome.fa",
-        threads = 3L,
         transcriptome_mode = "discover",
         ndr = 0.2
     )
@@ -273,7 +267,7 @@ testthat::test_that("bambu args include requested discovery and quant flags", {
     testthat::expect_true(discover$discovery)
     testthat::expect_false(discover$quant)
     testthat::expect_equal(discover$NDR, 0.2)
-    testthat::expect_equal(discover$ncore, 3L)
+    testthat::expect_equal(discover$ncore, 1L)
     testthat::expect_true(discover$lowMemory)
     testthat::expect_equal(discover$yieldSize, 250000L)
 
@@ -376,8 +370,7 @@ testthat::test_that("discover mode writes chunked rc outputs", {
             aliases = "sampleA,sampleB",
             sample_sheet = sample_sheet,
             transcriptome_mode = "discover",
-            ndr = 0.25,
-            threads = 2
+            ndr = 0.25
         ),
         bambu_arg_spec()
     )
@@ -497,8 +490,7 @@ testthat::test_that("quant mode writes chunk quantification outputs", {
             chunk_rds = chunk_rds,
             discovered_annotation_rds = discovered_annotation_rds,
             transcriptome_mode = "discover",
-            ndr = NULL,
-            threads = 2
+            ndr = NULL
         ),
         bambu_arg_spec()
     )
@@ -562,8 +554,7 @@ testthat::test_that("quant mode skips chunks with no discovered annotations on t
             chunk_rds = chunk_rds,
             discovered_annotation_rds = discovered_annotation_rds,
             transcriptome_mode = "discover",
-            ndr = NULL,
-            threads = 2
+            ndr = NULL
         ),
         bambu_arg_spec()
     )
@@ -1000,7 +991,6 @@ testthat::test_that("CLI discover writes reusable chunk artifacts", {
             "--annotation", annotation,
             "--genome", reference,
             "--transcriptome_mode", "fixed_annotation",
-            "--threads", "1",
             "--out_dir", out_dir
         )
     )
@@ -1064,7 +1054,6 @@ testthat::test_that("CLI quant consumes a discover chunk", {
             "--annotation", annotation,
             "--genome", reference,
             "--transcriptome_mode", "fixed_annotation",
-            "--threads", "1",
             "--out_dir", discover_out_dir
         )
     )
@@ -1089,7 +1078,6 @@ testthat::test_that("CLI quant consumes a discover chunk", {
             "--chunk_rds", manifest$rds_path[[1]],
             "--discovered_annotation_rds", file.path(discover_out_dir, "bambu_discovered_annotations.rds"),
             "--genome", reference,
-            "--threads", "1",
             "--out_dir", out_dir
         )
     )
@@ -1147,7 +1135,6 @@ testthat::test_that("CLI collate consumes quant chunk directories", {
             "--annotation", annotation,
             "--genome", reference,
             "--transcriptome_mode", "fixed_annotation",
-            "--threads", "1",
             "--out_dir", discover_out_dir
         )
     )
@@ -1172,7 +1159,6 @@ testthat::test_that("CLI collate consumes quant chunk directories", {
             "--chunk_rds", manifest$rds_path[[1]],
             "--discovered_annotation_rds", file.path(discover_out_dir, "bambu_discovered_annotations.rds"),
             "--genome", reference,
-            "--threads", "1",
             "--out_dir", chunk_out_dir
         )
     )

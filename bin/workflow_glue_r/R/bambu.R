@@ -65,14 +65,6 @@ bambu_arg_spec <- function() {
             choices = c("discover", "fixed_annotation")
         ),
         list(
-            name = "threads",
-            flag = "--threads",
-            help = "Number of worker threads.",
-            type = "integer",
-            default = 1L,
-            min = 1L
-        ),
-        list(
             name = "ndr",
             flag = "--ndr",
             help = "Optional novel discovery rate.",
@@ -258,11 +250,13 @@ bambu_discovery_enabled <- function(args) {
 }
 
 bambu_build_args <- function(args, reads, annotation_obj, discovery, quant) {
+    # Pin bambu to ncore=1 in all modes to avoid parallel worker instability.
+    ncore <- 1L
     bambu_args <- list(
         reads = reads,
         annotations = annotation_obj,
         genome = args$genome,
-        ncore = as.integer(args$threads),
+        ncore = ncore,
         discovery = discovery,
         quant = quant,
         lowMemory = TRUE,
@@ -301,25 +295,6 @@ bambu_message_ndr <- function(args) {
         message(sprintf("  Current NDR = %.3f balances precision and recall", args$ndr))
     }
 }
-
-bambu_effective_threads <- function(args, bam_count) {
-    # bambu's low-memory mode can have issues with multiple BAMs and
-    # parallel threads due to BiocFileCache writes,
-    # so we enforce single-threading in that case.
-    threads <- as.integer(args$threads)
-    if (bam_count > 1 && threads > 1L) {
-        warning(
-            paste(
-                "Low-memory mode with multiple BAMs can fail in bambu due to",
-                "parallel BiocFileCache writes; forcing threads=1."
-            ),
-            call. = FALSE
-        )
-        return(1L)
-    }
-    threads
-}
-
 bambu_normalise_rc_file_list <- function(rc_files, aliases = NULL) {
     if (!is.list(rc_files)) {
         rc_files <- list(rc_files)
@@ -409,13 +384,12 @@ bambu_write_discovery_outputs <- function(out_dir, rc_files, discovered_annotati
 
 bambu_run_discover_mode <- function(args, analysis_fn, prepare_annotations_fn, bamfile_list_ctor) {
     inputs <- bambu_resolve_inputs(args, bamfile_list_ctor = bamfile_list_ctor)
-    args$threads <- bambu_effective_threads(args, length(inputs$bam_paths))
     annotation_obj <- prepare_annotations_fn(args$annotation)
 
     if (length(inputs$bam_paths) > 1) {
         message(sprintf("Using BamFileList yieldSize = %d", bambu_default_yield_size))
     }
-    message(sprintf("Running bambu discover setup with threads = %d", args$threads))
+    message("Running bambu discover setup with ncore = 1")
     message("Generating bambu rcFiles...")
     rc_files <- bambu_call_analysis(
         analysis_fn,
