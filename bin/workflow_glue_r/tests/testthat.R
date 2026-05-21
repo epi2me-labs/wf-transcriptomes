@@ -17,7 +17,9 @@ Sys.setenv(
     TEST_DATA = Sys.getenv("TEST_DATA", unset = file.path(repo_root, "test_data")),
     TESTTHAT_PKG = "workflowGlueR",
     TESTTHAT_PARALLEL = "true",
-    TESTTHAT_CPUS = "8"
+    TESTTHAT_CPUS = "8",
+    BIOCONDUCTOR_ONLINE_VERSION_DIAGNOSIS = "FALSE",
+    R_BIOC_VERSION = "3.21"
 )
 
 testthat_dir <- file.path(pkg_dir, "tests", "testthat")
