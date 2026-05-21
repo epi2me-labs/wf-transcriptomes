@@ -39,7 +39,7 @@ process makeReport {
         tuple val(metadata), path(stats, stageAs: "stats_*")
         path "versions/*"
         path "params.json"
-        path cohort_dir, stageAs: "cohort"
+        path cohort_dir, stageAs: "cohort/*"
         path sample_dirs, stageAs: "samples/*"
         path sqanti_dirs, stageAs: "sqanti/*"
         path de_files
@@ -198,7 +198,7 @@ workflow pipeline {
             report_input,
             software_versions,
             workflow_params,
-            transcriptome.joint_dir,
+            transcriptome.joint_dir.ifEmpty(OPTIONAL_FILE),
             sample_dirs_for_report,
             sqanti_dirs_for_report,
             de_dir,

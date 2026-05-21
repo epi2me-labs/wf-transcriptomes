@@ -68,9 +68,9 @@ def _format_ratio_value(value):
     return f"{numeric:.2f}x"
 
 
-def _cohort_summary(cohort_dir):
-    """Return cohort-level metrics and transcript class counts DataFrames."""
-    tx_meta = _read_table(Path(cohort_dir) / "transcript_metadata.tsv")
+def _transcriptome_summary(transcriptome_dir):
+    """Return transcriptome metrics and transcript class counts DataFrames."""
+    tx_meta = _read_table(Path(transcriptome_dir) / "transcript_metadata.tsv")
     if tx_meta is None:
         return None, None
 
@@ -95,7 +95,10 @@ def _cohort_summary(cohort_dir):
 def _sample_summaries(samples_dir):
     """Return a dict of per-sample metrics DataFrames keyed by sample name."""
     summaries = {}
-    for sample_dir in sorted(Path(samples_dir).iterdir()):
+    samples_path = Path(samples_dir)
+    if not samples_path.exists() or not samples_path.is_dir():
+        return summaries
+    for sample_dir in sorted(samples_path.iterdir()):
         if not sample_dir.is_dir():
             continue
         tx_meta = _read_table(sample_dir / "transcript_metadata.tsv")
@@ -143,9 +146,9 @@ def _contrast_results(de_dir, filename, n=None):
     return tables
 
 
-def _load_bambu_qc(cohort_dir):
+def _load_bambu_qc(bambu_dir):
     """Load bambu QC statistics JSON."""
-    qc_file = Path(cohort_dir) / "bambu_qc_stats.json"
+    qc_file = Path(bambu_dir) / "bambu_qc_stats.json"
     if qc_file.exists():
         with open(qc_file) as f:
             return json.load(f)
@@ -345,8 +348,6 @@ def main(args):
                     use_index=False,
                 )
 
-    # Load bambu QC statistics
-    bambu_qc = _load_bambu_qc(args.cohort_dir)
     annotation_reference_summary = _load_annotation_reference_summary(args.cohort_dir)
 
     if annotation_reference_summary:
@@ -437,6 +438,16 @@ def main(args):
                 h4("Unstranded Annotation Examples")
                 pre("\n".join(examples))
 
+    # Setup for using cohort or single sample bambu results
+    is_single_sample = len(metadata) == 1
+    primary_label = metadata[0]["alias"] if is_single_sample else "Cohort"
+
+    # Load bambu QC statistics
+    bambu_dir = (
+        Path(args.samples_dir) / metadata[0]["alias"] if is_single_sample
+        else args.cohort_dir
+    )
+    bambu_qc = _load_bambu_qc(bambu_dir)
     # Add Bambu QC section with warnings
     if bambu_qc:
         with report.add_section("Bambu Quality Control", "Bambu QC"):
@@ -556,38 +567,48 @@ def main(args):
                     use_index=False,
                 )
 
-    with report.add_section("Cohort transcriptome", "Cohort"):
-        cohort_metrics, cohort_classes = _cohort_summary(args.cohort_dir)
-        if cohort_metrics is not None:
+    with report.add_section(
+        f"{primary_label} transcriptome",
+        f"{primary_label} transcriptome"
+    ):
+        transcriptome_metrics, transcriptome_classes = _transcriptome_summary(bambu_dir)
+        if transcriptome_metrics is not None:
             DataTable.from_pandas(
-                cohort_metrics,
+                transcriptome_metrics,
                 paging=False,
                 searchable=False,
                 use_index=False,
             )
-        if cohort_classes is not None:
+        if transcriptome_classes is not None:
             DataTable.from_pandas(
-                cohort_classes,
+                transcriptome_classes,
                 paging=False,
                 searchable=False,
                 use_index=False,
             )
 
-        tx_counts = _read_table(Path(args.cohort_dir) / "transcript_counts.tsv")
+        tx_counts = _read_table(Path(bambu_dir) / "transcript_counts.tsv")
         if tx_counts is not None and not tx_counts.empty:
-            p("Top transcript rows from the cohort abundance table.")
+            p(
+                "Top transcript rows from the "
+                f"{'sample' if is_single_sample else 'cohort'} abundance table."
+            )
             DataTable.from_pandas(tx_counts.head(20), use_index=False)
 
-    with report.add_section("Per-sample transcriptomes", "Per sample"):
-        tabs = Tabs()
-        for sample, summary_df in _sample_summaries(args.samples_dir).items():
-            with tabs.add_tab(sample):
-                DataTable.from_pandas(
-                    summary_df,
-                    paging=False,
-                    searchable=False,
-                    use_index=False,
-                )
+    if not is_single_sample:
+        with report.add_section(
+            "Per-sample transcriptomes",
+            "Per-sample transcriptomes"
+        ):
+            tabs = Tabs()
+            for sample, summary_df in _sample_summaries(args.samples_dir).items():
+                with tabs.add_tab(sample):
+                    DataTable.from_pandas(
+                        summary_df,
+                        paging=False,
+                        searchable=False,
+                        use_index=False,
+                    )
 
     if args.alignment_stats_dir and Path(args.alignment_stats_dir).exists():
         with report.add_section("Alignment statistics", "Alignments"):

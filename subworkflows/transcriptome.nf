@@ -222,6 +222,7 @@ workflow transcriptome_analysis {
         joint_discover = runJointBambuDiscover(
             alignments
                 .toSortedList { a, b -> a[0].alias <=> b[0].alias }
+                .filter { rows -> rows.size() > 1 }
                 .map { rows ->
                     // transform [meta, bam, bai] rows to 
                     // [meta, [alias1...aliasN], [bam1...bamN], [bai1...baiN], sample_sheet]
