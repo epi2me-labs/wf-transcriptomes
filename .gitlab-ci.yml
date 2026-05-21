@@ -134,15 +134,14 @@ docker-run:
                   jq -e '.contrasts["condition_treated_vs_control"].dge_status | IN("SUCCESS", "FAILED")' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json >/dev/null &&
                   jq -e '.contrasts["condition_treated_vs_control"].dtu_status | IN("SUCCESS", "FAILED")' ${CI_PROJECT_NAME}/de_analysis/de_qc_stats.json >/dev/null
 
-        # Smoke: quick discover-mode sanity check for core cohort and per-sample outputs.
+        # Smoke: quick discover-mode sanity check for core cohort outputs.
         - if: $MATRIX_NAME == "smoke_discover"
           variables:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf"
               AFTER_NEXTFLOW_CMD: >
-                  test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
-                  test -f ${CI_PROJECT_NAME}/cohort/cohort.transcriptome.fa &&
-                  test -f ${CI_PROJECT_NAME}/samples/sampleA/transcripts.gtf
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/transcripts.gtf &&
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/sampleA.transcriptome.fa
 
         # Smoke: fixed-annotation path sanity check for quantification outputs.
         - if: $MATRIX_NAME == "smoke_fixed"
@@ -150,8 +149,8 @@ docker-run:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --transcriptome_mode fixed_annotation"
               AFTER_NEXTFLOW_CMD: >
-                  test -f ${CI_PROJECT_NAME}/cohort/transcripts.gtf &&
-                  test -f ${CI_PROJECT_NAME}/cohort/transcript_counts.tsv
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/transcripts.gtf &&
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/transcript_counts.tsv
 
         # Smoke: direct-RNA alignment profile and downstream SQANTI output presence.
         - if: $MATRIX_NAME == "smoke_direct_rna"
@@ -160,7 +159,7 @@ docker-run:
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna"
               AFTER_NEXTFLOW_CMD: >
                   test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA/reads.bam &&
-                  test -f ${CI_PROJECT_NAME}/cohort/sqanti_cohort/classification_summary.tsv
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/sampleA_sqanti/classification_summary.tsv
 
         # Smoke: end-to-end DE/DTU wiring and expected contrast output files.
         - if: $MATRIX_NAME == "smoke_de"
