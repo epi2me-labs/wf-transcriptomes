@@ -220,7 +220,7 @@ Each sample is aligned to the supplied reference genome with
 [`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
 [`samtools`](https://www.htslib.org/). The aligned BAMs under
 `samples/<alias>/alignment/` are the main alignment files used for transcriptome
-analysis, optional `SQANTI3` QC, and optional IGV viewing.
+analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
 
 ### 4. Cohort transcriptome construction
 
@@ -245,8 +245,8 @@ for DE/DTU.
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
 When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
 transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
-results live under `cohort/sqanti_cohort/`, while per-sample `SQANTI3`
-directories are published under `samples/<alias>/<alias>_sqanti/`.
+results live under `cohort/sqanti/`, while per-sample `SQANTI3`
+directories are published under `samples/<alias>/sqanti/`.
 
 ### 7. Optional DE and DTU analysis
 
@@ -368,13 +368,13 @@ Output files may be aggregated including information for all samples or provided
 | Cohort transcript counts | cohort/transcript_counts.tsv | Transcript-level count matrix produced by bambu. | aggregated |
 | Cohort gene counts | cohort/gene_counts.tsv | Gene-level count matrix derived from bambu output. | aggregated |
 | Cohort transcript metadata | cohort/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the cohort model. | aggregated |
-| Cohort SQANTI3 summary | cohort/sqanti_cohort/classification_summary.tsv | SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled. | aggregated |
+| Cohort SQANTI3 summary | cohort/sqanti/classification_summary.tsv | SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled. | aggregated |
 | Per-sample transcriptome GTF | samples/{{ alias }}/transcripts.gtf | Independent bambu transcript model for an individual sample. | per-sample |
 | Per-sample transcriptome FASTA | samples/{{ alias }}/{{ alias }}.transcriptome.fa | Transcript sequences derived from the per-sample GTF. | per-sample |
 | Per-sample transcript counts | samples/{{ alias }}/transcript_counts.tsv | Transcript-level abundance estimates for the per-sample bambu model. | per-sample |
 | Per-sample gene counts | samples/{{ alias }}/gene_counts.tsv | Gene-level abundance estimates for the per-sample bambu model. | per-sample |
 | Per-sample transcript metadata | samples/{{ alias }}/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the per-sample model. | per-sample |
-| Per-sample SQANTI3 summary | samples/{{ alias }}/{{ alias }}_sqanti/classification_summary.tsv | SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled. | per-sample |
+| Per-sample SQANTI3 summary | samples/{{ alias }}/sqanti/classification_summary.tsv | SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled. | per-sample |
 | Differential gene expression results | de_analysis/{{ contrast }}/results_dge.tsv | DESeq2 gene-level differential expression results for one contrast. | aggregated |
 | Differential gene expression plots | de_analysis/{{ contrast }}/results_dge.pdf | PDF plots generated during DESeq2 analysis for one contrast. | aggregated |
 | Differential transcript usage results | de_analysis/{{ contrast }}/results_dtu_transcript.tsv | Transcript-level DTU results for one contrast. | aggregated |

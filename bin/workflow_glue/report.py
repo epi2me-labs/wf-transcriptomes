@@ -2,10 +2,13 @@
 
 import json
 import math
+import os
 from pathlib import Path
 
 from bokeh.resources import INLINE as BOKEH_INLINE
-from dominate.tags import br, div, h3, h4, p, pre, script, strong, style as dom_style
+from dominate.tags import (
+    br, div, h3, h4, p, pre, script, small, strong, style as dom_style
+)
 from dominate.util import raw
 from ezcharts.components import fastcat
 from ezcharts.components.ezchart import EZChart
@@ -19,6 +22,35 @@ import pandas as pd
 from .hierarchical_clustering import hierarchical, clustering_info   # noqa: ABS101
 from .util import get_named_logger, wf_parser  # noqa: ABS101
 from .volcano import volcano  # noqa: ABS101
+
+
+classification_categories = {
+    "Full splice match": (
+        "Reference and query isoforms have the same number of exons and "
+        "all internal junctions agree."
+    ),
+    "Incomplete splice match": (
+        "Query isoform has fewer 5&prime; exons than the reference, with "
+        "matching internal junctions."
+    ),
+    "Novel in catalog": (
+        "No full or incomplete splice match, but uses a "
+        "combination of known donor/acceptor splice sites."
+    ),
+    "Novel not in catalog": (
+        "No full or incomplete splice match, with at least "
+        "one unannotated donor or acceptor splice site."
+    ),
+    "Antisense": (
+        "No same-strand reference overlap, but antisense to an "
+        "annotated gene."
+    ),
+    "Genic intron": (
+        "Query isoform is fully contained within an annotated intron."
+    ),
+    "Genic": "Query isoform overlaps introns and exons.",
+    "Intergenic": "Query isoform lies in an intergenic region.",
+}
 
 
 def get_bokeh_widgets_js():
@@ -67,6 +99,11 @@ def _format_ratio_value(value):
     if numeric is None:
         return "N/A"
     return f"{numeric:.2f}x"
+
+
+def _format_classification_label(name):
+    """Return canonical report label for a summary classification value."""
+    return str(name).strip().replace("-", "_").replace("_", " ").capitalize()
 
 
 def _transcriptome_summary(transcriptome_dir):
@@ -122,13 +159,40 @@ def _sample_summaries(samples_dir):
     return summaries
 
 
-def _sqanti_tables(sqanti_dir):
-    """Return a dict of SQANTI3 classification summary DataFrames keyed by label."""
-    tables = {}
-    for summary in sorted(Path(sqanti_dir).rglob("classification_summary.tsv")):
-        label = summary.parent.name
-        tables[label] = _read_table(summary)
-    return tables
+def _sqanti_table(sqanti_dir):
+    """Return a SQANTI3 classification summary DataFrame."""
+    rows = []
+    summaries = []
+    for root, _, files in os.walk(sqanti_dir, followlinks=True):
+        if "classification_summary.tsv" in files:
+            summaries.append(Path(root) / "classification_summary.tsv")
+    for summary in sorted(summaries):
+        table = _read_table(summary)
+        if table is None or table.empty:
+            continue
+
+        sample = summary.parent.name
+
+        sample_counts = {"Sample": sample}
+        for _, row in table.iterrows():
+            feature = _format_classification_label(row["structural_category"])
+            count = _coerce_float(row["count"])
+            sample_counts[feature] = int(round(count)) if count is not None else 0
+        rows.append(sample_counts)
+
+    if not rows:
+        return None
+
+    sqanti_df = pd.DataFrame(rows).fillna(0)
+    feature_cols = list(classification_categories.keys())
+    for col in feature_cols:
+        if col not in sqanti_df.columns:
+            sqanti_df[col] = 0
+        sqanti_df[col] = sqanti_df[col].astype(int)
+    sqanti_df = sqanti_df[["Sample"] + feature_cols]
+    is_cohort = sqanti_df["Sample"].str.lower().eq("cohort")
+    sqanti_df = sqanti_df.assign(_is_cohort=is_cohort)
+    return sqanti_df.sort_values(["_is_cohort", "Sample"]).drop(columns="_is_cohort")
 
 
 def _contrast_results(de_dir, filename, n=None):
@@ -686,13 +750,15 @@ def main(args):
                 with tabs.add_tab(stats_file.stem.replace(".flagstat", "")):
                     pre(stats_file.read_text())
 
-    sqanti_tables = _sqanti_tables(args.sqanti_dir)
-    if sqanti_tables:
+    sqanti_table = _sqanti_table(args.sqanti_dir)
+    if sqanti_table is not None and not sqanti_table.empty:
         with report.add_section("SQANTI3 classification", "SQANTI3"):
-            tabs = Tabs()
-            for label, table in sqanti_tables.items():
-                with tabs.add_tab(label):
-                    DataTable.from_pandas(table, use_index=False)
+            p("Summary of structural classification of isoforms using SQANTI3.")
+            DataTable.from_pandas(sqanti_table, use_index=False)
+            with p():
+                for category, description in classification_categories.items():
+                    small(strong(f"{category}: "))
+                    small(raw(f"{description}<br>"))
 
     if args.de_dir and Path(args.de_dir).exists():
         # Load DE QC statistics

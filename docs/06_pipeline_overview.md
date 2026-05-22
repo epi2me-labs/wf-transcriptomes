@@ -65,7 +65,7 @@ Each sample is aligned to the supplied reference genome with
 [`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
 [`samtools`](https://www.htslib.org/). The aligned BAMs under
 `samples/<alias>/alignment/` are the main alignment files used for transcriptome
-analysis, optional `SQANTI3` QC, and optional IGV viewing.
+analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
 
 ### 4. Cohort transcriptome construction
 
@@ -90,8 +90,8 @@ for DE/DTU.
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
 When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
 transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
-results live under `cohort/sqanti_cohort/`, while per-sample `SQANTI3`
-directories are published under `samples/<alias>/<alias>_sqanti/`.
+results live under `cohort/sqanti/`, while per-sample `SQANTI3`
+directories are published under `samples/<alias>/sqanti/`.
 
 ### 7. Optional DE and DTU analysis
 

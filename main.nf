@@ -225,8 +225,6 @@ workflow pipeline {
             .concat(transcriptome.sample_gene_rds.map { meta, rds -> [rds, "samples/${meta.alias}"] })
             .concat(transcriptome.sample_metadata.map { meta, metadata -> [metadata, "samples/${meta.alias}"] })
             .concat(generated_alignment_outputs)
-            .concat(transcriptome.joint_sqanti_dir.map { [it, "cohort"] })
-            .concat(transcriptome.sample_sqanti_dirs.map { meta, sqanti_dir -> [sqanti_dir, "samples/${meta.alias}"] })
 
         if (params.de_analysis) {
             results = results.concat(de_dir.map { [it, null] })

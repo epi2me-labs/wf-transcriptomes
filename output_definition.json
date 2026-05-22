@@ -89,7 +89,7 @@
       "type": "aggregated"
     },
     "cohort-sqanti-summary": {
-      "filepath": "cohort/sqanti_cohort/classification_summary.tsv",
+      "filepath": "cohort/sqanti/classification_summary.tsv",
       "title": "Cohort SQANTI3 summary",
       "description": "SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled.",
       "mime-type": "text/tab-separated-values",
@@ -137,7 +137,7 @@
       "type": "per-sample"
     },
     "sample-sqanti-summary": {
-      "filepath": "samples/{{ alias }}/{{ alias }}_sqanti/classification_summary.tsv",
+      "filepath": "samples/{{ alias }}/sqanti/classification_summary.tsv",
       "title": "Per-sample SQANTI3 summary",
       "description": "SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled.",
       "mime-type": "text/tab-separated-values",
