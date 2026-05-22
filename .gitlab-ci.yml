@@ -179,3 +179,8 @@ docker-run:
                   --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.fa \
                   --ref_annotation ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.gtf.gz \
                 --direct_rna --sample_sheet ${CI_PROJECT_NAME}/data/mouse_subset_test/sample_sheet.csv"
+
+
+singularity-run:
+    rules: 
+        - when: never
