@@ -220,20 +220,22 @@ def _load_bambu_qc(bambu_dir):
     return None
 
 
+def _load_annotation_reference_summary(summary_file):
+    """Load reference/annotation preparation summary JSON from a file path."""
+    if summary_file is None:
+        return None
+    summary_path = Path(summary_file)
+    if summary_path.exists():
+        with open(summary_path) as f:
+            return json.load(f)
+    return None
+
+
 def _load_de_qc(de_dir):
     """Load DE/DTU QC statistics JSON."""
     qc_file = Path(de_dir) / "de_qc_stats.json"
     if qc_file.exists():
         with open(qc_file) as f:
-            return json.load(f)
-    return None
-
-
-def _load_annotation_reference_summary(cohort_dir):
-    """Load reference/annotation preparation summary JSON."""
-    summary_file = Path(cohort_dir) / "reference" / "annotation_reference_summary.json"
-    if summary_file.exists():
-        with open(summary_file) as f:
             return json.load(f)
     return None
 
@@ -478,8 +480,7 @@ def main(args):
                     .rename(columns={"index": "Field"}),
                     use_index=False,
                 )
-
-    annotation_reference_summary = _load_annotation_reference_summary(args.cohort_dir)
+    annotation_reference_summary = _load_annotation_reference_summary(args.ref_summary)
 
     if annotation_reference_summary:
         with report.add_section("Reference and Annotation Checks", "Reference"):
@@ -1209,6 +1210,11 @@ def argparser():
         "--de_dir",
         default=None,
         help="Differential analysis directory.",
+    )
+    parser.add_argument(
+        "--ref_summary",
+        default=None,
+        help="Annotation reference summary TSV.",
     )
     parser.add_argument("--versions", required=True, help="Versions directory.")
     parser.add_argument("--params", required=True, help="Workflow params JSON.")

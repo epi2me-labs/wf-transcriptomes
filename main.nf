@@ -43,6 +43,7 @@ process makeReport {
         path sample_dirs, stageAs: "samples/*"
         path sqanti_dirs, stageAs: "sqanti/*"
         path de_files
+        path "annotation_reference_summary.tsv"
         val wf_version
     output:
         path "wf-transcriptomes-report.html", emit: report
@@ -63,6 +64,7 @@ process makeReport {
         ${de_args} \
         --versions versions \
         --params params.json \
+        --ref_summary annotation_reference_summary.tsv \
         --wf_version ${wf_version}
     """
 }
@@ -202,6 +204,7 @@ workflow pipeline {
             sample_dirs_for_report,
             sqanti_dirs_for_report,
             de_dir,
+            transcriptome.annotation_reference_summary,
             workflow.manifest.version
         )
 

@@ -93,7 +93,9 @@ def test_load_annotation_reference_summary_exists(tmp_path):
     with open(summary_dir / "annotation_reference_summary.json", "w") as f:
         json.dump(summary_data, f)
 
-    result = _load_annotation_reference_summary(tmp_path / "cohort")
+    result = _load_annotation_reference_summary(
+        summary_dir / "annotation_reference_summary.json"
+    )
     assert result is not None
     assert result["seqname_overlap"] == ["chr1"]
     assert result["only_in_annotation"] == ["chrMissing"]
@@ -106,7 +108,9 @@ def test_load_annotation_reference_summary_missing(tmp_path):
     cohort_dir = tmp_path / "cohort"
     cohort_dir.mkdir()
 
-    result = _load_annotation_reference_summary(cohort_dir)
+    result = _load_annotation_reference_summary(
+        cohort_dir / "reference" / "annotation_reference_summary.json"
+    )
     assert result is None
 
 
