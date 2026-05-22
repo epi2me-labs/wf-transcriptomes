@@ -140,18 +140,21 @@ process runJointSqanti {
     label "wf_transcriptomes_sqanti"
     cpus { params.threads ?: 4 }
     memory "24 GB"
+    publishDir "${params.out_dir}/cohort",
+        mode: "copy",
+        saveAs: { "sqanti" }
     input:
         path gtf
         path annotation, stageAs: "annotation/*"
         tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
-        path "sqanti_cohort", emit: dir
-        path "sqanti_cohort/classification_summary.tsv", emit: summary
+        path "cohort", emit: dir
+        path "cohort/classification_summary.tsv", emit: summary
     script:
         String extra = params.sqanti_extra_args ?: ""
         String skip_orf = params.sqanti_skip_orf ? "--skipORF" : ""
     """
-    mkdir sqanti_cohort
+    mkdir cohort
     sqanti3_qc.py \
         --isoforms "${gtf}" \
         --refGTF "${annotation}" \
@@ -160,11 +163,11 @@ process runJointSqanti {
         --force_id_ignore \
         --report skip \
         -t ${task.cpus} \
-        -d sqanti_cohort \
+        -d cohort \
         -o cohort \
         ${extra}
-    workflow-glue summarise_sqanti --sqanti_dir sqanti_cohort \
-        --output sqanti_cohort/classification_summary.tsv
+    workflow-glue summarise_sqanti --sqanti_dir cohort \
+        --output cohort/classification_summary.tsv
     """
 }
 
@@ -173,18 +176,21 @@ process runPerSampleSqanti {
     label "wf_transcriptomes_sqanti"
     cpus { params.threads ?: 4 }
     memory "24 GB"
+    publishDir "${params.out_dir}/samples/${meta.alias}",
+        mode: "copy",
+        saveAs: { "sqanti"}
     input:
         tuple val(meta), path(gtf)
         path annotation, stageAs: "annotation/*"
         tuple path(reference, stageAs: "reference/reference.fa"), path(ref_fai, stageAs: "reference/reference.fai")
     output:
-        tuple val(meta), path("${meta.alias}_sqanti"), emit: dir
-        tuple val(meta), path("${meta.alias}_sqanti/classification_summary.tsv"), emit: summary
+        tuple val(meta), path("${meta.alias}"), emit: dir
+        tuple val(meta), path("${meta.alias}/classification_summary.tsv"), emit: summary
     script:
         String extra = params.sqanti_extra_args ?: ""
         String skip_orf = params.sqanti_skip_orf ? "--skipORF" : ""
     """
-    mkdir "${meta.alias}_sqanti"
+    mkdir "${meta.alias}"
     sqanti3_qc.py \
         --isoforms "${gtf}" \
         --refGTF "${annotation}" \
@@ -193,11 +199,11 @@ process runPerSampleSqanti {
         --force_id_ignore \
         --report skip \
         -t ${task.cpus} \
-        -d "${meta.alias}_sqanti" \
+        -d "${meta.alias}" \
         -o "${meta.alias}" \
         ${extra}
-    workflow-glue summarise_sqanti --sqanti_dir "${meta.alias}_sqanti" \
-        --output "${meta.alias}_sqanti/classification_summary.tsv"
+    workflow-glue summarise_sqanti --sqanti_dir "${meta.alias}" \
+        --output "${meta.alias}/classification_summary.tsv"
     """
 }
 
