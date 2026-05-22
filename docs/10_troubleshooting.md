@@ -50,7 +50,7 @@ In the current version DE and DTU results are grouped by contrast under
 #### I expected the old output layout or transcriptome files
 
 The previous workflow version emitted one flat set of transcriptome.
-In the current versions, the output folder is organised around `ingress_results/`,
+In the current versions, the output folder is organised around
 `cohort/`, `samples/<alias>/`, `de_analysis/<contrast>/`, and
 `igv_reference/`.
 

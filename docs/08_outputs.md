@@ -3,10 +3,6 @@ Output files may be aggregated including information for all samples or provided
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
 | Workflow report | wf-transcriptomes-report.html | HTML report summarising transcript discovery, quantification, optional SQANTI3 classification, and optional differential analysis results. | aggregated |
-| Per-file read stats | ingress_results/{{ alias }}/fastcat_stats/per-file-stats.tsv | Read statistics for each input FASTQ file in a sample, when FASTQ read stats are available. | per-sample |
-| Per-read stats | ingress_results/{{ alias }}/fastcat_stats/per-read-stats.tsv.gz | Read statistics for individual reads in a sample, when this output is enabled. | per-sample |
-| Ingress reads | ingress_results/{{ alias }}/seqs.fastq.gz | Reads prepared from the input data for downstream analysis. | per-sample |
-| Ingress metadata | ingress_results/{{ alias }}/metamap.json | Per-sample metadata used by the workflow. | per-sample |
 | Aligned BAM | samples/{{ alias }}/alignment/reads.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
 | Aligned BAM index | samples/{{ alias }}/alignment/reads.bam.bai | Index for the aligned BAM. | per-sample |
 | Alignment summary | samples/{{ alias }}/alignment/bamstats.flagstat.tsv | bamstats flagstat summary for the aligned BAM. | per-sample |

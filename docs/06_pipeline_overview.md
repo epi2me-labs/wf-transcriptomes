@@ -21,8 +21,7 @@ The workflow's choice of SQANTI3 as a companion QC and annotation layer matches 
 
 The shared EPI2ME input handling collects FASTQ or BAM inputs, works out
 whether you have a single sample or a multiplexed run, and produces per-sample
-FASTQ files plus read statistics. These files are published under
-`ingress_results/<alias>/` and are used in the downstream report.
+FASTQ files plus read statistics. These files are used in the downstream report.
 
 ### 2. Sample sheet formulation
 
@@ -65,7 +64,7 @@ requirements for a two-group DE/DTU comparison.
 Each sample is aligned to the supplied reference genome with
 [`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
 [`samtools`](https://www.htslib.org/). The aligned BAMs under
-`cohort/alignments/` are the main alignment files used for transcriptome
+`samples/<alias>/alignment/` are the main alignment files used for transcriptome
 analysis, optional `SQANTI3` QC, and optional IGV viewing.
 
 ### 4. Cohort transcriptome construction
@@ -122,11 +121,8 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 The published outputs are organised around a small number of top-level
 directories:
 
-+ `ingress_results/<alias>/` contains prepared reads, read statistics, and sample
-  metadata for each sample
-+ `cohort/` contains the primary joint `bambu` transcriptome, count tables,
-  alignments, and optional cohort `SQANTI3` outputs
-+ `samples/<alias>/` contains the independent per-sample `bambu` outputs and
++ `cohort/` contains the primary joint `bambu` transcriptome, count tables, and optional cohort `SQANTI3` outputs
++ `samples/<alias>/` contains alignments, independent per-sample `bambu` outputs and
   optional per-sample `SQANTI3` outputs
 + `de_analysis/<contrast>/` contains DE and DTU results for each contrast when
   differential analysis is enabled
