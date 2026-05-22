@@ -74,6 +74,36 @@ def _build_report_args(tmp_path, de_qc=None):
         ),
     )
 
+    if de_qc is not None and "contrasts" in de_qc:
+        # Create samples.csv with multisample metadata for heatmaps
+        samples_csv = "barcode,sample_id,alias,condition\n"
+        for i in range(3):
+            samples_csv += (
+                f"BC{i:03d},sample_control_{i},sample_control_{i},control\n"
+            )
+        for i in range(3):
+            samples_csv += (
+                f"BC{i+3:03d},sample_treated_{i},sample_treated_{i},treated\n"
+            )
+        _write(cohort / "samples.csv", samples_csv)
+
+        # Create minimal CPM tables for hierarchical clustering
+        sample_cols = (
+            "\tsample_control_0\tsample_control_1\tsample_control_2"
+            "\tsample_treated_0\tsample_treated_1\tsample_treated_2\n"
+        )
+        gene_cpm = f"GENEID{sample_cols}"
+        gene_cpm += "gene1\t100\t110\t95\t200\t220\t210\n"
+        gene_cpm += "gene2\t50\t55\t48\t100\t110\t105\n"
+        gene_cpm += "gene3\t75\t80\t72\t150\t160\t155\n"
+        _write(cohort / "gene_cpm.tsv", gene_cpm)
+
+        tx_cpm = f"TXNAME{sample_cols}"
+        tx_cpm += "tx1\t100\t110\t95\t200\t220\t210\n"
+        tx_cpm += "tx2\t50\t55\t48\t100\t110\t105\n"
+        tx_cpm += "tx3\t75\t80\t72\t150\t160\t155\n"
+        _write(cohort / "transcript_cpm.tsv", tx_cpm)
+
     samples = tmp_path / "samples"
     samples.mkdir()
     sqanti = tmp_path / "sqanti"
