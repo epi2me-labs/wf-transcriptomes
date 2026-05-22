@@ -88,6 +88,7 @@ process collateBambuQuant {
     memory "16 GB"
     input:
         tuple val(meta), path(chunk_dirs, stageAs: "chunks/*")
+        path annotation, stageAs: "annotation/*"
     output:
         tuple val(meta), path("${meta.alias}"), emit: dir
         tuple val(meta), path("${meta.alias}/transcripts.gtf"), emit: gtf
@@ -103,6 +104,7 @@ process collateBambuQuant {
     """
     supeRglue bambu collate \
         ${chunk_dirs_arg} \
+        --annotation "${annotation}" \
         --transcriptome_mode "${params.transcriptome_mode}" \
         ${ndr_arg} \
         --out_dir "${meta.alias}"

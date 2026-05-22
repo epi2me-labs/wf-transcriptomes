@@ -252,7 +252,8 @@ workflow transcriptome_analysis {
                 .groupTuple()
                 .map { alias, metas, chunk_dirs ->
                     tuple(metas[0], chunk_dirs)
-                }
+                },
+            analysis_annotation
         )
         joint_bambu_empty = runJointBambuEmpty(
             bambu_empty_inputs(joint_quant_inputs_all)
@@ -294,7 +295,8 @@ workflow transcriptome_analysis {
                 .groupTuple()
                 .map { alias, metas, chunk_dirs ->
                     tuple(metas[0], chunk_dirs)
-                }
+                },
+            analysis_annotation
         )
         sample_bambu_empty = runPerSampleBambuEmpty(
             bambu_empty_inputs(sample_quant_inputs_all)

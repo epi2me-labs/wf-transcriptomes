@@ -813,6 +813,19 @@ testthat::test_that("CLI integration produces expected outputs", {
     fixture_dir <- tempfile("de-cli-")
     dir.create(fixture_dir)
     bundle <- write_de_fixture_bundle(fixture_dir, levels = c("control", "treated"))
+    tx_se <- readRDS(bundle$transcript_rds)
+    tx_row_data <- as.data.frame(SummarizedExperiment::rowData(tx_se))
+    tx_row_data$gene_name <- c("GENEA", "GENEA", "GENEB", "GENEB")
+    tx_row_data$transcript_name <- c("TXA", "TXB", "TXC", "TXD")
+    SummarizedExperiment::rowData(tx_se) <- S4Vectors::DataFrame(tx_row_data)
+    saveRDS(tx_se, bundle$transcript_rds)
+
+    gene_se <- readRDS(bundle$gene_rds)
+    gene_row_data <- as.data.frame(SummarizedExperiment::rowData(gene_se))
+    gene_row_data$gene_name <- c("GENEA", "GENEB")
+    SummarizedExperiment::rowData(gene_se) <- S4Vectors::DataFrame(gene_row_data)
+    saveRDS(gene_se, bundle$gene_rds)
+
     out_dir <- file.path(fixture_dir, "out")
 
     result <- run_rscript(
@@ -850,8 +863,11 @@ testthat::test_that("CLI integration produces expected outputs", {
     )
 
     testthat::expect_gt(nrow(dge), 0)
-    testthat::expect_true(all(c("GENEID", "log2FoldChange", "padj") %in% names(dge)))
-    testthat::expect_true(all(c("featureID", "groupID", "padj") %in% names(dtu_tx)))
+    testthat::expect_true(all(c("GENEID", "gene_name", "log2FoldChange", "padj") %in% names(dge)))
+    testthat::expect_true(all(c("featureID", "groupID", "gene_name", "transcript_name", "padj") %in% names(dtu_tx)))
+    testthat::expect_true(all(stats::na.omit(dge$gene_name) %in% c("GENEA", "GENEB")))
+    testthat::expect_true(all(stats::na.omit(dtu_tx$gene_name) %in% c("GENEA", "GENEB")))
+    testthat::expect_true(all(stats::na.omit(dtu_tx$transcript_name) %in% c("TXA", "TXB", "TXC", "TXD")))
     testthat::expect_true(all(c("featureID", "groupID", "padj") %in% names(dexseq)))
     testthat::expect_true("analysis_fallbacks" %in% names(de_qc))
     testthat::expect_true("contrasts" %in% names(de_qc))

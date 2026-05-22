@@ -565,6 +565,7 @@ bambu_run_collate_mode <- function(args, gene_expression_fn, write_gtf_fn) {
             out_dir = args$out_dir,
             transcriptome_mode = args$transcriptome_mode,
             ndr = args$ndr,
+            annotation = args$annotation,
             gene_expression_fn = gene_expression_fn,
             write_gtf_fn = write_gtf_fn
         )
@@ -1038,6 +1039,7 @@ bambu_collate_chunk_outputs <- function(
     out_dir,
     transcriptome_mode = "discover",
     ndr = NULL,
+    annotation = NULL,
     gene_expression_fn = bambu::transcriptToGeneExpression,
     write_gtf_fn = bambu::writeToGTF
 ) {
@@ -1077,7 +1079,8 @@ bambu_collate_chunk_outputs <- function(
     args <- list(
         out_dir = out_dir,
         transcriptome_mode = transcriptome_mode,
-        ndr = ndr
+        ndr = ndr,
+        annotation = annotation
     )
     bambu_write_outputs(
         se,
@@ -1111,6 +1114,62 @@ bambu_write_matrix_tsv <- function(se_obj, assay_name, id_col, meta_df, output_p
     invisible(gc(verbose = FALSE))
 }
 
+#' Enrich SummarizedExperiment rowData with annotation-derived names.
+#'
+#' Reads `gene_name` and `transcript_name` from a GFF annotation file
+#' and adds them as columns in the `rowData` of the transcript-level and
+#' gene-level SummarizedExperiment objects.  Matching is performed on
+#' `GENEID`or TXNAME
+#' If `annotation` is missing/NULL, or if the GTF does not contain the
+#' relevant attributes, the objects are returned unchanged.
+#'
+#' @param se A `SummarizedExperiment` of transcript-level counts
+#'   Must have GENEID in rowData for gene name enrichment.
+#' @param gene_se A SummarizedExperiment of gene-level counts (bambu
+#'   Must have GENEID in rowData or use rownames as gene IDs.
+#' @param annotation Path to a GTF/GFF annotation file, or NULL.  When
+#'   NULL or the file is absent the function is a no-op.
+#'
+#' @return A named list with elements `se`` and `gene_se`, each being
+#'   the (possibly enriched) input object.
+bambu_add_annotation_names <- function(se, gene_se, annotation) {
+    feature_maps <- workflow_glue_r_annotation_name_maps(annotation)
+    gene_name_map <- feature_maps$gene
+    transcript_name_map <- feature_maps$transcript
+    
+    if (nrow(gene_name_map) < 1 && nrow(transcript_name_map) < 1) {
+        return(list(se = se, gene_se = gene_se))
+    }
+
+    tx_row_data <- SummarizedExperiment::rowData(se)
+    update_tx_row_data <- FALSE
+    if (nrow(gene_name_map) > 0 && "GENEID" %in% names(tx_row_data)) {
+        tx_row_data$gene_name <- gene_name_map$gene_name[
+            match(as.character(tx_row_data$GENEID), gene_name_map$GENEID)
+        ]
+        update_tx_row_data <- TRUE
+    }
+    if (nrow(transcript_name_map) > 0 && "TXNAME" %in% names(tx_row_data)) {
+            tx_row_data$transcript_name <- transcript_name_map$transcript_name[
+                match(as.character(tx_row_data$TXNAME), transcript_name_map$TXNAME)
+            ]
+            update_tx_row_data <- TRUE
+    }
+    if (update_tx_row_data) {
+        SummarizedExperiment::rowData(se) <- S4Vectors::DataFrame(tx_row_data)
+    }
+
+    gene_row_data <- SummarizedExperiment::rowData(gene_se)
+    if (nrow(gene_name_map) > 0 && "GENEID" %in% names(gene_row_data)) {
+        gene_row_data$gene_name <- gene_name_map$gene_name[
+            match(as.character(gene_row_data$GENEID), gene_name_map$GENEID)
+        ]
+        SummarizedExperiment::rowData(gene_se) <- S4Vectors::DataFrame(gene_row_data)
+    }
+
+    list(se = se, gene_se = gene_se)
+}
+
 bambu_write_outputs <- function(
     se,
     gene_se,
@@ -1120,6 +1179,10 @@ bambu_write_outputs <- function(
     write_gtf_fn = bambu::writeToGTF,
     write_rds = TRUE
 ) {
+    outputs <- bambu_add_annotation_names(se, gene_se, args$annotation)
+    se <- outputs$se
+    gene_se <- outputs$gene_se
+
     row_ranges <- SummarizedExperiment::rowRanges(se)
     if (length(row_ranges) > 0) {
         write_gtf_fn(
