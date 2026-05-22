@@ -186,7 +186,7 @@ workflow pipeline {
         generated_alignment_outputs = reads
             .filter { meta, bam, bai, stats -> meta.src_xam == null }
             .flatMap { meta, bam, bai, stats ->
-                def outdir = "cohort/alignments/${meta.alias}"
+                def outdir = "samples/${meta.alias}/alignment"
                 [
                     [bam, outdir],
                     [bai, outdir],
@@ -344,8 +344,8 @@ workflow {
 
         igv_alignment_paths = processed_samples
             .map { meta, bam, bai, stat -> [
-                meta.src_xam ?: "${meta.alias},cohort/alignments/${meta.alias}/reads.bam",
-                meta.src_xai ?: "${meta.alias},cohort/alignments/${meta.alias}/reads.bam.bai"
+                meta.src_xam ?: "${meta.alias},samples/${meta.alias}/alignment/reads.bam",
+                meta.src_xai ?: "${meta.alias},samples/${meta.alias}/alignment/reads.bam.bai"
             ] }
             .flatten()
 

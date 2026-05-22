@@ -366,9 +366,9 @@ Output files may be aggregated including information for all samples or provided
 | Per-read stats | ingress_results/{{ alias }}/fastcat_stats/per-read-stats.tsv.gz | Read statistics for individual reads in a sample, when this output is enabled. | per-sample |
 | Ingress reads | ingress_results/{{ alias }}/seqs.fastq.gz | Reads prepared from the input data for downstream analysis. | per-sample |
 | Ingress metadata | ingress_results/{{ alias }}/metamap.json | Per-sample metadata used by the workflow. | per-sample |
-| Aligned BAM | cohort/alignments/{{ alias }}/reads.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
-| Aligned BAM index | cohort/alignments/{{ alias }}/reads.bam.bai | Index for the aligned BAM. | per-sample |
-| Alignment summary | cohort/alignments/{{ alias }}/bamstats.flagstat.tsv | bamstats flagstat summary for the aligned BAM. | per-sample |
+| Aligned BAM | samples/{{ alias }}/alignment/reads.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
+| Aligned BAM index | samples/{{ alias }}/alignment/reads.bam.bai | Index for the aligned BAM. | per-sample |
+| Alignment summary | samples/{{ alias }}/alignment/bamstats.flagstat.tsv | bamstats flagstat summary for the aligned BAM. | per-sample |
 | Reference and annotation preparation summary | cohort/reference/annotation_reference_summary.json | Summary of reference and annotation preparation, including seqname overlap, build/provider hints, and excluded unstranded annotation counts. | aggregated |
 | Excluded unstranded annotation records | cohort/reference/unstranded_annotation.gtf | Full set of annotation records excluded because their strand was not '+' or '-'. Present only when unstranded records are found. | aggregated |
 | Cohort transcriptome GTF | cohort/transcripts.gtf | Joint bambu transcript model used as the primary cohort transcriptome. | aggregated |
