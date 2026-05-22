@@ -672,11 +672,13 @@ de_run_dexseq_result <- function(
     run_inner(covariates)
 }
 
-de_dge_columns <- c("GENEID", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj")
+de_dge_columns <- c("GENEID", "gene_name", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj")
 
 de_dtu_transcript_columns <- c(
     "featureID",
     "groupID",
+    "gene_name",
+    "transcript_name",
     "log2FoldChange",
     "pvalue",
     "padj",
@@ -1143,6 +1145,15 @@ main_run_de_analysis <- function(args) {
             } else {
                 dex_df <- postprocess_run$dex_df
                 tx_dtu <- postprocess_run$tx_dtu
+                if ("featureID" %in% names(tx_dtu)) {
+                    tx_match <- match(as.character(tx_dtu$featureID), as.character(tx_meta$TXNAME))
+                    if ("gene_name" %in% names(tx_meta)) {
+                        tx_dtu$gene_name <- tx_meta$gene_name[tx_match]
+                    }
+                    if ("transcript_name" %in% names(tx_meta)) {
+                        tx_dtu$transcript_name <- tx_meta$transcript_name[tx_match]
+                    }
+                }
                 gene_dtu <- postprocess_run$gene_dtu
 
                 contrast_qc$dtu_status <- "SUCCESS"

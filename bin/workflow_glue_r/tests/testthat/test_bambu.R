@@ -768,10 +768,59 @@ testthat::test_that("list columns flattened for TSV output", {
     testthat::expect_equal(normalised$list_col, c("x;y", "z"))
 })
 
+testthat::test_that("annotation name maps are extracted from GTF", {
+    fixture_dir <- tempfile("gene-name-map-")
+    dir.create(fixture_dir)
+
+    gtf <- file.path(fixture_dir, "annotation.gtf")
+    writeLines(
+        c(
+            paste(
+                "chr1", "sim", "transcript", "1", "100", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx1"; gene_name "GENEA"; transcript_name "TXA";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "sim", "exon", "1", "100", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx1"; gene_name "GENEA"; transcript_name "TXA";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "sim", "transcript", "201", "300", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx2"; gene_name "GENEB"; transcript_name "TXB";',
+                sep = "\t"
+            )
+        ),
+        gtf
+    )
+
+    maps <- workflow_glue_r_annotation_name_maps(gtf)
+    gene_name_map <- maps$gene
+    transcript_name_map <- maps$transcript
+
+    testthat::expect_equal(names(gene_name_map), c("GENEID", "gene_name"))
+    testthat::expect_equal(nrow(gene_name_map), 2)
+    testthat::expect_equal(gene_name_map$gene_name[match("gene1", gene_name_map$GENEID)], "GENEA")
+    testthat::expect_equal(gene_name_map$gene_name[match("gene2", gene_name_map$GENEID)], "GENEB")
+
+    testthat::expect_equal(names(transcript_name_map), c("TXNAME", "transcript_name"))
+    testthat::expect_equal(nrow(transcript_name_map), 2)
+    testthat::expect_equal(
+        transcript_name_map$transcript_name[match("tx1", transcript_name_map$TXNAME)],
+        "TXA"
+    )
+    testthat::expect_equal(
+        transcript_name_map$transcript_name[match("tx2", transcript_name_map$TXNAME)],
+        "TXB"
+    )
+})
+
 # Verify all expected output files are created with correct structure.
 testthat::test_that("bambu outputs written correctly", {
     out_dir <- tempfile("bambu-write-")
     dir.create(out_dir)
+    fixture_dir <- tempfile("bambu-write-fixture-")
+    dir.create(fixture_dir)
 
     sample_names <- c("sampleA", "sampleB")
     base_se <- make_test_tx_se(sample_names = sample_names)
@@ -782,7 +831,29 @@ testthat::test_that("bambu outputs written correctly", {
     )
     gene_se <- make_test_gene_se(sample_names = sample_names)
     sample_df <- data.frame(alias = sample_names, stringsAsFactors = FALSE)
-    args <- list(out_dir = out_dir, transcriptome_mode = "discover", ndr = 0.15)
+    annotation <- file.path(fixture_dir, "gene_names.gtf")
+    writeLines(
+        c(
+            paste(
+                "chr1", "test", "transcript", "1", "50", ".", "+", ".",
+                'gene_id "gene1"; transcript_id "tx1"; gene_name "GENEA"; transcript_name "TXA";',
+                sep = "\t"
+            ),
+            paste(
+                "chr1", "test", "transcript", "201", "250", ".", "+", ".",
+                'gene_id "gene2"; transcript_id "tx3"; gene_name "GENEB"; transcript_name "TXC";',
+                sep = "\t"
+            )
+        ),
+        annotation
+    )
+
+    args <- list(
+        out_dir = out_dir,
+        transcriptome_mode = "discover",
+        ndr = 0.15,
+        annotation = annotation
+    )
     qc_stats <- list(
         samples = 2,
         total_transcripts_before_filter = 4,
@@ -828,7 +899,37 @@ testthat::test_that("bambu outputs written correctly", {
 
     testthat::expect_true("eqClassById" %in% names(tx_meta))
     testthat::expect_equal(tx_meta$eqClassById[[1]], "1;2")
+    testthat::expect_true("gene_name" %in% names(tx_meta))
+    testthat::expect_true("transcript_name" %in% names(tx_meta))
+    testthat::expect_equal(
+        unique(stats::na.omit(tx_meta$gene_name[tx_meta$GENEID == "gene1"])),
+        "GENEA"
+    )
+    testthat::expect_equal(
+        tx_meta$transcript_name[match("tx1", tx_meta$TXNAME)],
+        "TXA"
+    )
     testthat::expect_true(all(c("TXNAME", "sampleA", "sampleB") %in% names(tx_counts)))
+
+    tx_rds <- readRDS(file.path(out_dir, "bambu_transcripts.rds"))
+    gene_rds <- readRDS(file.path(out_dir, "bambu_genes.rds"))
+    tx_rds_meta <- as.data.frame(SummarizedExperiment::rowData(tx_rds))
+    gene_rds_meta <- as.data.frame(SummarizedExperiment::rowData(gene_rds))
+    testthat::expect_true("gene_name" %in% names(tx_rds_meta))
+    testthat::expect_true("transcript_name" %in% names(tx_rds_meta))
+    testthat::expect_true("gene_name" %in% names(gene_rds_meta))
+    testthat::expect_equal(
+        unique(stats::na.omit(tx_rds_meta$gene_name[tx_rds_meta$GENEID == "gene2"])),
+        "GENEB"
+    )
+    testthat::expect_equal(
+        tx_rds_meta$transcript_name[match("tx3", tx_rds_meta$TXNAME)],
+        "TXC"
+    )
+    testthat::expect_equal(
+        gene_rds_meta$gene_name[match("gene1", gene_rds_meta$GENEID)],
+        "GENEA"
+    )
 })
 
 testthat::test_that("collate combines multiple chunk quantification outputs", {
