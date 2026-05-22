@@ -342,6 +342,17 @@ bambu_chunk_rc_files <- function(rc_files, aliases, sample_df) {
     }, seqnames, chunk_ids)
 }
 
+
+bambu_known_quant_edge_error_kind <- function(msg) {
+    if (grepl("Error in filter(., (uniqueStartLengthQuery <= primarySecondaryDistStartEnd", msg, fixed = TRUE)) {
+        return("uniqueStartLengthQuery_filter")
+    }
+    if (grepl("eqClassById` with `y$eqClassById` due to incompatible types.", msg, fixed = TRUE)) {
+        return("eqClassById_incompatible_types")
+    }
+    NA_character_
+}
+
 bambu_write_discovery_outputs <- function(out_dir, rc_files, discovered_annotations, chunk_bundles, sample_df) {
     saveRDS(rc_files, file.path(out_dir, "bambu_rcfiles.rds"))
     saveRDS(discovered_annotations, file.path(out_dir, "bambu_discovered_annotations.rds"))
@@ -440,6 +451,7 @@ bambu_run_discover_mode <- function(args, analysis_fn, prepare_annotations_fn, b
     )
 }
 
+
 bambu_run_quant_mode <- function(args, analysis_fn) {
     chunk_bundle <- readRDS(args$chunk_rds)
     discovered_annotations <- readRDS(args$discovered_annotation_rds)
@@ -470,7 +482,11 @@ bambu_run_quant_mode <- function(args, analysis_fn) {
             sample_names = sample_names
         )
     } else {
-        se <- bambu_call_analysis(
+
+    # We attempted pre-quant validation (see CW-7261) but we do not seem to be able
+    # to reliably eliminate these chunk-specific empty/typing edge cases from the discover side.
+    se <- tryCatch(
+        bambu_call_analysis(
             analysis_fn,
             bambu_build_args(
                 args,
@@ -479,7 +495,28 @@ bambu_run_quant_mode <- function(args, analysis_fn) {
                 discovery = FALSE,
                 quant = TRUE
             )
-        )
+        ),
+        error = function(e) {
+            msg <- conditionMessage(e)
+            error_kind <- bambu_known_quant_edge_error_kind(msg)
+            if (is.na(error_kind)) {
+                stop(e)
+            }
+            warning(
+                sprintf(
+                    "Skipping bambu quant for chunk '%s' (%s): known bambu chunk edge case (%s).",
+                    chunk_bundle$chunk_id,
+                    chunk_bundle$seqname,
+                    error_kind
+                ),
+                call. = FALSE
+            )
+            bambu_empty_quant_se(
+                discovered_annotations = discovered_annotations,
+                sample_names = sample_names
+            )
+        }
+    )
     }
 
     if (length(sample_names) > 0 && ncol(se) == length(sample_names)) {
@@ -860,7 +897,7 @@ bambu_add_library_qc_stats <- function(se, qc_stats = list()) {
                 sprintf(
                     paste0(
                         "Large library size variation detected (%.1fx difference).\n",
-                        "  Min: %d, Max: %d reads.\n",
+                        "  Min: %.0f, Max: %.0f reads.\n",
                         "  CPM normalization may not be appropriate for such variation."
                     ),
                     lib_size_ratio,

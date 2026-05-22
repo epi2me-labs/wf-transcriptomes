@@ -563,7 +563,7 @@ testthat::test_that("quant mode skips chunks with no discovered annotations on t
         suppressMessages(main_run_bambu(
             args,
             analysis_fn = fake_analysis
-        )),
+        )) ,
         "contains no transcripts on this seqname"
     )
 
@@ -587,6 +587,115 @@ testthat::test_that("quant mode skips chunks with no discovered annotations on t
     testthat::expect_equal(qc$seqname, "chr3_GL000221v1_random")
     testthat::expect_equal(qc$total_transcripts_before_filter, 0)
     testthat::expect_equal(qc$total_genes_before_filter, 0)
+})
+
+testthat::test_that("quant mode catches known uniqueStartLengthQuery/min-Inf edge case and writes empty outputs", {
+    fixture_dir <- tempfile("bambu-quant-known-edge-")
+    dir.create(fixture_dir)
+
+    chunk_bundle <- list(
+        chunk_id = "chr1",
+        seqname = "chr1",
+        aliases = c("sampleA"),
+        sample_df = data.frame(alias = c("sampleA"), stringsAsFactors = FALSE),
+        rc_files = list(sampleA = make_test_tx_se(sample_names = "sampleA")),
+        annotation_tx_count = 1L
+    )
+    chunk_rds <- file.path(fixture_dir, "chr1.rds")
+    saveRDS(chunk_bundle, chunk_rds)
+
+    discovered_annotation_rds <- file.path(fixture_dir, "annotations.rds")
+    saveRDS(make_test_bambu_row_ranges(fixture_dir), discovered_annotation_rds)
+
+    analysis_called <- FALSE
+    fake_analysis <- function(...) {
+        analysis_called <<- TRUE
+        stop(
+            paste(
+                "Error in filter(., (uniqueStartLengthQuery <= primarySecondaryDistStartEnd & : In argument: `==...`.",
+                "Caused by warning in `min()`: no non-missing arguments to min; returning Inf"
+            ),
+            call. = FALSE
+        )
+    }
+
+    args <- workflow_glue_r_normalise_args(
+        list(
+            mode = "quant",
+            genome = "genome.fa",
+            out_dir = file.path(fixture_dir, "out"),
+            chunk_rds = chunk_rds,
+            discovered_annotation_rds = discovered_annotation_rds,
+            transcriptome_mode = "discover",
+            ndr = NULL,
+            threads = 2
+        ),
+        bambu_arg_spec()
+    )
+
+    testthat::expect_warning(
+        suppressMessages(main_run_bambu(args, analysis_fn = fake_analysis)),
+        "known bambu chunk edge case"
+    )
+
+    testthat::expect_true(analysis_called)
+
+    se <- readRDS(file.path(args$out_dir, "bambu_transcripts.rds"))
+    testthat::expect_equal(nrow(se), 0)
+    testthat::expect_equal(colnames(se), c("sampleA"))
+})
+
+testthat::test_that("quant mode catches known eqClassById incompatible-type edge case and writes empty outputs", {
+    fixture_dir <- tempfile("bambu-quant-known-eqclass-edge-")
+    dir.create(fixture_dir)
+
+    chunk_bundle <- list(
+        chunk_id = "chr2",
+        seqname = "chr2",
+        aliases = c("sampleA"),
+        sample_df = data.frame(alias = c("sampleA"), stringsAsFactors = FALSE),
+        rc_files = list(sampleA = make_test_tx_se(sample_names = "sampleA")),
+        annotation_tx_count = 1L
+    )
+    chunk_rds <- file.path(fixture_dir, "chr2.rds")
+    saveRDS(chunk_bundle, chunk_rds)
+
+    discovered_annotation_rds <- file.path(fixture_dir, "annotations.rds")
+    saveRDS(make_test_bambu_row_ranges(fixture_dir), discovered_annotation_rds)
+
+    analysis_called <- FALSE
+    fake_analysis <- function(...) {
+        analysis_called <<- TRUE
+        stop(
+            "Can't join `x$eqClassById` with `y$eqClassById` due to incompatible types.",
+            call. = FALSE
+        )
+    }
+
+    args <- workflow_glue_r_normalise_args(
+        list(
+            mode = "quant",
+            genome = "genome.fa",
+            out_dir = file.path(fixture_dir, "out"),
+            chunk_rds = chunk_rds,
+            discovered_annotation_rds = discovered_annotation_rds,
+            transcriptome_mode = "discover",
+            ndr = NULL,
+            threads = 2
+        ),
+        bambu_arg_spec()
+    )
+
+    testthat::expect_warning(
+        suppressMessages(main_run_bambu(args, analysis_fn = fake_analysis)),
+        "known bambu chunk edge case"
+    )
+
+    testthat::expect_true(analysis_called)
+
+    se <- readRDS(file.path(args$out_dir, "bambu_transcripts.rds"))
+    testthat::expect_equal(nrow(se), 0)
+    testthat::expect_equal(colnames(se), c("sampleA"))
 })
 
 testthat::test_that("empty mode writes valid empty outputs including bambu rds files", {
