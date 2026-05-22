@@ -39,12 +39,12 @@ def determine_codec(f):
         return None  # will cause file to be opened with default encoding
 
 
-def load_validators(modules, wf_params):
+def load_validators(modules, wf_params, options=None):
     """Load validator classes."""
     validator_classes = []
     for mod in modules:
         for _, validator_class in getmembers(mod, _is_sample_sheet_validator):
-            validator_classes.append(validator_class(wf_params))
+            validator_classes.append(validator_class(wf_params, options))
     return validator_classes
 
 
@@ -76,11 +76,11 @@ def main(args):
     if args.required_sample_types:
         wf_params['required_sample_types'] = args.required_sample_types
 
-    # `no_barcode` is currently passed as a CLI option,
-    # not through the workflow params JSON.
-    wf_params['no_barcode'] = args.no_barcode
-
-    validator_classes = load_validators(load_validator_modules(), wf_params)
+    validator_classes = load_validators(
+        load_validator_modules(), wf_params, options={
+            "no_barcode": args.no_barcode,
+        }
+    )
 
     rows = []
 
