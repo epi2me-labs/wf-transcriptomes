@@ -213,6 +213,27 @@ def _create_warning_banner(message, level="warning"):
         raw(message)
 
 
+def _volcano_style():
+    return raw("""
+        <style>
+        .volcano-table-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px 10px;
+            align-items: start;
+        }
+        .volcano-table-grid > * {
+            min-width: 0;
+        }
+        @media screen and (max-width: 1000px) {
+            .volcano-table-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        """)
+
+
 def _as_string_list(value):
     """Normalize optional values to a compact list of strings."""
     if value is None or value == "none":
@@ -906,11 +927,7 @@ def main(args):
                         )
 
                     warnings_df = pd.DataFrame(warnings_data)
-                    DataTable.from_pandas(
-                        warnings_df,
-                        paging=False,
-                        use_index=False,
-                    )
+                    DataTable.from_pandas(warnings_df, paging=False, use_index=False)
 
         with report.add_section("Differential gene expression", "DGE"):
             tabs = Tabs()
@@ -944,33 +961,15 @@ def main(args):
                                 with p():
                                     strong("Note: ")
                                     raw(contrast_data["dtu_power_warning"])
-
                     DataTable.from_pandas(table, use_index=False)
 
                     h3("Gene expression volcano Plot")
-                    vol, class_table, selected_table = volcano(table)
-                    EZChart(vol, width="100%", height="550")
-                    raw("""
-                        <style>
-                        .volcano-table-grid {
-                            display: grid;
-                            grid-template-columns: repeat(2, minmax(0, 1fr));
-                            gap: 20px 10px;
-                            align-items: start;
-                        }
-                        .volcano-table-grid > * {
-                            min-width: 0;
-                        }
-                        @media screen and (max-width: 1000px) {
-                            .volcano-table-grid {
-                                grid-template-columns: 1fr;
-                            }
-                        }
-                        </style>
-                    """)
-                    with div(_class="volcano-table-grid"):
-                        EZChart(class_table, width="100%", height="auto")
-                        EZChart(selected_table, width="100%", height="auto")
+                    gn_vol, gn_class_table, gn_selected_table = volcano(table)
+                    EZChart(gn_vol, width="100%", height="550")
+                    with div(style=_volcano_style()):
+                        with div(_class="volcano-table-grid"):
+                            EZChart(gn_class_table, width="100%", height="auto")
+                            EZChart(gn_selected_table, width="100%", height="auto")
 
         with report.add_section("Differential transcript usage", "DTU"):
             tabs = Tabs()
@@ -1007,15 +1006,17 @@ def main(args):
                                 level="warning",
                             )
 
-                    # Show table if available
                     if contrast_name in dtu_tables:
-                        DataTable.from_pandas(
-                            dtu_tables[contrast_name],
-                            use_index=False,
-                        )
-                        h3("Transcript expression volcano Plot")
-                        # EZChart(volcano(dtu_tables[contrast_name]))
+                        dtu_table = dtu_tables[contrast_name]
+                        DataTable.from_pandas(dtu_table, use_index=False)
 
+                        h3("Transcript expression volcano Plot")
+                        tr_vol, tr_class_table, tr_selected_table = volcano(dtu_table)
+                        EZChart(tr_vol, width="100%", height="550")
+                        with div(style=_volcano_style()):
+                            with div(_class="volcano-table-grid"):
+                                EZChart(tr_class_table, width="100%", height="auto")
+                                EZChart(tr_selected_table, width="100%", height="auto")
                     else:
                         p("No DTU results available for this contrast.")
 

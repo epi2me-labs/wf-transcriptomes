@@ -768,8 +768,9 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         }
         selected.forEach(function(index) {
             if (view_toggle.active) {
-                selectedLabel[index] = \
-                    data.gene_name[index] || data[identifier_col][index];
+                selectedLabel[index] = identifier_col === "TXNAME"
+                    ? data.TXNAME[index]
+                    : (data.gene_name[index] || data[identifier_col][index]);
             }
             selectedData.source_index.push(index);
             selectedData.owner_id.push(selected_source.id);
@@ -900,8 +901,10 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
                 gene_name: [],
             };
             selection_state.data.indices[0].forEach(function(index) {
-                selectedLabel[index] = \
-                    source.data.gene_name[index] || source.data[identifier_col][index];
+                selectedLabel[index] = identifier_col === "TXNAME"
+                    ? source.data.TXNAME[index]
+                    : (source.data.gene_name[index] || \
+                        source.data[identifier_col][index]);
                 highlightData.log2FoldChange.push(source.data.log2FoldChange[index]);
                 highlightData.neg_log10_padj.push(source.data.neg_log10_padj[index]);
                 highlightData.mean_expression.push(source.data.mean_expression[index]);
