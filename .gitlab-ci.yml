@@ -67,6 +67,7 @@ docker-run:
             - MATRIX_NAME: [
                 "int_discover_dna", "int_fixed_rna", "int_de_control_vs_control",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
+                "mouse_de_0countquant"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -170,3 +171,11 @@ docker-run:
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv &&
                   [ "$(find ${CI_PROJECT_NAME}/samples -type f -name 'gene_counts.tsv' | wc -l)" -eq 4 ]
+        # Tests a common error when there are 0 annotation counts for a chunk
+        - if: $MATRIX_NAME == "mouse_de_0countquant"
+          variables:
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/mouse_subset_test.tar.gz -O ${CI_PROJECT_NAME}/data/mouse_subset_test.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/mouse_subset_test.tar.gz  -C ${CI_PROJECT_NAME}/data/" 
+              NF_WORKFLOW_OPTS: "--fastq ${CI_PROJECT_NAME}/data/mouse_subset_test/samples \
+                  --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.fa \
+                  --ref_annotation ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.gtf.gz \
+                --direct_rna --sample_sheet ${CI_PROJECT_NAME}/data/mouse_subset_test/sample_sheet.csv"
