@@ -11,9 +11,11 @@ import re
 class SampleSheetValidator(ABC):
     """Base class for sample sheet validators."""
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize the validator with workflow parameters."""
         self.wf_params = wf_params
+        self.options = options or {}
+        self.alias_field = "sample_name" if self.options.get("no_barcode") else "alias"
         self.errors = []
 
     def log_error(self, msg, column=None, lineno=None):
@@ -46,13 +48,13 @@ class SampleSheetValidator(ABC):
 class ProhibitedColumns(SampleSheetValidator):
     """Check for prohibited columns."""
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize with workflow parameters."""
-        super().__init__(wf_params)
+        super().__init__(wf_params, options)
 
     def on_header(self, header):
         """Don't allow `barcode` and `alias` when `--no_barcode` set."""
-        if self.wf_params.get("no_barcode"):
+        if self.options.get("no_barcode"):
             for field in ["alias", "barcode"]:
                 if field in header:
                     self.log_error(
@@ -68,9 +70,10 @@ class RequiredColumns(SampleSheetValidator):
         """Check for required columns."""
         self.header = header
 
-        required = ["barcode", "alias"]
-        if self.wf_params.get("no_barcode"):
-            required = ['sample_name']
+        required = [self.alias_field]
+        if not self.options.get("no_barcode"):
+            # in barcode mode required are alias_field and barcode
+            required.insert(0, "barcode")
 
         for req in required:
             if req not in header:
@@ -89,9 +92,9 @@ class SampleTypeRules(SampleSheetValidator):
         "test_sample", "positive_control", "negative_control", "no_template_control"
     }
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize with workflow parameters."""
-        super().__init__(wf_params)
+        super().__init__(wf_params, options)
         self.types = []
         self.unexpected_types = []
         self.required = wf_params.get("required_sample_types", [])
@@ -123,38 +126,18 @@ class SampleTypeRules(SampleSheetValidator):
         return valid
 
 
-class NonEmptySampleSheet(SampleSheetValidator):
-    """Check that the sample sheet has at least one data row."""
-
-    def __init__(self, wf_params):
-        """Initialize with workflow parameters."""
-        super().__init__(wf_params)
-        self.row_count = 0
-
-    def add_sheet_row(self, row, lineno):
-        """Count sample rows."""
-        self.row_count += 1
-
-    @property
-    def is_valid(self):
-        """Check the sample sheet has at least one data row."""
-        if self.row_count == 0 and not self.errors:
-            self.log_error("Sample sheet must contain at least one data row")
-        return super().is_valid
-
-
 class BarcodeRules(SampleSheetValidator):
     """Check barcode rules."""
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize with workflow parameters."""
-        super().__init__(wf_params)
+        super().__init__(wf_params, options)
         self.first_len = None
         self.barcodes = []
 
     def add_sheet_row(self, row, lineno):
         """Check barcode rules."""
-        if self.wf_params.get("no_barcode"):
+        if self.options.get("no_barcode"):
             return
 
         bc = row.get("barcode")
@@ -185,45 +168,44 @@ class BarcodeRules(SampleSheetValidator):
 class AliasRules(SampleSheetValidator):
     """Alias rules."""
 
-    ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+    ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize with workflow parameters."""
-        super().__init__(wf_params)
+        super().__init__(wf_params, options)
         self.aliases = set()
 
     def add_sheet_row(self, row, lineno):
         """Check alias rules."""
-        if self.wf_params.get("no_barcode"):
-            return
-
-        alias = row.get("alias")
+        alias = row.get(self.alias_field)
         if alias is None:
-            self.log_error("Column missing", column="alias")
+            self.log_error("Column missing", column=self.alias_field)
             return
         if alias in self.aliases:
             self.log_error(
-                f"Value not unique: {alias}", column="alias", lineno=lineno
+                f"Value not unique: {alias}", column=self.alias_field, lineno=lineno,
             )
         self.aliases.add(alias)
+        # Specific error message if empty "" to improve user error message
         if not alias:
             self.log_error(
-                f"Empty value: {alias}. Allowed values start with letters or numbers "
+                f"Empty {self.alias_field}. "
+                "Allowed values start with letters or numbers "
                 "and may contain only letters, numbers, '.', '_' or '-'",
-                column="alias",
+                column=self.alias_field,
                 lineno=lineno,
             )
         if not self.ALIAS_PATTERN.match(alias):
             self.log_error(
                 f"Invalid value {alias}. Allowed values start with letters or numbers "
                 "and may contain only letters, numbers, '.', '_' or '-'",
-                column="alias",
+                column=self.alias_field,
                 lineno=lineno,
             )
         if alias.startswith("barcode"):
             self.log_error(
                 f"Value must not begin with 'barcode': {alias}",
-                column="alias",
+                column=self.alias_field,
                 lineno=lineno,
             )
 
@@ -231,9 +213,9 @@ class AliasRules(SampleSheetValidator):
 class AnalysisGroupCompleteness(SampleSheetValidator):
     """Analysis groups."""
 
-    def __init__(self, wf_params):
+    def __init__(self, wf_params, options=None):
         """Initialize with workflow parameters."""
-        super().__init__(wf_params)
+        super().__init__(wf_params, options)
         self.has_analysis_groups = False
 
     def on_header(self, header):
