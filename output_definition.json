@@ -8,38 +8,6 @@
       "optional": false,
       "type": "aggregated"
     },
-    "read-stats-per-file": {
-      "filepath": "ingress_results/{{ alias }}/fastcat_stats/per-file-stats.tsv",
-      "title": "Per-file read stats",
-      "description": "Read statistics for each input FASTQ file in a sample, when FASTQ read stats are available.",
-      "mime-type": "text/tab-separated-values",
-      "optional": true,
-      "type": "per-sample"
-    },
-    "read-stats-per-read": {
-      "filepath": "ingress_results/{{ alias }}/fastcat_stats/per-read-stats.tsv.gz",
-      "title": "Per-read stats",
-      "description": "Read statistics for individual reads in a sample, when this output is enabled.",
-      "mime-type": "application/gzip",
-      "optional": true,
-      "type": "per-sample"
-    },
-    "sample-fastq": {
-      "filepath": "ingress_results/{{ alias }}/seqs.fastq.gz",
-      "title": "Ingress reads",
-      "description": "Reads prepared from the input data for downstream analysis.",
-      "mime-type": "application/gzip",
-      "optional": true,
-      "type": "per-sample"
-    },
-    "sample-metadata": {
-      "filepath": "ingress_results/{{ alias }}/metamap.json",
-      "title": "Ingress metadata",
-      "description": "Per-sample metadata used by the workflow.",
-      "mime-type": "application/json",
-      "optional": true,
-      "type": "per-sample"
-    },
     "sample-bam": {
       "filepath": "samples/{{ alias }}/alignment/reads.bam",
       "title": "Aligned BAM",
