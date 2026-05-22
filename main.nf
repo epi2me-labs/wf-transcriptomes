@@ -39,7 +39,7 @@ process makeReport {
         tuple val(metadata), path(stats, stageAs: "stats_*")
         path "versions/*"
         path "params.json"
-        path cohort_dir, stageAs: "cohort/*"
+        path cohort_dir, stageAs: "cohort"
         path sample_dirs, stageAs: "samples/*"
         path sqanti_dirs, stageAs: "sqanti/*"
         path de_files

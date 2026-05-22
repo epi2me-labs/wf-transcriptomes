@@ -110,6 +110,40 @@ def test_load_annotation_reference_summary_missing(tmp_path):
     assert result is None
 
 
+def test_load_cpm_tables_exists(tmp_path):
+    """Load cohort CPM tables when both files exist."""
+    from workflow_glue.report import _load_cpm_tables
+
+    cohort_dir = tmp_path / "cohort"
+    cohort_dir.mkdir()
+    (cohort_dir / "gene_cpm.tsv").write_text(
+        "GENEID\tsample1\tsample2\n"
+        "gene1\t1.0\t2.0\n"
+    )
+    (cohort_dir / "transcript_cpm.tsv").write_text(
+        "TXNAME\tsample1\tsample2\n"
+        "tx1\t3.0\t4.0\n"
+    )
+
+    result = _load_cpm_tables(cohort_dir)
+    assert result["gene"] is not None
+    assert result["transcript"] is not None
+    assert list(result["gene"]["GENEID"]) == ["gene1"]
+    assert list(result["transcript"]["TXNAME"]) == ["tx1"]
+
+
+def test_load_cpm_tables_missing(tmp_path):
+    """Return None entries when cohort CPM tables are missing."""
+    from workflow_glue.report import _load_cpm_tables
+
+    cohort_dir = tmp_path / "cohort"
+    cohort_dir.mkdir()
+
+    result = _load_cpm_tables(cohort_dir)
+    assert result["gene"] is None
+    assert result["transcript"] is None
+
+
 def test_format_hint_values():
     """Build/provider hints should be compactly formatted for the report."""
     from workflow_glue.report import _format_hint_values

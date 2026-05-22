@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 
 from bokeh.resources import INLINE as BOKEH_INLINE
-from dominate.tags import div, h3, h4, p, pre, script, strong
+from dominate.tags import br, div, h3, h4, p, pre, script, strong, style as dom_style
 from dominate.util import raw
 from ezcharts.components import fastcat
 from ezcharts.components.ezchart import EZChart
@@ -16,6 +16,7 @@ from ezcharts.layout.snippets import Tabs
 from ezcharts.layout.snippets.table import DataTable
 import pandas as pd
 
+from .hierarchical_clustering import hierarchical, clustering_info   # noqa: ABS101
 from .util import get_named_logger, wf_parser  # noqa: ABS101
 from .volcano import volcano  # noqa: ABS101
 
@@ -173,6 +174,32 @@ def _load_annotation_reference_summary(cohort_dir):
     return None
 
 
+def _load_cpm_tables(cohort_dir):
+    """Load cohort-level gene and transcript CPM tables."""
+    cohort_dir = Path(cohort_dir)
+    gene_cpm = _read_table(cohort_dir / "gene_cpm.tsv")
+
+    if gene_cpm is None or gene_cpm.empty:
+        gene_cpm = None
+
+    transcript_cpm = _read_table(cohort_dir / "transcript_cpm.tsv")
+    if transcript_cpm is None or transcript_cpm.empty:
+        transcript_cpm = None
+
+    return {
+        "gene": gene_cpm,
+        "transcript": transcript_cpm,
+    }
+
+
+def _load_cohort_samples(cohort_dir):
+    """Load cohort sample metadata CSV."""
+    sample_file = Path(cohort_dir) / "samples.csv"
+    if not sample_file.exists():
+        return None
+    return pd.read_csv(sample_file)
+
+
 def _format_hint_values(hints):
     """Format provenance hints for a compact table cell."""
     if not hints:
@@ -213,9 +240,29 @@ def _create_warning_banner(message, level="warning"):
         raw(message)
 
 
+def _heatmap_style():
+    return """
+        .heatmap-table-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px 10px;
+            align-items: start;
+        }
+        .heatmap-table-grid > * {
+            min-width: 0;
+        }
+        @media screen and (max-width: 1000px) {
+            .heatmap-table-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .clustering-info {
+            font-size: 11px;
+        }"""
+
+
 def _volcano_style():
-    return raw("""
-        <style>
+    return """
         .volcano-table-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -230,8 +277,7 @@ def _volcano_style():
                 grid-template-columns: 1fr;
             }
         }
-        </style>
-        """)
+        """
 
 
 def _as_string_list(value):
@@ -929,7 +975,32 @@ def main(args):
                     warnings_df = pd.DataFrame(warnings_data)
                     DataTable.from_pandas(warnings_df, paging=False, use_index=False)
 
+        if de_qc:
+            condition_column = de_qc.get("condition_column")
+            cohort_cpm = _load_cpm_tables(args.cohort_dir)
+            cohort_samples = _load_cohort_samples(args.cohort_dir)
+
         with report.add_section("Differential gene expression", "DGE"):
+            dom_style(raw(_heatmap_style() + _volcano_style()))
+            if condition_column:
+                if cohort_cpm['gene'] is None:
+                    _create_warning_banner(
+                        "Cohort gene CPM table is missing or empty. ")
+                else:
+                    heatmap, pca, dist = hierarchical(
+                        cohort_cpm["gene"],
+                        id_column="GENEID",
+                        samples=cohort_samples,
+                        condition_column=condition_column,
+                        top_n=150,
+                    )
+                    with div(cls="heatmap-table-grid"):
+                        EZChart(heatmap, width="100%")
+                        EZChart(pca, width="100%")
+                        EZChart(dist, width="100%")
+                    with div(cls="clustering-info"):
+                        br()
+                        clustering_info('gene')
             tabs = Tabs()
             for contrast, table in _contrast_results(
                 args.de_dir, "results_dge.tsv", n=20
@@ -966,12 +1037,31 @@ def main(args):
                     h3("Gene expression volcano Plot")
                     gn_vol, gn_class_table, gn_selected_table = volcano(table)
                     EZChart(gn_vol, width="100%", height="550")
-                    with div(style=_volcano_style()):
-                        with div(_class="volcano-table-grid"):
-                            EZChart(gn_class_table, width="100%", height="auto")
-                            EZChart(gn_selected_table, width="100%", height="auto")
+                    with div(_class="volcano-table-grid"):
+                        EZChart(gn_class_table, width="100%", height="auto")
+                        EZChart(gn_selected_table, width="100%", height="auto")
 
         with report.add_section("Differential transcript usage", "DTU"):
+            if condition_column:
+                if cohort_cpm["transcript"] is None:
+                    _create_warning_banner(
+                        "Cohort transcript CPM table is missing or empty.")
+                else:
+                    tx_heatmap, tx_pca, tx_dist = hierarchical(
+                        cohort_cpm["transcript"],
+                        id_column="TXNAME",
+                        top_n=150,
+                        samples=cohort_samples,
+                        condition_column=condition_column
+                    )
+                    with div(cls="heatmap-table-grid"):
+                        EZChart(tx_heatmap, width="100%")
+                        EZChart(tx_pca, width="100%")
+                        EZChart(tx_dist, width="100%")
+                    with div(cls="clustering-info"):
+                        br()
+                        clustering_info('transcript')
+
             tabs = Tabs()
             dtu_tables = _contrast_results(
                 args.de_dir, "results_dtu_transcript.tsv", n=20)
@@ -1013,10 +1103,9 @@ def main(args):
                         h3("Transcript expression volcano Plot")
                         tr_vol, tr_class_table, tr_selected_table = volcano(dtu_table)
                         EZChart(tr_vol, width="100%", height="550")
-                        with div(style=_volcano_style()):
-                            with div(_class="volcano-table-grid"):
-                                EZChart(tr_class_table, width="100%", height="auto")
-                                EZChart(tr_selected_table, width="100%", height="auto")
+                        with div(_class="volcano-table-grid"):
+                            EZChart(tr_class_table, width="100%", height="auto")
+                            EZChart(tr_selected_table, width="100%", height="auto")
                     else:
                         p("No DTU results available for this contrast.")
 
