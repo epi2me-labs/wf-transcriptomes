@@ -145,6 +145,8 @@ def _build_report_args(tmp_path, de_qc=None):
         str(alignment_stats),
         "--cohort_dir",
         str(cohort),
+        "--ref_summary",
+        str(reference / "annotation_reference_summary.json"),
         "--samples_dir",
         str(samples),
         "--sqanti_dir",
@@ -229,6 +231,8 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
             str(alignment_stats),
             "--cohort_dir",
             str(cohort),
+            "--ref_summary",
+            str(cohort / "reference" / "annotation_reference_summary.json"),
             "--samples_dir",
             str(samples),
             "--sqanti_dir",
@@ -351,6 +355,8 @@ def test_report_main_handles_degenerate_bambu_qc_and_read_summary(
             str(alignment_stats),
             "--cohort_dir",
             str(cohort),
+            "--ref_summary",
+            str(cohort / "reference" / "annotation_reference_summary.json"),
             "--samples_dir",
             str(samples),
             "--sqanti_dir",
@@ -411,6 +417,24 @@ def test_report_main_uses_cohort_bambu_qc_for_multi_sample_inputs(
 
     cohort = tmp_path / "cohort"
     cohort.mkdir()
+    reference = cohort / "reference"
+    reference.mkdir()
+    _write(
+        reference / "annotation_reference_summary.json",
+        json.dumps(
+            {
+                "seqname_overlap": ["chr1"],
+                "only_in_annotation": [],
+                "only_in_reference": [],
+                "annotation": {
+                    "kept_records": 10,
+                    "excluded_unstranded_records": 0,
+                    "sanitised_attribute_records": 0,
+                },
+                "warnings": [],
+            }
+        ),
+    )
     _write(
         cohort / "bambu_qc_stats.json",
         json.dumps(
@@ -478,6 +502,8 @@ def test_report_main_uses_cohort_bambu_qc_for_multi_sample_inputs(
             str(alignment_stats),
             "--cohort_dir",
             str(cohort),
+            "--ref_summary",
+            str(cohort / "reference" / "annotation_reference_summary.json"),
             "--samples_dir",
             str(samples),
             "--sqanti_dir",
