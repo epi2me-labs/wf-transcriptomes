@@ -158,7 +158,7 @@ docker-run:
               NF_BEFORE_SCRIPT: ":"
               NF_WORKFLOW_OPTS: "--fastq test_data/smoke/reads.fastq --sample sampleA --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --direct_rna"
               AFTER_NEXTFLOW_CMD: >
-                  test -f ${CI_PROJECT_NAME}/cohort/alignments/sampleA/reads.bam &&
+                  test -f ${CI_PROJECT_NAME}/samples/sampleA/alignment/reads.bam &&
                   test -f ${CI_PROJECT_NAME}/samples/sampleA/sampleA_sqanti/classification_summary.tsv
 
         # Smoke: end-to-end DE/DTU wiring and expected contrast output files.
