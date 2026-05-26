@@ -6,9 +6,9 @@ nextflow.enable.dsl = 2
 include { fastq_ingress; xam_ingress } from './lib/ingress'
 include { getParams; configure_igv } from './lib/common'
 include { prepare_reference } from './lib/reference'
-include { transcriptome_analysis } from './subworkflows/transcriptome'
+include { transcriptome } from './subworkflows/transcriptome'
 include { differential_expression } from './subworkflows/differential_expression'
-include { mod_analysis } from './subworkflows/mods'
+include { mods } from './subworkflows/mods'
 
 
 
@@ -91,7 +91,7 @@ process publishResults {
 }
 
 
-workflow pipeline {
+workflow wf {
     take:
         reads
         sample_sheet
@@ -101,13 +101,13 @@ workflow pipeline {
         software_versions = getVersions()
         workflow_params = getParams()
 
-        transcriptome = transcriptome_analysis(reads, ref_genome, ref_annotation, sample_sheet)
-        mods = mod_analysis(reads, ref_genome)
+        transcriptome_results = transcriptome(reads, ref_genome, ref_annotation, sample_sheet)
+        mod_results = mods(reads, ref_genome)
 
         if (params.de_analysis) {
             de_results = differential_expression(
-                transcriptome.joint_transcript_rds,
-                transcriptome.joint_gene_rds,
+                transcriptome_results.joint_transcript_rds,
+                transcriptome_results.joint_gene_rds,
                 sample_sheet
             )
             de_dir = de_results.dir
@@ -128,12 +128,12 @@ workflow pipeline {
                 ]
             }
 
-        sample_dirs_for_report = transcriptome.sample_dirs
+        sample_dirs_for_report = transcriptome_results.sample_dirs
             .map { meta, sample_dir -> sample_dir }
             .collect()
 
-        sqanti_dirs_for_report = transcriptome.joint_sqanti_dir
-            .concat(transcriptome.sample_sqanti_dirs.map { meta, sqanti_dir -> sqanti_dir })
+        sqanti_dirs_for_report = transcriptome_results.joint_sqanti_dir
+            .concat(transcriptome_results.sample_sqanti_dirs.map { meta, sqanti_dir -> sqanti_dir })
             .ifEmpty(OPTIONAL_FILE)
             .collect()
 
@@ -153,33 +153,33 @@ workflow pipeline {
             report_input,
             software_versions,
             workflow_params,
-            transcriptome.joint_dir.ifEmpty(OPTIONAL_FILE),
+            transcriptome_results.joint_dir.ifEmpty(OPTIONAL_FILE),
             sample_dirs_for_report,
             sqanti_dirs_for_report,
             de_dir,
-            transcriptome.annotation_reference_summary,
+            transcriptome_results.annotation_reference_summary,
             workflow.manifest.version
         )
 
         results = Channel.empty()
             .concat(report.report.map { [it, null] })
             .concat(workflow_params.map { [it, null] })
-            .concat(transcriptome.annotation_reference_summary.map { [it, "cohort/reference"] })
-            .concat(transcriptome.unstranded_annotation.map { [it, "cohort/reference"] })
-            .concat(transcriptome.joint_gtf.map { [it, "cohort"] })
-            .concat(transcriptome.joint_fasta.map { [it, "cohort"] })
-            .concat(transcriptome.joint_transcript_counts.map { [it, "cohort"] })
-            .concat(transcriptome.joint_gene_counts.map { [it, "cohort"] })
-            .concat(transcriptome.joint_transcript_rds.map { [it, "cohort"] })
-            .concat(transcriptome.joint_gene_rds.map { [it, "cohort"] })
-            .concat(transcriptome.joint_metadata.map { [it, "cohort"] })
-            .concat(transcriptome.sample_gtf.map { meta, gtf -> [gtf, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_fastas.map { meta, fasta -> [fasta, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_transcript_counts.map { meta, counts -> [counts, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_gene_counts.map { meta, counts -> [counts, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_transcript_rds.map { meta, rds -> [rds, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_gene_rds.map { meta, rds -> [rds, "samples/${meta.alias}"] })
-            .concat(transcriptome.sample_metadata.map { meta, metadata -> [metadata, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.annotation_reference_summary.map { [it, "cohort/reference"] })
+            .concat(transcriptome_results.unstranded_annotation.map { [it, "cohort/reference"] })
+            .concat(transcriptome_results.joint_gtf.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_fasta.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_transcript_counts.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_gene_counts.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_transcript_rds.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_gene_rds.map { [it, "cohort"] })
+            .concat(transcriptome_results.joint_metadata.map { [it, "cohort"] })
+            .concat(transcriptome_results.sample_gtf.map { meta, gtf -> [gtf, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_fastas.map { meta, fasta -> [fasta, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_transcript_counts.map { meta, counts -> [counts, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_gene_counts.map { meta, counts -> [counts, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_transcript_rds.map { meta, rds -> [rds, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_gene_rds.map { meta, rds -> [rds, "samples/${meta.alias}"] })
+            .concat(transcriptome_results.sample_metadata.map { meta, metadata -> [metadata, "samples/${meta.alias}"] })
             .concat(generated_alignment_outputs)
 
         if (params.de_analysis) {
@@ -187,7 +187,7 @@ workflow pipeline {
         }
     emit:
         results = results
-        bigwigs = mods.bigwig
+        bigwigs = mod_results.bigwig
 }
 
 
@@ -264,7 +264,7 @@ workflow {
 
     processed_samples = analysis_samples
 
-    pipeline_run = pipeline(processed_samples, sample_sheet, ref_genome, ref_annotation)
+    pipeline_run = wf(processed_samples, sample_sheet, ref_genome, ref_annotation)
     results = pipeline_run.results
 
     reference_basename = file(params.ref_genome).getName()
