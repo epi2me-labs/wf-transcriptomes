@@ -1054,20 +1054,24 @@ def main(args):
                     _create_warning_banner(
                         "Cohort gene CPM table is missing or empty. ")
                 else:
-                    heatmap, pca, dist = hierarchical(
+                    hierarchical_result = hierarchical(
                         cohort_cpm["gene"],
                         id_column="GENEID",
                         samples=cohort_samples,
                         condition_column=condition_column,
                         top_n=150,
                     )
-                    with div(cls="heatmap-table-grid"):
-                        EZChart(heatmap, width="100%")
-                        EZChart(pca, width="100%")
-                        EZChart(dist, width="100%")
-                    with div(cls="clustering-info"):
-                        br()
-                        clustering_info('gene')
+                    if hierarchical_result.error is not None:
+                        _create_warning_banner(
+                            hierarchical_result.error, level='warning')
+                    else:
+                        with div(cls="heatmap-table-grid"):
+                            EZChart(hierarchical_result.heatmap, width="100%")
+                            EZChart(hierarchical_result.pca, width="100%")
+                            EZChart(hierarchical_result.distance, width="100%")
+                        with div(cls="clustering-info"):
+                            br()
+                            clustering_info('gene')
             tabs = Tabs()
             for contrast, table in _contrast_results(
                 args.de_dir, "results_dge.tsv", n=20
@@ -1114,20 +1118,24 @@ def main(args):
                     _create_warning_banner(
                         "Cohort transcript CPM table is missing or empty.")
                 else:
-                    tx_heatmap, tx_pca, tx_dist = hierarchical(
+                    hierarchical_result = hierarchical(
                         cohort_cpm["transcript"],
                         id_column="TXNAME",
                         top_n=150,
                         samples=cohort_samples,
                         condition_column=condition_column
                     )
-                    with div(cls="heatmap-table-grid"):
-                        EZChart(tx_heatmap, width="100%")
-                        EZChart(tx_pca, width="100%")
-                        EZChart(tx_dist, width="100%")
-                    with div(cls="clustering-info"):
-                        br()
-                        clustering_info('transcript')
+                    if hierarchical_result.error is not None:
+                        _create_warning_banner(
+                            hierarchical_result.error, level='warning')
+                    else:
+                        with div(cls="heatmap-table-grid"):
+                            EZChart(hierarchical_result.heatmap, width="100%")
+                            EZChart(hierarchical_result.pca, width="100%")
+                            EZChart(hierarchical_result.distance, width="100%")
+                        with div(cls="clustering-info"):
+                            br()
+                            clustering_info('transcript')
 
             tabs = Tabs()
             dtu_tables = _contrast_results(
