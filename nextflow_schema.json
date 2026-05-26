@@ -194,6 +194,12 @@
           "default": "",
           "description": "Extra command-line options to pass to minimap2."
         },
+        "force_alignment" : {
+          "type": "boolean",
+          "default": false,
+          "description": "Force re-alignment of input BAM files.",
+          "help_text": "Read alignment is skipped if the existing sequence names in the aligned BAM match the provided reference. Enable this if the existing alignments used incorrect minimap2 presets (e.g. missing --splice or direct RNA settings)."
+        },
         "ndr": {
           "type": "number",
           "description": "Optional bambu novel discovery rate override."

@@ -337,6 +337,7 @@ def fastq_ingress(Map arguments, aln_ref_ch = null)
  *  - "alignment_threads": number of threads to use for alignment process (default: 6)
  *  - "output_xam_fmt": alignment output format, `bam` outputs an BAM file with index (.bam, .bai),
        `cram` outputs a CRAM file with index (.cram, .crai)
+*   - "force_alignment": boolean. Run alignment regardless of inputs.
  * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
  *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
@@ -357,6 +358,7 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
             "return_fastq": false,
             "fastcat_extra_args": "",
             "fastq_chunk": null,
+            "force_alignment": false,
         ]
     )
     margs["fastq_chunk"] ?= 0  // cant pass null through channel
@@ -427,7 +429,7 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
         alignment_fork = ch_check_bams
         | branch {
             meta, paths ->
-                to_align: (meta.is_unaligned == true) && (meta.has_reads == true)
+                to_align: (meta.is_unaligned || margs.force_alignment) && meta.has_reads
                 noalign: true
         }
         if (margs["output_xam_fmt"] == "bam"){

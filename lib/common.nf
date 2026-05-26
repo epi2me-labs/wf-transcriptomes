@@ -80,7 +80,7 @@ process minimap2_alignment {
               path("bamstats_results"),
               emit: alignment
     script:
-        String reset_cmd_body = "samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl"
+        String reset_cmd_body = "samtools reset -x tp,cm,s1,s2,NM,MD,AS,SA,ms,nn,ts,cg,cs,dv,de,rl,zd"
         String fastq_cmd_body = "samtools fastq -T '*'"
         // Default required threads is 6
         // Samtools x3 and bamstats will all be single threaded
