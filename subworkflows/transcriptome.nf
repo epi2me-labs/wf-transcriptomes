@@ -222,7 +222,6 @@ workflow transcriptome {
             }
         }
         analysis_annotation = prepared_reference_annotation.annotation.first()
-        analysis_reference = ref_genome.first()
         joint_meta = [alias: "cohort"]
 
         joint_discover = runJointBambuDiscover(
@@ -241,14 +240,14 @@ workflow transcriptome {
                     )
                 },
             analysis_annotation,
-            analysis_reference
+            ref_genome
         )
         joint_quant_inputs_all = bambu_discover_to_quant_inputs(joint_discover.dir)
         joint_quant = runJointBambuQuant(
             bambu_quant_process_inputs(
                 bambu_filter_quant_inputs_with_warning(joint_quant_inputs_all)
             ),
-            analysis_reference
+            ref_genome
         )
         joint_bambu_real = collateJointBambuQuant(
             joint_quant.dir
@@ -284,14 +283,14 @@ workflow transcriptome {
                 )
             },
             analysis_annotation,
-            analysis_reference
+            ref_genome
         )
         sample_quant_inputs_all = bambu_discover_to_quant_inputs(sample_discover.dir)
         sample_quant = runPerSampleBambuQuant(
             bambu_quant_process_inputs(
                 bambu_filter_quant_inputs_with_warning(sample_quant_inputs_all)
             ),
-            analysis_reference
+            ref_genome
         )
         sample_bambu_real = collatePerSampleBambuQuant(
             sample_quant.dir
@@ -318,9 +317,9 @@ workflow transcriptome {
 
         joint_fasta = buildCohortTranscriptomeFasta(
             joint_bambu_real.gtf.map { meta, gtf -> gtf },
-            analysis_reference
+            ref_genome
         )
-        sample_fastas = buildSampleTranscriptomeFasta(sample_bambu_real.gtf, analysis_reference)
+        sample_fastas = buildSampleTranscriptomeFasta(sample_bambu_real.gtf, ref_genome)
 
         if (params.skip_sqanti) {
             joint_sqanti_dir = Channel.empty()
@@ -329,9 +328,9 @@ workflow transcriptome {
             joint_sqanti = runJointSqanti(
                 joint_bambu_real.gtf.map { meta, gtf -> gtf },
                 analysis_annotation,
-                analysis_reference
+                ref_genome
             )
-            sample_sqanti = runPerSampleSqanti(sample_bambu_real.gtf, analysis_annotation, analysis_reference)
+            sample_sqanti = runPerSampleSqanti(sample_bambu_real.gtf, analysis_annotation, ref_genome)
             joint_sqanti_dir = joint_sqanti.dir
             sample_sqanti_dirs = sample_sqanti.dir
         }

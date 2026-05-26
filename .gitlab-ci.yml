@@ -69,7 +69,7 @@ docker-run:
             - MATRIX_NAME: [
                 "int_discover_dna", "int_fixed_rna", "int_de_control_vs_control",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
-                "mouse_de_0countquant"
+                "mouse_de_0countquant", "mods_bigwig_igv"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -181,6 +181,15 @@ docker-run:
                   --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.fa \
                   --ref_annotation ${CI_PROJECT_NAME}/data/mouse_subset_test/mouse_subset.gtf.gz \
                 --direct_rna --sample_sheet ${CI_PROJECT_NAME}/data/mouse_subset_test/sample_sheet.csv"
+        # MM/ML tag test
+        - if: $MATRIX_NAME == "mods_bigwig_igv"
+          variables:
+            NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/mods_rna_subset.tar.gz -O ${CI_PROJECT_NAME}/data/mods_rna_subset.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/mods_rna_subset.tar.gz -C ${CI_PROJECT_NAME}/data/ && wget -nv https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf -O ${CI_PROJECT_NAME}/data/gencode.v22.annotation.chr20.gtf && wget -nv https://ont-open-data.s3.amazonaws.com/references/human/GRCh38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz -O ${CI_PROJECT_NAME}/data/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz"
+            NF_WORKFLOW_OPTS: "--bam ${CI_PROJECT_NAME}/data/mods_rna_subset/ \
+                --ref_genome ${CI_PROJECT_NAME}/data/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz \
+                --ref_annotation ${CI_PROJECT_NAME}/data/gencode.v22.annotation.chr20.gtf \
+                --sample_sheet ${CI_PROJECT_NAME}/data/mods_rna_subset/sample_sheet.csv \
+                --igv"
 
 
 singularity-run:
