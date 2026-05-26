@@ -4,6 +4,7 @@ import json
 import math
 import os
 from pathlib import Path
+import warnings
 
 from bokeh.resources import INLINE as BOKEH_INLINE
 from dominate.tags import (
@@ -18,11 +19,18 @@ from ezcharts.layout.resource import Resource as EZC_Resource
 from ezcharts.layout.snippets import Tabs
 from ezcharts.layout.snippets.table import DataTable
 import pandas as pd
-
 from .hierarchical_clustering import hierarchical, clustering_info   # noqa: ABS101
 from .util import get_named_logger, wf_parser  # noqa: ABS101
 from .volcano import volcano  # noqa: ABS101
 
+
+# Suppress asyncio deprecation warning triggered by dominate on Python 3.10+.
+# dominate calls asyncio.get_event_loop() outside a running async context.
+warnings.filterwarnings(
+    "ignore",
+    message="There is no current event loop",
+    category=DeprecationWarning,
+)
 
 classification_categories = {
     "Full splice match": (
@@ -207,7 +215,9 @@ def _contrast_results(de_dir, filename, n=None):
         data = table
         if n is not None:
             data = data.head(n)
+        data.sort_values("padj", ascending=True, inplace=True)
         tables[contrast_dir.name] = data
+
     return tables
 
 
@@ -1070,7 +1080,7 @@ def main(args):
                         clustering_info('gene')
             tabs = Tabs()
             for contrast, table in _contrast_results(
-                args.de_dir, "results_dge.tsv", n=20
+                args.de_dir, "results_dge.tsv"
             ).items():
                 with tabs.add_tab(contrast):
                     # Check for contrast-specific warnings
@@ -1099,7 +1109,14 @@ def main(args):
                                 with p():
                                     strong("Note: ")
                                     raw(contrast_data["dtu_power_warning"])
-                    DataTable.from_pandas(table, use_index=False)
+                    DataTable.from_pandas(
+                        table.head(args.de_table_size), use_index=False
+                    )
+                    with div(cls="clustering-info"):
+                        raw(
+                            f"Table showing the top {args.de_table_size} genes sorted "
+                            "by adjusted p-value. <br><br><br>"
+                        )
 
                     h3("Gene expression volcano Plot")
                     gn_vol, gn_class_table, gn_selected_table = volcano(table)
@@ -1131,7 +1148,7 @@ def main(args):
 
             tabs = Tabs()
             dtu_tables = _contrast_results(
-                args.de_dir, "results_dtu_transcript.tsv", n=20)
+                args.de_dir, "results_dtu_transcript.tsv")
 
             for contrast in sorted(Path(args.de_dir).iterdir()):
                 if not contrast.is_dir():
@@ -1165,7 +1182,14 @@ def main(args):
 
                     if contrast_name in dtu_tables:
                         dtu_table = dtu_tables[contrast_name]
-                        DataTable.from_pandas(dtu_table, use_index=False)
+                        DataTable.from_pandas(
+                            dtu_table.head(args.de_table_size), use_index=False
+                        )
+                        with div(cls="clustering-info"):
+                            raw(
+                                f"Table showing the top {args.de_table_size} "
+                                "transcripts sorted by adjusted p-value. <br><br><br>"
+                            )
 
                         h3("Transcript expression volcano Plot")
                         tr_vol, tr_class_table, tr_selected_table = volcano(dtu_table)
@@ -1215,6 +1239,12 @@ def argparser():
         "--ref_summary",
         default=None,
         help="Annotation reference summary TSV.",
+    )
+    parser.add_argument(
+        "--de_table_size",
+        default=500,
+        type=int,
+        help="Number of rows to show in DE/DTU result tables.",
     )
     parser.add_argument("--versions", required=True, help="Versions directory.")
     parser.add_argument("--params", required=True, help="Workflow params JSON.")
