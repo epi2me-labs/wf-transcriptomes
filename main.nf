@@ -303,14 +303,27 @@ workflow {
             "input": params.bam,
         ] + ingress_args, ref_genome)
     }
-
     analysis_samples = samples
         .filter { meta, xam, xai, stats ->
-            if (meta.n_seqs == 0) {
-                log.warn("Sample ${meta.alias} has no reads - excluded from transcriptome analysis.")
-                return false
+            boolean is_excluded = false
+            String excluded_reason = null
+            if (meta.n_primary == 0) {
+                excluded_reason = "has no reads"
+                is_excluded = true
+            } else if (meta.n_primary == null) {
+                excluded_reason = "was not found during ingress"
+                is_excluded = true
             }
-            true
+            if (is_excluded) {
+                log.warn("Sample ${meta.alias} ${excluded_reason} and will be excluded from transcriptome analysis.")
+                if (params.de_analysis) {
+                    throw new Exception("""\
+                    Differential gene expression and differential transcript analyses
+                    requires all the samples present in the sample sheet to have reads.
+                    """.stripIndent())
+                }
+            }
+            return !is_excluded
         }
         .ifEmpty {
             throw new Exception("No samples with reads were available for transcriptome analysis.")
