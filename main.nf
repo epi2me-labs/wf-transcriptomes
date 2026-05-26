@@ -204,7 +204,7 @@ workflow {
         "output_cache": false,
         "output_mmi": false,
     ])
-    ref_genome = prepared_reference.ref_tuple
+    ref_genome = prepared_reference.ref_tuple.first()
 
     if (!ref_annotation.exists()) {
         throw new Exception("--ref_annotation does not exist.")
