@@ -55,6 +55,8 @@ docker-run:
             - ${CI_PROJECT_NAME}/**/*.fna
             - ${CI_PROJECT_NAME}/**/*.fasta
             - ${CI_PROJECT_NAME}/**/*.mmi
+            - ${CI_PROJECT_NAME}/data/**/*
+            - ${CI_PROJECT_NAME}/store_dir/**/*
 
 
     # Define a 1D job matrix to inject a variable named MATRIX_NAME into
