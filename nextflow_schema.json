@@ -148,7 +148,12 @@
           "description": "Baseline group for the main comparison column.",
           "help_text": "If omitted, the workflow will use control when that level exists."
         }
-      }
+      },
+      "dependencies": {
+        "de_analysis": [
+            "sample_sheet"
+        ]
+    }
     },
     "output_options": {
       "title": "Output Options",

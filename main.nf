@@ -90,55 +90,6 @@ process publishResults {
     """
 }
 
-def coerceBooleanParam(value) {
-    if (value == null || value instanceof Boolean) {
-        return value
-    }
-    if (value instanceof CharSequence) {
-        switch (value.toString().trim().toLowerCase()) {
-            case "true":
-            case "1":
-            case "yes":
-                return true
-            case "false":
-            case "0":
-            case "no":
-                return false
-        }
-    }
-    return value
-}
-
-
-[
-    "help",
-    "version",
-    "igv",
-    "direct_rna",
-    "de_analysis",
-    "analyse_unclassified",
-    "analyse_fail",
-    "skip_sqanti",
-    "sqanti_skip_orf",
-    "disable_ping",
-    "monochrome_logs",
-    "validate_params",
-    "show_hidden_params",
-].each { name ->
-    params[name] = coerceBooleanParam(params[name])
-}
-
-[
-    "keep_unaligned",
-    "return_fastq",
-    "per_read_stats",
-    "allow_multiple_basecall_models",
-].each { name ->
-    if (params.wf?.containsKey(name)) {
-        params.wf[name] = coerceBooleanParam(params.wf[name])
-    }
-}
-
 
 workflow pipeline {
     take:
@@ -244,28 +195,6 @@ WorkflowMain.initialise(workflow, params, log)
 workflow {
     Pinguscript.ping_start(nextflow, workflow, params)
 
-    if (params.containsKey("ref_transcriptome")) {
-        throw new Exception("--ref_transcriptome has been removed. Use --transcriptome_mode fixed_annotation with --ref_genome and --ref_annotation.")
-    }
-    if (params.containsKey("transcriptome_source")) {
-        throw new Exception("--transcriptome_source has been removed. Use --transcriptome_mode with either discover or fixed_annotation.")
-    }
-
-    if (!!params.fastq == !!params.bam) {
-        throw new Exception("Provide exactly one of --fastq or --bam.")
-    }
-    if (!params.ref_genome) {
-        throw new Exception("Provide --ref_genome.") //todo isnt this enforced in the schema?
-    }
-    if (!params.ref_annotation) {
-        throw new Exception("Provide --ref_annotation.")
-    }
-    if (!(params.transcriptome_mode in ["discover", "fixed_annotation"])) {
-        throw new Exception("--transcriptome_mode must be one of: discover, fixed_annotation.")
-    }
-    if (params.de_analysis && !params.sample_sheet) {
-        throw new Exception("Provide --sample_sheet when running with --de_analysis.")
-    }
 
     sample_sheet = params.sample_sheet ? file(params.sample_sheet, type: "file") : OPTIONAL_FILE
     ref_annotation = file(params.ref_annotation, type: "file")
