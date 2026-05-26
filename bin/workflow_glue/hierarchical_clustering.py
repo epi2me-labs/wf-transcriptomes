@@ -1,10 +1,10 @@
 """Hierarchical clustering heatmap plots."""
+from dataclasses import dataclass
 
 from bokeh.layouts import column as bokeh_column, row as bokeh_row
 from bokeh.models import (
     ColorBar,
     ColumnDataSource,
-    Div,
     FixedTicker,
     HoverTool,
     LinearColorMapper,
@@ -122,19 +122,10 @@ def _dendrogram_source(linked, orientation):
     return ColumnDataSource({"xs": xs, "ys": ys})
 
 
-def _empty_plot(message):
-    """Return a BokehPlot containing a message instead of a heatmap."""
-    plot = BokehPlot()
-    plot._fig = Div(text=message)
-    return plot
-
-
 def _sample_pca(matrix, sample_names):
     """Project samples onto the first two principal components."""
     sample_matrix = np.asarray(matrix, dtype=float).T
     centered = sample_matrix - sample_matrix.mean(axis=0, keepdims=True)
-    if centered.shape[0] < 2 or centered.shape[1] == 0:
-        return None
 
     u, singular_values, _ = np.linalg.svd(centered, full_matrices=False)
     scores = u * singular_values
@@ -543,6 +534,16 @@ def pca_plot(matrix, col_order, sample_names, sample_metadata, condition_column)
     return pca_and_legend
 
 
+@dataclass
+class ClusteringResult:
+    """Container for hierarchical clustering results."""
+
+    heatmap: object | None  # noqa: NT001
+    pca: object | None  # noqa: NT001
+    distance: object | None  # noqa: NT001
+    error: str | None = None  # noqa: NT001
+
+
 def hierarchical(
     data,
     id_column,
@@ -559,11 +560,15 @@ def hierarchical(
     )
 
     if log2_matrix.shape[0] < 2 or log2_matrix.shape[1] < 2:
-        return _empty_plot(
-            "Hierarchical clustering requires at least two features and "
-            "two numeric sample columns."
+        return ClusteringResult(
+            heatmap=None,
+            pca=None,
+            distance=None,
+            error=(
+                "Generation of clustering plots requires at least two features "
+                "and two sample columns."
+            )
         )
-
     log2_matrix = np.log2(log2_matrix + 1)
     log2_matrix, labels = _top_variable_rows(log2_matrix, labels, top_n=top_n)
     log2_z_matrix = _row_zscore(log2_matrix)
@@ -601,4 +606,8 @@ def hierarchical(
         height=hm_height
     )
 
-    return heatmap_plt, pca_plt, distance_plt
+    return ClusteringResult(
+        heatmap=heatmap_plt,
+        pca=pca_plt,
+        distance=distance_plt
+    )
