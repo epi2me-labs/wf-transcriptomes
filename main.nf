@@ -304,6 +304,7 @@ workflow {
     } else {
         samples = xam_ingress([
             "input": params.bam,
+            "force_alignment": params.force_alignment,
         ] + ingress_args, ref_genome)
     }
     analysis_samples = samples

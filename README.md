@@ -356,6 +356,7 @@ directories:
 | threads | integer | Thread count to use for the core workflow processes. |  | 4 |
 | mod_codes | string | Comma-separated modified base codes to pass to modkit pileup. | Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`. |  |
 | minimap2_opts | string | Extra command-line options to pass to minimap2. |  |  |
+| force_alignment | boolean | Force re-alignment of input BAM files. | Read alignment is skipped if the existing sequence names in the aligned BAM match the provided reference. Enable this if the existing alignments used incorrect minimap2 presets (e.g. missing --splice or direct RNA settings). | False |
 | ndr | number | Optional bambu novel discovery rate override. |  |  |
 | skip_sqanti | boolean | Skip SQANTI3 transcript classification and QC. |  | False |
 | sqanti_skip_orf | boolean | Skip ORF prediction during SQANTI3 QC. |  | True |
