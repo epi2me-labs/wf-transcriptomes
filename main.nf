@@ -8,6 +8,8 @@ include { getParams; configure_igv } from './lib/common'
 include { prepare_reference } from './lib/reference'
 include { transcriptome_analysis } from './subworkflows/transcriptome'
 include { differential_expression } from './subworkflows/differential_expression'
+include { mod_analysis } from './subworkflows/mods'
+
 
 
 OPTIONAL_FILE = file("$projectDir/data/OPTIONAL_FILE")
@@ -88,7 +90,6 @@ process publishResults {
     """
 }
 
-
 def coerceBooleanParam(value) {
     if (value == null || value instanceof Boolean) {
         return value
@@ -150,6 +151,7 @@ workflow pipeline {
         workflow_params = getParams()
 
         transcriptome = transcriptome_analysis(reads, ref_genome, ref_annotation, sample_sheet)
+        mods = mod_analysis(reads, ref_genome)
 
         if (params.de_analysis) {
             de_results = differential_expression(
@@ -234,6 +236,7 @@ workflow pipeline {
         }
     emit:
         results = results
+        bigwigs = mods.bigwig
 }
 
 
@@ -363,9 +366,18 @@ workflow {
             ] }
             .flatten()
 
+        // convert [alias0, [bw00...bw0N]] to [alias0, bw00] ... [aliasN, bwNN]
+        // allowing for [aliasM, bwM0] if only one bw is output because ... nextflow
+        // and use the anticipated output location
+        igv_bigwigs = pipeline_run.bigwigs
+            .flatMap { alias, paths ->
+                (paths instanceof List ? paths : [paths]).collect { path -> "${alias},samples/${alias}/mods/${path.name}" }
+            }
+
         igv_files = igv_files
             .concat(igv_index_paths)
             .concat(igv_alignment_paths)
+            .concat(igv_bigwigs)
             .collectFile(name: "igv-files.txt", newLine: true, sort: false)
 
         igv_conf = configure_igv(

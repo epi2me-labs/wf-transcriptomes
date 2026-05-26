@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+
+import argparse
+import csv
+import re
+import sys
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mod_code")
+    parser.add_argument("label_tsv")
+    return parser.parse_args()
+
+
+def sanitize_label(label):
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("._-") or "mod"
+
+
+def load_labels(label_tsv):
+    labels = {}
+    with open(label_tsv, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            mod_code = row.get("mod_code", "").strip()
+            label = row.get("label", "").strip()
+            if mod_code and label:
+                labels[mod_code] = label
+    return labels
+
+
+def get_mod_code_label(mod_code, labels):
+    label = labels.get(mod_code, mod_code.replace(":", "-"))
+    return sanitize_label(label)
+
+
+def main():
+    args = parse_args()
+    labels = load_labels(args.label_tsv)
+    sys.stdout.write(get_mod_code_label(args.mod_code, labels) + "\n")
+
+
+if __name__ == "__main__":
+    main()

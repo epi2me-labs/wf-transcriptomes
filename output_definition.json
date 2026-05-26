@@ -32,6 +32,22 @@
       "optional": false,
       "type": "per-sample"
     },
+    "sample-bedmethyl": {
+      "filepath": "samples/{{ alias }}/mods/{{ alias }}.mods.bedmethyl.gz",
+      "title": "Modified base pileup",
+      "description": "Per-sample modkit bedMethyl pileup generated from the aligned BAM when MM and ML tags are present.",
+      "mime-type": "application/gzip",
+      "optional": true,
+      "type": "per-sample"
+    },
+    "sample-mod-bigwig": {
+      "filepath": "samples/{{ alias }}/mods/{{ alias }}.mods.*.bw",
+      "title": "Modified base bigWig",
+      "description": "Per-sample modkit bigWig tracks generated from the aligned BAM, with one file per requested or inferred modification code.",
+      "mime-type": "application/octet-stream",
+      "optional": true,
+      "type": "per-sample"
+    },
     "annotation-reference-summary": {
       "filepath": "cohort/reference/annotation_reference_summary.json",
       "title": "Reference and annotation preparation summary",

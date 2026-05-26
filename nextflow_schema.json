@@ -178,6 +178,11 @@
           "default": 4,
           "description": "Thread count to use for the core workflow processes."
         },
+        "mod_codes": {
+          "type": "string",
+          "description": "Comma-separated modified base codes to pass to modkit pileup.",
+          "help_text": "Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`."
+        },
         "minimap2_index_opts": {
           "type": "string",
           "default": "",
