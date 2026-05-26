@@ -126,7 +126,7 @@ process inferModkitBases {
     """
 }
 
-workflow mod_analysis {
+workflow mods {
     take:
         xams
         ref_genome

@@ -208,7 +208,7 @@ process runPerSampleSqanti {
 }
 
 
-workflow transcriptome_analysis {
+workflow transcriptome {
     take:
         alignments
         ref_genome
