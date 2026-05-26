@@ -67,7 +67,20 @@ Each sample is aligned to the supplied reference genome with
 `samples/<alias>/alignment/` are the main alignment files used for transcriptome
 analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
 
-### 4. Cohort transcriptome construction
+### 4. Optional modified base summarisation
+
+When aligned BAMs contain modified base tags (`MM` and `ML`), the workflow also
+runs `modkit` on each sample alignment. It first checks which modified base
+codes are present in the BAM, then runs `modkit pileup` to produce a per-sample
+bedMethyl file and one bigWig track per requested or inferred modification
+under `samples/<alias>/mods/`.
+
+If `--mod_codes` is set, those codes are passed directly to `modkit pileup`.
+If it is omitted, the workflow infers the available `primary_base:mod_code`
+pairs from the aligned BAM with `modkit modbam check-tags`. These outputs are
+also included in the optional IGV configuration when `--igv` is enabled.
+
+### 5. Cohort transcriptome construction
 
 All aligned samples are analysed together with `bambu` to produce the primary
 cohort transcriptome, transcript counts, gene counts, and the `RDS` objects used
@@ -77,7 +90,7 @@ Before writing outputs, transcript filtering removes only transcripts with zero
 total transcript counts across samples; it does not use `fullLengthCounts` for
 this quantification filter.
 
-### 5. Independent per-sample transcriptomes
+### 6. Independent per-sample transcriptomes
 
 Each sample is also processed separately with `bambu` so the workflow produces
 sample-specific GTF, FASTA, count tables, and metadata under
@@ -85,7 +98,7 @@ sample-specific GTF, FASTA, count tables, and metadata under
 specific transcript models without changing the shared cohort transcriptome used
 for DE/DTU.
 
-### 6. Transcript sequence generation and QC
+### 7. Transcript sequence generation and QC
 
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
 When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
@@ -93,7 +106,7 @@ transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
 results live under `cohort/sqanti/`, while per-sample `SQANTI3`
 directories are published under `samples/<alias>/sqanti/`.
 
-### 7. Optional DE and DTU analysis
+### 8. Optional DE and DTU analysis
 
 When `--de_analysis` is enabled, the workflow checks the experimental design,
 runs `DESeq2` for differential gene expression, and runs `DEXSeq` for
@@ -101,7 +114,7 @@ differential transcript usage. These analyses use the shared `bambu` outputs
 and the design columns in the sample sheet, and each comparison is written to
 its own subdirectory under `de_analysis/<contrast>/`.
 
-### 8. What you need to provide
+### 9. What you need to provide
 
 The workflow's analysis is controlled by a user provided genome, annotation, and
 `bambu` mode.
@@ -116,14 +129,15 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 * when `--de_analysis` is enabled, the sample sheet must contain `alias`, the
   primary condition column, and any requested columns named in `--covariates`
 
-### 9. How to read the output folder
+### 10. How to read the output folder
 
 The published outputs are organised around a small number of top-level
 directories:
 
 + `cohort/` contains the primary joint `bambu` transcriptome, count tables, and optional cohort `SQANTI3` outputs
 + `samples/<alias>/` contains alignments, independent per-sample `bambu` outputs and
-  optional per-sample `SQANTI3` outputs
+  optional per-sample `SQANTI3` outputs; `samples/<alias>/mods/` is populated
+  when modified base tags are present in the aligned BAM
 + `de_analysis/<contrast>/` contains DE and DTU results for each contrast when
   differential analysis is enabled
 + `igv_reference/` contains the published reference indexes used for IGV

@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import argparse
+import csv
+import sys
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("modified_bases_tsv")
+    return parser.parse_args()
+
+
+def infer_codes(modified_bases_tsv):
+    codes = []
+    seen = set()
+
+    with open(modified_bases_tsv, newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            primary_base = row.get("primary_base", "").strip()
+            mod_code = row.get("mod_code", "").strip()
+            if not primary_base or not mod_code:
+                continue
+
+            code = f"{primary_base}:{mod_code}"
+            if code not in seen:
+                seen.add(code)
+                codes.append(code)
+
+    return codes
+
+
+def main():
+    args = parse_args()
+    codes = infer_codes(args.modified_bases_tsv)
+    if not codes:
+        sys.stderr.write("Failed to infer modified base codes from modified_bases.tsv\n")
+        raise SystemExit(1)
+
+    sys.stdout.write(",".join(codes) + "\n")
+
+
+if __name__ == "__main__":
+    main()

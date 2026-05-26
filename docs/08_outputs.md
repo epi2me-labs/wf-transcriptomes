@@ -6,6 +6,8 @@ Output files may be aggregated including information for all samples or provided
 | Aligned BAM | samples/{{ alias }}/alignment/reads.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
 | Aligned BAM index | samples/{{ alias }}/alignment/reads.bam.bai | Index for the aligned BAM. | per-sample |
 | Alignment summary | samples/{{ alias }}/alignment/bamstats.flagstat.tsv | bamstats flagstat summary for the aligned BAM. | per-sample |
+| Modified base pileup | samples/{{ alias }}/mods/{{ alias }}.mods.bedmethyl.gz | Per-sample modkit bedMethyl pileup generated from the aligned BAM when MM and ML tags are present. | per-sample |
+| Modified base bigWig | samples/{{ alias }}/mods/{{ alias }}.mods.*.bw | Per-sample modkit bigWig tracks generated from the aligned BAM, with one file per requested or inferred modification code. | per-sample |
 | Reference and annotation preparation summary | cohort/reference/annotation_reference_summary.json | Summary of reference and annotation preparation, including seqname overlap, build/provider hints, and excluded unstranded annotation counts. | aggregated |
 | Excluded unstranded annotation records | cohort/reference/unstranded_annotation.gtf | Full set of annotation records excluded because their strand was not '+' or '-'. Present only when unstranded records are found. | aggregated |
 | Cohort transcriptome GTF | cohort/transcripts.gtf | Joint bambu transcript model used as the primary cohort transcriptome. | aggregated |

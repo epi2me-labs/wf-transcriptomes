@@ -50,6 +50,7 @@
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | threads | integer | Thread count to use for the core workflow processes. |  | 4 |
+| mod_codes | string | Comma-separated modified base codes to pass to modkit pileup. | Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`. |  |
 | minimap2_opts | string | Extra command-line options to pass to minimap2. |  |  |
 | ndr | number | Optional bambu novel discovery rate override. |  |  |
 | skip_sqanti | boolean | Skip SQANTI3 transcript classification and QC. |  | False |
