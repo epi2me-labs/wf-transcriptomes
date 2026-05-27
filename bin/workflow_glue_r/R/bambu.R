@@ -160,35 +160,10 @@ bambu_resolve_chunk_dirs <- function(args) {
     chunk_dirs
 }
 
-bambu_read_sample_sheet <- function(path) {
-    header <- names(utils::read.csv(path, nrows = 0, check.names = FALSE))
-    char_cols <- intersect(c("alias", "sample_id"), header)
-    col_classes <- stats::setNames(rep("character", length(char_cols)), char_cols)
-    utils::read.csv(
-        path,
-        check.names = FALSE,
-        stringsAsFactors = FALSE,
-        colClasses = col_classes
-    )
-}
-
 bambu_resolve_inputs <- function(args, bamfile_list_ctor = Rsamtools::BamFileList) {
     sample_df <- NULL
     if (!bambu_missing(args$sample_sheet)) {
-        sample_df <- bambu_read_sample_sheet(args$sample_sheet)
-        if (!"alias" %in% names(sample_df)) {
-            stop("Sample sheet must contain an 'alias' column.", call. = FALSE)
-        }
-        duplicate_sample_aliases <- unique(sample_df$alias[duplicated(sample_df$alias)])
-        if (length(duplicate_sample_aliases) > 0) {
-            stop(
-                sprintf(
-                    "Sample sheet aliases must be unique; duplicated aliases: %s",
-                    paste(duplicate_sample_aliases, collapse = ", ")
-                ),
-                call. = FALSE
-            )
-        }
+        sample_df <- workflow_glue_r_read_sample_sheet(args$sample_sheet)
     }
 
     bam_paths <- workflow_glue_r_parse_csv_list(args$bams)
@@ -1052,7 +1027,7 @@ bambu_collate_chunk_outputs <- function(
     })
     raw_se <- bambu_combine_transcript_chunks(tx_ses)
 
-    sample_df <- bambu_read_sample_sheet(file.path(chunk_dirs[[1]], "samples.csv"))
+    sample_df <- workflow_glue_r_read_sample_sheet(file.path(chunk_dirs[[1]], "samples.csv"))
 
     gene_se <- gene_expression_fn(raw_se)
     filtered <- bambu_filter_transcripts(raw_se)

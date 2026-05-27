@@ -129,3 +129,15 @@ workflow_glue_r_annotation_name_maps <- function(annotation_path) {
         )
     )
 }
+
+workflow_glue_r_read_sample_sheet <- function(path) {
+    header <- names(utils::read.csv(path, nrows = 0, check.names = FALSE))
+    char_cols <- intersect(c("alias", "sample_id"), header)
+    col_classes <- stats::setNames(rep("character", length(char_cols)), char_cols)
+    utils::read.csv(
+        path,
+        check.names = FALSE,
+        stringsAsFactors = FALSE,
+        colClasses = col_classes
+    )
+}

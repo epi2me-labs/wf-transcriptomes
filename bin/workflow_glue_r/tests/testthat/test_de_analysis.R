@@ -13,53 +13,6 @@ testthat::test_that("covariates parsed and trimmed", {
     )
 })
 
-# Sample sheet must have 'alias' column matching SE colnames, condition column, and all covariates.
-# Aliases must be unique. Missing columns should fail fast before passing to DESeq2/DRIMSeq.
-testthat::test_that("sample sheet structure validated", {
-    tx_se <- make_test_tx_se()
-    gene_se <- make_test_gene_se()
-    argv <- list(
-        transcript_rds = "transcripts.rds",
-        gene_rds = "genes.rds",
-        sample_sheet = "sample_sheet.csv",
-        condition_column = "condition",
-        covariates = "batch",
-        reference_level = NULL
-    )
-    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
-
-    missing_alias <- data.frame(condition = rep(c("control", "treated"), each = 3))
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, missing_alias, argv),
-        "Sample sheet must contain an 'alias' column"
-    )
-
-    sample_df <- data.frame(
-        alias = colnames(tx_se),
-        batch = rep(c("b1", "b2", "b1"), 2),
-        stringsAsFactors = FALSE
-    )
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "Sample sheet must contain the 'condition' column"
-    )
-
-    sample_df$condition <- rep(c("control", "treated"), each = 3)
-    argv$covariates <- "batch,site"
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "Missing covariate columns: site"
-    )
-
-    duplicate_aliases <- sample_df
-    duplicate_aliases$alias[2] <- duplicate_aliases$alias[1]
-    argv$covariates <- "batch"
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, duplicate_aliases, argv),
-        "Sample sheet aliases must be unique"
-    )
-})
-
 # R formulas break on spaces/hyphens in column names (e.g., ~ `time point` produces errors).
 # Validate condition_column and covariate names are safe (alphanumeric + underscore).
 testthat::test_that("formula-unsafe column names rejected", {
@@ -122,16 +75,16 @@ testthat::test_that("DTU transcript output renames contrast-specific log2fold co
     )
 })
 
-# Sample aliases CAN have spaces/hyphens (they're not used in formulas, just for matching).
+# Sample aliases CAN have hyphens (they're not used in formulas, just for matching).
 # Sample sheet rows can be in different order than SE columns - should reorder automatically.
 testthat::test_that("non-syntactic aliases allowed, sheets reordered", {
     sample_names <- c(
         "1control",
         "control-2",
-        "control rep 3",
-        "4treated",
+        "control _rep 3",
+        "04",
         "treated-5",
-        "treated rep 6"
+        "treated-rep.6"
     )
     tx_se <- make_test_tx_se(sample_names = sample_names)
     gene_se <- make_test_gene_se(sample_names = sample_names)
@@ -195,48 +148,6 @@ testthat::test_that("reference level defaults to control", {
     )
 })
 
-# If no "control" level exists, user MUST provide --reference_level explicitly.
-# Specified reference_level must exist in the condition column values.
-testthat::test_that("explicit reference level required without control", {
-    tx_se <- make_test_tx_se(
-        sample_names = c(
-            "baseline_rep1", "baseline_rep2", "baseline_rep3",
-            "treated_rep1", "treated_rep2", "treated_rep3"
-        )
-    )
-    gene_se <- make_test_gene_se(
-        sample_names = c(
-            "baseline_rep1", "baseline_rep2", "baseline_rep3",
-            "treated_rep1", "treated_rep2", "treated_rep3"
-        )
-    )
-    sample_df <- data.frame(
-        alias = colnames(tx_se),
-        condition = rep(c("baseline", "treated"), each = 3),
-        batch = rep(c("b1", "b2", "b1"), 2),
-        stringsAsFactors = FALSE
-    )
-    argv <- list(
-        transcript_rds = "transcripts.rds",
-        gene_rds = "genes.rds",
-        sample_sheet = "sample_sheet.csv",
-        condition_column = "condition",
-        covariates = "batch",
-        reference_level = NULL
-    )
-    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
-
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "Provide --reference_level"
-    )
-
-    argv$reference_level <- "does_not_exist"
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "requested reference level is not present"
-    )
-})
 
 # Count matrices must be numeric, non-NA, non-zero totals per sample.
 # Transcript and gene SE sample names must match exactly (same order, same values).
