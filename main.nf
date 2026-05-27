@@ -232,6 +232,7 @@ workflow {
         "analyse_fail": params.analyse_fail,
         "fastcat_extra_args": "",
         "required_sample_types": [],
+        "sort_threads": 3,
     ]
 
     if (params.fastq) {
