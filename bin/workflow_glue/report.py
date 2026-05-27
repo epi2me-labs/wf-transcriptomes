@@ -1,5 +1,6 @@
 """Create workflow report for wf-transcriptomes."""
 
+from html import escape
 import json
 import math
 import os
@@ -22,6 +23,8 @@ import pandas as pd
 from .hierarchical_clustering import hierarchical, clustering_info   # noqa: ABS101
 from .util import get_named_logger, wf_parser  # noqa: ABS101
 from .volcano import volcano  # noqa: ABS101
+
+logger = get_named_logger("Report")
 
 
 # Suppress asyncio deprecation warning triggered by dominate on Python 3.10+.
@@ -201,6 +204,168 @@ def _sqanti_table(sqanti_dir):
     is_cohort = sqanti_df["Sample"].str.lower().eq("cohort")
     sqanti_df = sqanti_df.assign(_is_cohort=is_cohort)
     return sqanti_df.sort_values(["_is_cohort", "Sample"]).drop(columns="_is_cohort")
+
+
+def _sample_mod_summaries(summary_dir):
+    """Return a combined modified base summary table across all samples."""
+    if not summary_dir:
+        return None
+    summaries_path = Path(summary_dir)
+    if not summaries_path.exists() or not summaries_path.is_dir():
+        return None
+    summaries = []
+    for summary_file in sorted(summaries_path.glob("*.mods.summary.tsv")):
+        if not summary_file.is_file():
+            continue
+        summary = _read_table(summary_file)
+        if summary is None or summary.empty:
+            continue
+        if "sample" not in summary.columns:
+            raise ValueError(
+                f"Modified base summary is missing required 'sample' column: "
+                f"{summary_file}"
+            )
+
+        sample_names = summary["sample"].unique()
+        if len(sample_names) != 1:
+            raise ValueError(
+                f"Modified base summary must contain exactly one sample name: "
+                f"{summary_file}"
+            )
+
+        summary["mod"] = summary["mod_label"].where(
+            summary["mod_label"] != "",
+            summary["full_mod_code"],
+        )
+        summary = summary[
+            [
+                "sample",
+                "mod",
+                "full_mod_code",
+                "modification_percent",
+                "modified_calls",
+                "valid_coverage",
+            ]
+        ]
+        summaries.append(summary)
+
+    if not summaries:
+        return None
+
+    summary = pd.concat(summaries, ignore_index=True)
+    return summary.sort_values(["mod", "sample"]).reset_index(drop=True)
+
+
+def _render_mod_summary_matrix(summary):
+    """Render modified base summaries as a cross-sample comparison matrix."""
+    if summary.duplicated(["sample", "mod"]).any():
+        raise ValueError(
+            "Modified base summary contains duplicate sample/mod combinations."
+        )
+
+    samples = sorted(summary["sample"].astype(str).unique())
+    mods = sorted(summary["mod"].astype(str).unique())
+    lookup = {
+        (str(row.sample), str(row.mod)): row
+        for row in summary.itertuples(index=False)
+    }
+
+    header_html = "".join(
+        f"<th>{escape(mod)}</th>" for mod in mods
+    )
+    body_rows = []
+    for sample in samples:
+        cells = []
+        for mod in mods:
+            row = lookup.get((sample, mod))
+            if row is None:
+                cells.append(
+                    "<td class='mod-summary-cell mod-summary-empty'>"
+                    "<div class='mod-summary-empty-mark'>&mdash;</div>"
+                    "</td>"
+                )
+                continue
+            cells.append(
+                "<td class='mod-summary-cell'>"
+                f"<div class='mod-summary-percent'>"
+                f"{_format_mod_summary_percent(row.modification_percent)}%"
+                f"</div>"
+                f"<div class='mod-summary-meta'>"
+                f"{_format_mod_summary_count(row.modified_calls)} modified"
+                f"</div>"
+                f"<div class='mod-summary-meta'>"
+                f"{_format_mod_summary_count(row.valid_coverage)} valid"
+                f"</div>"
+                "</td>"
+            )
+        body_rows.append(
+            "<tr>"
+            f"<th class='mod-summary-sample'>{escape(sample)}</th>"
+            + "".join(cells)
+            + "</tr>"
+        )
+
+    return (
+        "<div class='mod-summary-matrix-wrap'>"
+        "<table class='mod-summary-matrix'>"
+        "<thead><tr><th>Sample</th>"
+        f"{header_html}</tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        "</table>"
+        "</div>"
+    )
+
+
+def _format_mod_summary_percent(value):
+    """Format a modified base percentage for display."""
+    return f"{float(value):.2f}"
+
+
+def _format_mod_summary_count(value):
+    """Format a modified base count for display."""
+    return format(int(round(float(value))), ",")
+
+
+def _mod_summary_matrix_style():
+    """Return CSS for the modified base summary comparison matrix."""
+    return """
+    .mod-summary-matrix-wrap { overflow-x: auto; margin-bottom: 0.75rem; }
+    .mod-summary-matrix { width: 100%; border-collapse: collapse; }
+    .mod-summary-matrix th,
+    .mod-summary-matrix td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0.75rem 0.875rem;
+        vertical-align: top;
+        text-align: left;
+    }
+    .mod-summary-matrix thead th {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .mod-summary-sample {
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    .mod-summary-percent {
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .mod-summary-meta {
+        margin-top: 0.15rem;
+        font-size: 0.8rem;
+        color: #6b7280;
+        line-height: 1.25;
+        white-space: nowrap;
+    }
+    .mod-summary-empty {
+        color: #9ca3af;
+    }
+    .mod-summary-empty-mark {
+        font-size: 1rem;
+        line-height: 1.2;
+    }
+    """
 
 
 def _contrast_results(de_dir, filename, n=None):
@@ -490,6 +655,23 @@ def main(args):
                     .rename(columns={"index": "Field"}),
                     use_index=False,
                 )
+    mod_summaries = _sample_mod_summaries(args.mod_summary_dir)
+    if mod_summaries is not None and not mod_summaries.empty:
+        with report.add_section("Modified base summaries", "Modifications"):
+            dom_style(raw(_mod_summary_matrix_style()))
+            raw(_render_mod_summary_matrix(mod_summaries))
+            small(raw(
+                "<b>Valid coverage</b> Sum of the valid residues: all the "
+                "modified, canonical and other mod (where the modification "
+                "is different from the listed base) bedMethyl columns "
+                "counts for this combination of sample and mod. "
+                "<b>Modified calls</b> Number of calls passing filters "
+                "that were classified as a residue with a specified base "
+                "modification. "
+                "<b>Modification percent</b> (Modified calls / Valid "
+                "coverage) * 100"
+            ))
+
     annotation_reference_summary = _load_annotation_reference_summary(args.ref_summary)
 
     if annotation_reference_summary:
@@ -1232,6 +1414,11 @@ def argparser():
         "--samples_dir",
         required=True,
         help="Per-sample output directory.",
+    )
+    parser.add_argument(
+        "--mod_summary_dir",
+        default=None,
+        help="Modified base summary directory.",
     )
     parser.add_argument(
         "--sqanti_dir",
