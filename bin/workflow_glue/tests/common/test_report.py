@@ -106,6 +106,8 @@ def _build_report_args(tmp_path, de_qc=None):
 
     samples = tmp_path / "samples"
     samples.mkdir()
+    mod_summaries = tmp_path / "mod_summaries"
+    mod_summaries.mkdir()
     sqanti = tmp_path / "sqanti"
     sqanti.mkdir()
     alignment_stats = tmp_path / "alignment_stats"
@@ -149,6 +151,8 @@ def _build_report_args(tmp_path, de_qc=None):
         str(reference / "annotation_reference_summary.json"),
         "--samples_dir",
         str(samples),
+        "--mod_summary_dir",
+        str(mod_summaries),
         "--sqanti_dir",
         str(sqanti),
         "--versions",
@@ -213,6 +217,10 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     samples.mkdir()
     (samples / "OPTIONAL_FILE").touch()
 
+    mod_summaries = tmp_path / "mod_summaries"
+    mod_summaries.mkdir()
+    (mod_summaries / "OPTIONAL_FILE").touch()
+
     sqanti = tmp_path / "sqanti"
     sqanti.mkdir()
     (sqanti / "OPTIONAL_FILE").touch()
@@ -235,6 +243,8 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
             str(cohort / "reference" / "annotation_reference_summary.json"),
             "--samples_dir",
             str(samples),
+            "--mod_summary_dir",
+            str(mod_summaries),
             "--sqanti_dir",
             str(sqanti),
             "--versions",
@@ -252,6 +262,64 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
         "Annotation attributes sanitised" in table.to_string() for table in tables
     )
     assert any("GRCh38" in table.to_string() for table in tables)
+
+
+def test_report_main_renders_modified_base_summary_tables(monkeypatch, tmp_path):
+    """Per-sample modified base summaries should render as report tables."""
+    tables = []
+    raw_calls = []
+
+    monkeypatch.setattr(report.labs, "LabsReport", _FakeReport)
+    monkeypatch.setattr(report, "Tabs", _FakeTabs)
+    monkeypatch.setattr(report, "p", lambda *args, **kwargs: None)
+    monkeypatch.setattr(report, "pre", lambda *args, **kwargs: None)
+    monkeypatch.setattr(report, "raw", lambda value: raw_calls.append(value) or value)
+    monkeypatch.setattr(report, "_create_warning_banner", lambda *args, **kwargs: None)
+    monkeypatch.setattr(report.fastcat, "SeqSummary", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        report.DataTable,
+        "from_pandas",
+        staticmethod(lambda table, *args, **kwargs: tables.append(table.copy())),
+    )
+
+    args, out_report = _build_report_args(tmp_path)
+    mod_summaries = tmp_path / "mod_summaries"
+    _write(
+        mod_summaries / "not_the_sample_name.mods.summary.tsv",
+        (
+            "sample\tfull_mod_code\tmod_code\tmod_label\tvalid_coverage\t"
+            "modified_calls\tcanonical_calls\tother_calls\tdelete_calls\t"
+            "fail_calls\tdiff_calls\tnocall_calls\tmodification_percent\n"
+            "sampleA\tA:a\ta\tm6A\t12\t6\t6\t0\t0\t3\t0\t0\t50.00\n"
+        ),
+    )
+    _write(
+        mod_summaries / "sampleB.mods.summary.tsv",
+        (
+            "sample\tfull_mod_code\tmod_code\tmod_label\tvalid_coverage\t"
+            "modified_calls\tcanonical_calls\tother_calls\tdelete_calls\t"
+            "fail_calls\tdiff_calls\tnocall_calls\tmodification_percent\n"
+            "sampleB\tC:m\tm\tm5C\t20\t5\t15\t0\t0\t0\t0\t0\t25.00\n"
+        ),
+    )
+
+    report.main(args)
+
+    assert out_report.exists()
+    matrix_html = next(
+        value for value in raw_calls
+        if "<table class='mod-summary-matrix'>" in value
+    )
+    assert "sampleA" in matrix_html
+    assert "sampleB" in matrix_html
+    assert "m6A" in matrix_html
+    assert "m5C" in matrix_html
+    assert "50.00%" in matrix_html
+    assert "25.00%" in matrix_html
+    assert "6 modified" in matrix_html
+    assert "12 valid" in matrix_html
+    assert "5 modified" in matrix_html
+    assert "20 valid" in matrix_html
 
 
 def test_report_main_handles_degenerate_bambu_qc_and_read_summary(

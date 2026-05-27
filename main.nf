@@ -43,6 +43,7 @@ process makeReport {
         path "params.json"
         path cohort_dir, stageAs: "cohort"
         path sample_dirs, stageAs: "samples/*"
+        path mod_summary_files, stageAs: "mod_summaries/*"
         path sqanti_dirs, stageAs: "sqanti/*"
         path de_files
         path "annotation_reference_summary.tsv"
@@ -62,6 +63,7 @@ process makeReport {
         ${stats_args} \
         --cohort_dir cohort \
         --samples_dir samples \
+        --mod_summary_dir mod_summaries \
         --sqanti_dir sqanti \
         ${de_args} \
         --versions versions \
@@ -132,6 +134,11 @@ workflow wf {
             .map { meta, sample_dir -> sample_dir }
             .collect()
 
+        mod_summaries_for_report = mod_results.summary
+            .map { alias, summary -> summary }
+            .ifEmpty(OPTIONAL_FILE)
+            .collect()
+
         sqanti_dirs_for_report = transcriptome_results.joint_sqanti_dir
             .concat(transcriptome_results.sample_sqanti_dirs.map { meta, sqanti_dir -> sqanti_dir })
             .ifEmpty(OPTIONAL_FILE)
@@ -155,6 +162,7 @@ workflow wf {
             workflow_params,
             transcriptome_results.joint_dir.ifEmpty(OPTIONAL_FILE),
             sample_dirs_for_report,
+            mod_summaries_for_report,
             sqanti_dirs_for_report,
             de_dir,
             transcriptome_results.annotation_reference_summary,

@@ -99,6 +99,33 @@ process modkit_tobigwig {
     """
 }
 
+process summariseModkitBedmethyl {
+    label "wf_common"
+    cpus 1
+    memory "2 GB"
+    input:
+        tuple val(alias),
+            path(bedmethyl),
+            val(mod_codes)
+        path mod_code_labels
+    output:
+        tuple val(alias),
+            path("${alias}.mods.summary.tsv"),
+            emit: summary
+    publishDir "${params.out_dir}/${output_key}/mods"
+
+    script:
+    output_key = alias == "cohort" ? "cohort" : "samples/${alias}"  // nodef
+    """
+    workflow-glue summarise_modkit_bedmethyl \
+        "${bedmethyl}" \
+        "${alias}" \
+        "${mod_codes}" \
+        "${mod_code_labels}" \
+        "${alias}.mods.summary.tsv"
+    """
+}
+
 process inferModkitBases {
     label "modkit"
     cpus 1
@@ -153,6 +180,10 @@ workflow mods {
         mod_samples = xams_with.mods.join(sample_modcodes)
 
         pileup = runModkitPileup(mod_samples, ref_genome)
+        sample_summaries = summariseModkitBedmethyl(
+            pileup.bedmethyl.join(sample_modcodes),
+            file("$projectDir/data/mod_code_labels.tsv")
+        )
 
         sample_bigwigs = modkit_tobigwig(
             ref_genome,
@@ -162,5 +193,6 @@ workflow mods {
 
     emit:
         bedmethyl = pileup.bedmethyl
+        summary = sample_summaries.summary
         bigwig = sample_bigwigs.bigwig
 }

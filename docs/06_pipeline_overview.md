@@ -72,8 +72,8 @@ analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and opt
 When aligned BAMs contain modified base tags (`MM` and `ML`), the workflow also
 runs `modkit` on each sample alignment. It first checks which modified base
 codes are present in the BAM, then runs `modkit pileup` to produce a per-sample
-bedMethyl file and one bigWig track per requested or inferred modification
-under `samples/<alias>/mods/`.
+bedMethyl file, a simple per-sample summary table, and one bigWig track per
+requested or inferred modification under `samples/<alias>/mods/`.
 
 If `--mod_codes` is set, those codes are passed directly to `modkit pileup`.
 If it is omitted, the workflow infers the available `primary_base:mod_code`

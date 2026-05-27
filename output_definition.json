@@ -40,6 +40,14 @@
       "optional": true,
       "type": "per-sample"
     },
+    "sample-mod-summary": {
+      "filepath": "samples/{{ alias }}/mods/{{ alias }}.mods.summary.tsv",
+      "title": "Modified base summary",
+      "description": "Per-sample global modification-percent summary aggregated from the modkit bedMethyl pileup, with one row per modification code.",
+      "mime-type": "text/tab-separated-values",
+      "optional": true,
+      "type": "per-sample"
+    },
     "sample-mod-bigwig": {
       "filepath": "samples/{{ alias }}/mods/{{ alias }}.mods.*.bw",
       "title": "Modified base bigWig",
