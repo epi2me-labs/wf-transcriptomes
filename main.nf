@@ -294,27 +294,30 @@ workflow {
     pipeline_run = wf(processed_samples, sample_sheet, ref_genome, ref_annotation)
     results = pipeline_run.results
 
-    reference_basename = file(params.ref_genome).getName()
     if (params.igv) {
-        results = results
-            .concat(ref_genome.map { fasta, faidx -> [fasta, "igv_reference"] })
-            .concat(ref_genome.map { fasta, faidx -> [faidx, "igv_reference"] })
-
+        // TODO lib/ref should be responsible for writing NEW outputs to a location of our choosing
+        // until then, we'll handle emission here. we'll emit (path:str, to_publish:bool) tuples for ref-related files
+        // and pass those to both igv_ref_paths and results (for publishing)
         is_compressed = params.ref_genome.toLowerCase().endsWith("gz")
-
         if (is_compressed) {
-            // ref files are directly publish into output
-            igv_files = Channel.of("${reference_basename}")
-            igv_index_paths = prepared_reference.ref_gzidx.map {
-                    fasta, faidx, gzidx -> "${faidx.getName()}"
-                }
-                .concat(prepared_reference.ref_gzidx.map {
-                    fasta, faidx, gzidx -> "${gzidx.getName()}"
-                })
+            ref_files = prepared_reference.ref_gzidx | flatten | map {
+                boolean to_publish = it.toString().startsWith("${workflow.workDir}")
+                [it, to_publish]
+            }
         } else {
-            igv_files = Channel.of("igv_reference/${reference_basename}")
-            igv_index_paths = ref_genome.map { fasta, faidx -> "igv_reference/${faidx.getName()}"}
+            ref_files = ref_genome | flatten | map {
+                boolean to_publish = it.toString().startsWith("${workflow.workDir}")
+                [it, to_publish]
+            }
         }
+
+        // convert files set to_publish to their IGV location
+        igv_ref_paths = ref_files.map {
+            path, to_publish -> to_publish ? "reference/${path.getName()}" : path.toString()
+        }
+        publish_ref_paths = ref_files
+            .filter { it[1] }  // select files set to_publish
+            .map { [ it[0], "reference" ] }
 
         igv_alignment_paths = processed_samples
             .map { meta, bam, bai, stat -> [
@@ -331,8 +334,7 @@ workflow {
                 (paths instanceof List ? paths : [paths]).collect { path -> "${alias},samples/${alias}/mods/${path.name}" }
             }
 
-        igv_files = igv_files
-            .concat(igv_index_paths)
+        igv_files = igv_ref_paths
             .concat(igv_alignment_paths)
             .concat(igv_bigwigs)
             .collectFile(name: "igv-files.txt", newLine: true, sort: false)
@@ -344,7 +346,9 @@ workflow {
             [:],
             false
         )
-        results = results.concat(igv_conf.map { [it, null] })
+        results = results
+            .concat(publish_ref_paths)
+            .concat(igv_conf.map { [it, null] })
     }
     publishResults(results)
 }
