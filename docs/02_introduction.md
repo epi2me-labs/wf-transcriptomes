@@ -2,10 +2,12 @@ This workflow analyses Oxford Nanopore long-read RNA sequencing data. It uses
 [`bambu`](https://bioconductor.org/packages/bambu/) to build and quantify
 transcript models, can optionally run
 [`SQANTI3`](https://github.com/ConesaLab/SQANTI3) for transcript classification
-and QC, and can optionally run
+and QC, can optionally run
 [`DESeq2`](https://bioconductor.org/packages/DESeq2/) and
 [`DEXSeq`](https://bioconductor.org/packages/DEXSeq/) for differential
-analysis.
+analysis, and will run
+[`modkit`](https://github.com/nanoporetech/modkit) for base modification
+pileups on aligned reads if relevant tags are present.
 
 The workflow supports:
 
@@ -15,6 +17,7 @@ The workflow supports:
 + optional transcript classification and QC with `SQANTI3`
 + differential gene expression with `DESeq2`
 + differential transcript usage with `DEXSeq`
++ base modification pileups with `modkit`
 
 The main transcriptome result is a shared `bambu` model built from all samples
 together. The workflow also produces separate per-sample transcriptomes, so

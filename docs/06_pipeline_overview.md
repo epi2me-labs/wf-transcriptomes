@@ -32,14 +32,15 @@ main source of sample names for multiplexed runs and is required for
 + Every row must contain `barcode` and `alias`.
 + `barcode` must use the usual ONT-style naming such as `barcode01`,
   `barcode02`, and the values must be unique.
-+ `alias` is the user-facing sample name, must be unique, and must not begin
-  with the word `barcode`.
++ `alias` is the user-facing sample name, must be unique, must not begin
+  with the word `barcode` and may contain only letters, numbers, `.`, `_` or `-`.
 + If a `type` column is present, it must use one of:
   `test_sample`, `positive_control`, `negative_control`, or
   `no_template_control`.
 + If an `analysis_group` column is present, every row must have a value.
 + For `--de_analysis`, the sheet must also contain the primary condition
-  column, `condition` by default, plus any columns named in `--covariates`.
+  column (`condition` by default, overridable with `--condition_column`),
+  plus any columns named in `--covariates`.
 
 When multiplexed input folders are named by barcode, the workflow matches those
 folder names against the `barcode` column. If the folders are named by alias,
@@ -101,7 +102,7 @@ for DE/DTU.
 ### 7. Transcript sequence generation and QC
 
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
-When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
+`SQANTI3` classifies the cohort and per-sample
 transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
 results live under `cohort/sqanti/`, while per-sample `SQANTI3`
 directories are published under `samples/<alias>/sqanti/`.

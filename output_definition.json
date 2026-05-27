@@ -268,12 +268,12 @@
       "filepath": "igv.json",
       "title": "IGV configuration",
       "description": "JSON configuration for viewing the aligned BAMs in IGV.",
-      "mime-type": "text/json",
+      "mime-type": "application/json",
       "optional": true,
       "type": "aggregated"
     },
     "reference-index": {
-      "filepath": "igv_reference/{{ ref_genome_file }}.fai",
+      "filepath": "reference/{{ ref_genome_file }}.fai",
       "title": "Reference FASTA index",
       "description": "FAI index for the reference genome published for IGV.",
       "mime-type": "text/tab-separated-values",
@@ -281,7 +281,7 @@
       "type": "aggregated"
     },
     "reference-gzi-index": {
-      "filepath": "igv_reference/{{ ref_genome_file }}.gzi",
+      "filepath": "reference/{{ ref_genome_file }}.gzi",
       "title": "Reference GZI index",
       "description": "GZI index for a compressed reference genome published for IGV.",
       "mime-type": "application/octet-stream",
