@@ -93,7 +93,7 @@ process minimap2_alignment {
         def fastq_input_cmd = "touch reads.header && fastcat --reheader reads/*"
         def bam_or_fastq_input = params.bam ? bam_input_cmd : fastq_input_cmd
         def minimap2_opts = bsargs["minimap2_opts"]
-        
+        def sort_threads = bsargs["sort_threads"]
     """
     rm -rf bamstats_results
     mkdir bamstats_results
@@ -103,7 +103,7 @@ process minimap2_alignment {
         | workflow-glue reheader_samstream reads.header \
             --insert \$'@PG\\tID:reset\\tPN:samtools\\tCL:${reset_cmd_body}' \
             --insert \$'@PG\\tID:fastq\\tPN:samtools\\tCL:${fastq_cmd_body}' \
-        | samtools sort -u -O BAM - \
+        | samtools sort -@ ${sort_threads} -u -O BAM - \
         | tee >(samtools view --reference ${reference} \
             --write-index -o reads.${align_ext}##idx##reads.${align_ext}.${index_ext} -) \
         | bamstats -s ${meta.alias} -u \

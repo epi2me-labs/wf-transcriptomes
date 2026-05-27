@@ -182,6 +182,7 @@ def add_number_of_reads_to_meta(ch, String input_type_format) {
  *  - "alignment_threads": number of threads to use for alignment process (default: 6)
  *  - "output_xam_fmt": alignment output format, `bam` outputs a BAM file with index (.bam, .bai),
        `cram` outputs a CRAM file with index (.cram, .crai)
+ *  - "sort_threads": number of threads to use for sorting aligned reads (default: 1)
  * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
  *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
@@ -337,7 +338,8 @@ def fastq_ingress(Map arguments, aln_ref_ch = null)
  *  - "alignment_threads": number of threads to use for alignment process (default: 6)
  *  - "output_xam_fmt": alignment output format, `bam` outputs an BAM file with index (.bam, .bai),
        `cram` outputs a CRAM file with index (.cram, .crai)
-*   - "force_alignment": boolean. Run alignment regardless of inputs.
+ *  - "sort_threads": number of threads to use for sorting aligned reads (default: 1)
+ *  - "force_alignment": boolean. Run alignment regardless of inputs.
  * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
  *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
@@ -985,7 +987,8 @@ Map parse_arguments(String func_name, Map arguments, Map extra_kwargs=[:]) {
         "minimap2_memory": ["8GB", "15GB", "31GB"],
         "minimap2_opts": "-x lr:hq",
         "alignment_threads": 6,
-        "output_xam_fmt": "bam" // or cram
+        "output_xam_fmt": "bam", // or cram
+        "sort_threads": 1 // TODO hook this up for ingress sorts as well
     ]
     ArgumentParser parser = new ArgumentParser(
         args: required_args,
