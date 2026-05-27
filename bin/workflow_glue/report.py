@@ -112,6 +112,24 @@ def _format_ratio_value(value):
     return f"{numeric:.2f}x"
 
 
+def _sorted_transcript_abundance_table(tx_counts_file, sample_aliases):
+    """Get transcript abundance rows by descending total abundance of sample columns."""
+    tx_counts = _read_table(tx_counts_file)
+    if tx_counts is None or tx_counts.empty:
+        return tx_counts
+
+    count_columns = [
+        column for column in tx_counts.columns if column in set(sample_aliases)
+    ]
+    if not count_columns:
+        return tx_counts
+
+    numeric_counts = tx_counts[count_columns].apply(pd.to_numeric, errors="coerce")
+    abundance = numeric_counts.sum(axis=1, min_count=1)
+    order = abundance.fillna(float("-inf")).sort_values(ascending=False).index
+    return tx_counts.loc[order].reset_index(drop=True)
+
+
 def _format_classification_label(name):
     """Return canonical report label for a summary classification value."""
     return str(name).strip().replace("-", "_").replace("_", " ").capitalize()
@@ -380,10 +398,36 @@ def _contrast_results(de_dir, filename, n=None):
         data = table
         if n is not None:
             data = data.head(n)
-        data.sort_values("padj", ascending=True, inplace=True)
+        if "padj" in data.columns:
+            data.sort_values("padj", ascending=True, inplace=True)
         tables[contrast_dir.name] = data
 
     return tables
+
+
+def _round_de_table(table):
+    """Return a display-formatted copy of a DE/DTU result table."""
+    rounded_columns = [
+        "baseMean", "exonBaseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj"
+    ]
+
+    def _format_numeric(value):
+        numeric_value = pd.to_numeric(value, errors="coerce")
+        if pd.isna(numeric_value):
+            return value
+        fixed_decimal = f"{numeric_value:.3f}"
+        if numeric_value != 0 and (
+            abs(numeric_value) < 0.0001 or fixed_decimal in {"0.000", "-0.000"}
+        ):
+            return f"{numeric_value:.3e}"
+        return fixed_decimal
+
+    rounded = table.copy()
+    for column in rounded_columns:
+        if column not in rounded.columns:
+            continue
+        rounded[column] = rounded[column].map(_format_numeric)
+    return rounded
 
 
 def _load_bambu_qc(bambu_dir):
@@ -911,13 +955,17 @@ def main(args):
                 use_index=False,
             )
 
-        tx_counts = _read_table(Path(bambu_dir) / "transcript_counts.tsv")
+        tx_counts = _sorted_transcript_abundance_table(
+            Path(bambu_dir) / "transcript_counts.tsv",
+            [item["alias"] for item in metadata]
+        )
         if tx_counts is not None and not tx_counts.empty:
             p(
-                "Top transcript rows from the "
-                f"{'sample' if is_single_sample else 'cohort'} abundance table."
+                f"Top {args.de_table_size} most abundant transcripts"
             )
-            DataTable.from_pandas(tx_counts.head(20), use_index=False)
+            DataTable.from_pandas(tx_counts.head(args.de_table_size), use_index=False)
+        else:
+            _create_warning_banner("No trancrips discovered")
 
     if not is_single_sample:
         with report.add_section(
@@ -933,15 +981,6 @@ def main(args):
                         searchable=False,
                         use_index=False,
                     )
-
-    if args.alignment_stats_dir and Path(args.alignment_stats_dir).exists():
-        with report.add_section("Alignment statistics", "Alignments"):
-            tabs = Tabs()
-            for stats_file in sorted(
-                Path(args.alignment_stats_dir).glob("*.flagstat.txt")
-            ):
-                with tabs.add_tab(stats_file.stem.replace(".flagstat", "")):
-                    pre(stats_file.read_text())
 
     sqanti_table = _sqanti_table(args.sqanti_dir)
     if sqanti_table is not None and not sqanti_table.empty:
@@ -1296,7 +1335,8 @@ def main(args):
                                     strong("Note: ")
                                     raw(contrast_data["dtu_power_warning"])
                     DataTable.from_pandas(
-                        table.head(args.de_table_size), use_index=False
+                        _round_de_table(table.head(args.de_table_size)),
+                        use_index=False
                     )
                     with div(cls="clustering-info"):
                         raw(
@@ -1373,7 +1413,8 @@ def main(args):
                     if contrast_name in dtu_tables:
                         dtu_table = dtu_tables[contrast_name]
                         DataTable.from_pandas(
-                            dtu_table.head(args.de_table_size), use_index=False
+                            _round_de_table(dtu_table.head(args.de_table_size)),
+                            use_index=False
                         )
                         with div(cls="clustering-info"):
                             raw(
@@ -1400,11 +1441,6 @@ def argparser():
     parser.add_argument("report", help="Report output file.")
     parser.add_argument("--metadata", required=True, help="Sample metadata JSON.")
     parser.add_argument("--stats", nargs="+", help="Per-read stats paths.")
-    parser.add_argument(
-        "--alignment_stats_dir",
-        default=None,
-        help="Alignment stats directory.",
-    )
     parser.add_argument(
         "--cohort_dir",
         required=True,

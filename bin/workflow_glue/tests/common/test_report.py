@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pandas as pd
 from workflow_glue import report
 
 
@@ -110,11 +111,6 @@ def _build_report_args(tmp_path, de_qc=None):
     mod_summaries.mkdir()
     sqanti = tmp_path / "sqanti"
     sqanti.mkdir()
-    alignment_stats = tmp_path / "alignment_stats"
-    alignment_stats.mkdir()
-    (samples / "OPTIONAL_FILE").touch()
-    (sqanti / "OPTIONAL_FILE").touch()
-    (alignment_stats / "OPTIONAL_FILE").touch()
 
     de_dir = None
     if de_qc is not None:
@@ -143,8 +139,6 @@ def _build_report_args(tmp_path, de_qc=None):
         str(out_report),
         "--metadata",
         str(metadata),
-        "--alignment_stats_dir",
-        str(alignment_stats),
         "--cohort_dir",
         str(cohort),
         "--ref_summary",
@@ -225,18 +219,12 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     sqanti.mkdir()
     (sqanti / "OPTIONAL_FILE").touch()
 
-    alignment_stats = tmp_path / "alignment_stats"
-    alignment_stats.mkdir()
-    (alignment_stats / "OPTIONAL_FILE").touch()
-
     out_report = tmp_path / "wf-transcriptomes-report.html"
     args = report.argparser().parse_args(
         [
             str(out_report),
             "--metadata",
             str(metadata),
-            "--alignment_stats_dir",
-            str(alignment_stats),
             "--cohort_dir",
             str(cohort),
             "--ref_summary",
@@ -417,8 +405,6 @@ def test_report_main_handles_degenerate_bambu_qc_and_read_summary(
             str(out_report),
             "--metadata",
             str(metadata),
-            "--alignment_stats_dir",
-            str(alignment_stats),
             "--stats",
             str(alignment_stats),
             "--cohort_dir",
@@ -556,18 +542,12 @@ def test_report_main_uses_cohort_bambu_qc_for_multi_sample_inputs(
     sqanti.mkdir()
     (sqanti / "OPTIONAL_FILE").touch()
 
-    alignment_stats = tmp_path / "alignment_stats"
-    alignment_stats.mkdir()
-    (alignment_stats / "OPTIONAL_FILE").touch()
-
     out_report = tmp_path / "wf-transcriptomes-report.html"
     args = report.argparser().parse_args(
         [
             str(out_report),
             "--metadata",
             str(metadata),
-            "--alignment_stats_dir",
-            str(alignment_stats),
             "--cohort_dir",
             str(cohort),
             "--ref_summary",
@@ -773,3 +753,64 @@ def test_report_main_tolerates_missing_statistical_fields(monkeypatch, tmp_path)
     ]
     assert method_tables
     assert "parametric" in method_tables[0].to_string()
+
+
+def test_round_de_table_formats_supported_numeric_columns():
+    """DE/DTU preview tables should round known numeric columns for display."""
+    table = pd.DataFrame(
+        {
+            "GENEID": ["gene1"],
+            "baseMean": [123.4567],
+            "log2FoldChange": [0.00001234],
+            "lfcSE": [0.98765],
+            "stat": [-45.6789],
+            "pvalue": [0.00001234],
+            "padj": [0.123456],
+            "other": [7.89123],
+        }
+    )
+
+    rounded = report._round_de_table(table)
+
+    assert rounded.loc[0, "baseMean"] == "123.457"
+    assert rounded.loc[0, "log2FoldChange"] == "1.234e-05"
+    assert rounded.loc[0, "lfcSE"] == "0.988"
+    assert rounded.loc[0, "stat"] == "-45.679"
+    assert rounded.loc[0, "pvalue"] == "1.234e-05"
+    assert rounded.loc[0, "padj"] == "0.123"
+    assert rounded.loc[0, "other"] == 7.89123
+
+
+def test_round_de_table_uses_scientific_notation_when_fixed_decimal_would_zero():
+    """Tiny non-zero values should not display as 0.000 in DE/DTU tables."""
+    table = pd.DataFrame(
+        {
+            "GENEID": ["gene1"],
+            "pvalue": [0.00012],
+            "padj": [0.00049],
+        }
+    )
+
+    rounded = report._round_de_table(table)
+
+    assert rounded.loc[0, "pvalue"] == "1.200e-04"
+    assert rounded.loc[0, "padj"] == "4.900e-04"
+
+
+def test_sorted_transcript_abundance_table_uses_sample_alias_columns(tmp_path):
+    """Transcript abundance sorting should use only real sample alias columns."""
+    tx_counts_file = _write(
+        tmp_path / "transcript_counts.tsv",
+        (
+            "TXNAME\tsampleA\tsampleB\tgene_length\tannotation_score\n"
+            "tx_low\t1\t1\t10000\t999\n"
+            "tx_high\t5\t5\t10\t1\n"
+            "tx_mid\t2\t2\t5000\t500\n"
+        ),
+    )
+
+    sorted_table = report._sorted_transcript_abundance_table(
+        tx_counts_file, ["sampleA", "sampleB"]
+    )
+
+    assert sorted_table["TXNAME"].tolist() == ["tx_high", "tx_mid", "tx_low"]
