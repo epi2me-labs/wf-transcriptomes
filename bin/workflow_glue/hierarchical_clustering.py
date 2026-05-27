@@ -177,14 +177,14 @@ def _add_colour(samples, condition_column):
     return samples
 
 
-def _condition_strip_plot(sample_metadata, col_order, x_range):
+def _condition_strip_plot(sample_metadata, col_order, x_range, condition_column):
     """Build a compact condition strip aligned to the heatmap columns."""
     smeta = sample_metadata.iloc[col_order]
     condition_height = int(TOP_DENDROGRAM_HEIGHT * 0.5)
     strip_source = ColumnDataSource({
         "x": np.arange(len(smeta)),
         "sample": smeta["sample"].tolist(),
-        "condition": smeta["condition"].tolist(),
+        "condition": smeta[condition_column].tolist(),
         "sample_color": smeta["contrast_color"].tolist(),
     })
     strip = figure(
@@ -355,8 +355,15 @@ def distance_plot(matrix, col_order, sample_names, height):
 
 
 def heatmap_plot(
-    z_matrix, labels, sample_names, row_linkage, col_linkage, sample_metadata, col_order
-        ):
+    z_matrix,
+    labels,
+    sample_names,
+    row_linkage,
+    col_linkage,
+    sample_metadata,
+    col_order,
+    condition_column,
+):
     """Build the clustered heatmap and row dendrogram layout."""
     n_rows, n_cols = z_matrix.shape
     x_values = np.tile(np.arange(n_cols), n_rows)
@@ -456,7 +463,9 @@ def heatmap_plot(
     final_fig = BokehPlot()
     if sample_metadata is not None:
         strip_height = int(TOP_DENDROGRAM_HEIGHT * 0.5)
-        strip = _condition_strip_plot(sample_metadata, col_order, heatmap.x_range)
+        strip = _condition_strip_plot(
+            sample_metadata, col_order, heatmap.x_range, condition_column
+        )
         left_column = bokeh_column(
             sample_dendro_fig, strip, heatmap, sizing_mode="stretch_width", spacing=0)
         right_column = bokeh_column(
@@ -482,6 +491,8 @@ def pca_plot(matrix, col_order, sample_names, sample_metadata, condition_column)
     pca_data = _sample_pca(matrix[:, col_order], sample_names)
     if sample_metadata is not None:
         pca_data = pca_data.merge(sample_metadata, on="sample", how="left")
+        if condition_column in pca_data.columns:
+            pca_data["condition"] = pca_data[condition_column]
     else:
         pca_data["contrast_color"] = "#4C78A8"
 
@@ -590,7 +601,8 @@ def hierarchical(
         row_linkage=row_linkage,
         col_linkage=col_linkage,
         sample_metadata=meta,
-        col_order=col_order
+        col_order=col_order,
+        condition_column=condition_column,
     )
     pca_plt = pca_plot(
         matrix=log2_matrix,
