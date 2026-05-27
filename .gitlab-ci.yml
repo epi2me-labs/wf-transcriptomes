@@ -17,6 +17,8 @@ variables:
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
               WF_TEMPLATE_ENFORCEMENT_BRANCH: "ruo-next"
+              RELEASE_WORKFLOW: "no" # do not release this workflow!
+              RELEASE_WITHOUT_DEMO: "yes"
 
 pytest_wfcontainer:
     extends: pytest
@@ -31,6 +33,9 @@ macos-run:
     - macos
     - x86
 
+aws-run:
+    rules:
+        - when: never
 
 docker-run:
     tags:
