@@ -9,16 +9,15 @@
   "url": "https://github.com/epi2me-labs/wf-transcriptomes",
   "type": "object",
   "definitions": {
-    "input_options": {
-      "title": "Input Options",
+    "main_options": {
+      "title": "Main Options",
       "type": "object",
-      "description": "Parameters for ingesting read data.",
+      "description": "Parameters for read ingestion, and setting reference and transcriptome construction mode.",
       "properties": {
         "fastq": {
           "type": "string",
           "format": "path",
           "title": "FASTQ",
-          "demo_data": "${projectDir}/test_data/smoke/reads.fastq",
           "description": "FASTQ reads to analyse.",
           "help_text": "You can provide a single FASTQ, a folder of FASTQs, or a multiplexed folder containing one sub-folder per sample or barcode."
         },
@@ -28,49 +27,10 @@
           "description": "BAM or uBAM reads to analyse.",
           "help_text": "You can provide a single BAM or uBAM, a folder of BAMs, or a multiplexed folder containing one sub-folder per sample or barcode."
         },
-        "analyse_unclassified": {
-          "type": "boolean",
-          "default": false,
-          "description": "Include unclassified reads from multiplexed input directories."
-        },
-        "analyse_fail": {
-          "type": "boolean",
-          "default": false,
-          "description": "Include fail reads from multiplexed input directories."
-        },
-        "fastq_chunk": {
-          "type": "integer",
-          "description": "Maximum number of reads per ingress chunk.",
-          "help_text": "Useful mainly for testing or for splitting very large inputs into smaller pieces."
-        }
-      },
-      "allOf": [
-        {
-          "oneOf": [
-            {
-              "required": [
-                "fastq"
-              ]
-            },
-            {
-              "required": [
-                "bam"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    "reference_options": {
-      "title": "Reference Options",
-      "type": "object",
-      "description": "Reference files and transcriptome construction mode.",
-      "properties": {
         "ref_genome": {
           "type": "string",
           "format": "file-path",
           "title": "Reference genome",
-          "demo_data": "${projectDir}/test_data/smoke/reference.fa",
           "description": "Reference genome FASTA.",
           "help_text": "Required in both discover and fixed_annotation modes."
         },
@@ -78,7 +38,6 @@
           "type": "string",
           "format": "file-path",
           "title": "Reference annotation",
-          "demo_data": "${projectDir}/test_data/smoke/annotation.gtf",
           "description": "Reference transcript annotation in GTF or GFF format.",
           "help_text": "Required in both discover and fixed_annotation modes."
         },
@@ -102,7 +61,40 @@
         "ref_genome",
         "ref_annotation",
         "transcriptome_mode"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "fastq"
+              ]
+            },
+            {
+              "required": [
+                "bam"
+              ]
+            }
+          ]
+        }
       ]
+    },
+    "filter_options": {
+      "title": "Read Filtering Options",
+      "type": "object",
+      "description": "Options for filtering input reads.",
+      "properties": {
+        "analyse_unclassified": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include unclassified reads from multiplexed input directories."
+        },
+        "analyse_fail": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include fail reads from bam_fail and fastq_fail folders found in sample folders on the input path."
+        }
+      }
     },
     "sample_options": {
       "title": "Sample Options",
@@ -113,7 +105,6 @@
           "type": "string",
           "format": "file-path",
           "title": "Sample sheet",
-          "demo_data": "${projectDir}/test_data/smoke/sample_sheet.csv",
           "description": "CSV file describing barcodes, aliases, and optional experimental design columns.",
           "help_text": "For multiplexed runs, the sample sheet should contain both barcode and alias. For differential analysis it must also contain alias, the condition column, and any extra columns named in `--covariates`."
         },
@@ -123,8 +114,8 @@
         }
       }
     },
-    "analysis_options": {
-      "title": "Analysis Options",
+    "de_analysis_options": {
+      "title": "Differential Expression Analysis Options",
       "type": "object",
       "description": "Parameters controlling DGE and DTU analyses.",
       "properties": {
@@ -188,17 +179,6 @@
           "description": "Comma-separated modified base codes to pass to modkit pileup.",
           "help_text": "Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`."
         },
-        "minimap2_index_opts": {
-          "type": "string",
-          "default": "",
-          "hidden": true,
-          "description": "Legacy compatibility parameter forwarded to minimap2 index generation."
-        },
-        "minimap2_opts": {
-          "type": "string",
-          "default": "",
-          "description": "Extra command-line options to pass to minimap2."
-        },
         "force_alignment" : {
           "type": "boolean",
           "default": false,
@@ -209,20 +189,10 @@
           "type": "number",
           "description": "Optional bambu novel discovery rate override."
         },
-        "skip_sqanti": {
-          "type": "boolean",
-          "default": false,
-          "description": "Skip SQANTI3 transcript classification and QC."
-        },
         "sqanti_skip_orf": {
           "type": "boolean",
           "default": true,
           "description": "Skip ORF prediction during SQANTI3 QC."
-        },
-        "sqanti_extra_args": {
-          "type": "string",
-          "default": "",
-          "description": "Extra command-line options to pass to SQANTI3."
         }
       }
     },
@@ -261,16 +231,16 @@
   },
   "allOf": [
     {
-      "$ref": "#/definitions/input_options"
+      "$ref": "#/definitions/main_options"
     },
     {
-      "$ref": "#/definitions/reference_options"
+      "$ref": "#/definitions/filter_options"
     },
     {
       "$ref": "#/definitions/sample_options"
     },
     {
-      "$ref": "#/definitions/analysis_options"
+      "$ref": "#/definitions/de_analysis_options"
     },
     {
       "$ref": "#/definitions/output_options"
@@ -304,12 +274,12 @@
   },
   "resources": {
     "recommended": {
-      "cpus": 16,
-      "memory": "64GB"
+      "cpus": 32,
+      "memory": "96GB"
     },
     "minimum": {
-      "cpus": 8,
-      "memory": "32GB"
+      "cpus": 12,
+      "memory": "64GB"
     },
     "run_time": "Varies with read depth and sample count; expect a small single-sample run to finish in under 30 minutes with the recommended resources.",
     "arm_support": false

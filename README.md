@@ -10,10 +10,12 @@ This workflow analyses Oxford Nanopore long-read RNA sequencing data. It uses
 [`bambu`](https://bioconductor.org/packages/bambu/) to build and quantify
 transcript models, can optionally run
 [`SQANTI3`](https://github.com/ConesaLab/SQANTI3) for transcript classification
-and QC, and can optionally run
+and QC, can optionally run
 [`DESeq2`](https://bioconductor.org/packages/DESeq2/) and
 [`DEXSeq`](https://bioconductor.org/packages/DEXSeq/) for differential
-analysis.
+analysis, and will run
+[`modkit`](https://github.com/nanoporetech/modkit) for base modification
+pileups on aligned reads if relevant tags are present.
 
 The workflow supports:
 
@@ -23,6 +25,7 @@ The workflow supports:
 + optional transcript classification and QC with `SQANTI3`
 + differential gene expression with `DESeq2`
 + differential transcript usage with `DEXSeq`
++ base modification pileups with `modkit`
 
 The main transcriptome result is a shared `bambu` model built from all samples
 together. The workflow also produces separate per-sample transcriptomes, so
@@ -48,13 +51,13 @@ sections call out the main differences from the previous workflow version.
 
 Recommended requirements:
 
-+ CPUs = 16
-+ Memory = 64GB
++ CPUs = 32
++ Memory = 96GB
 
 Minimum requirements:
 
-+ CPUs = 8
-+ Memory = 32GB
++ CPUs = 12
++ Memory = 64GB
 
 Approximate run time: Varies with read depth and sample count; expect a small single-sample run to finish in under 30 minutes with the recommended resources.
 
@@ -117,7 +120,6 @@ nextflow run epi2me-labs/wf-transcriptomes \
 	--de_analysis \
 	--direct_rna \
 	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--minimap2_index_opts '-k 15' \
 	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
 	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \
 	--sample_sheet 'wf-transcriptomes-demo/sample_sheet.csv' \
@@ -187,14 +189,15 @@ main source of sample names for multiplexed runs and is required for
 + Every row must contain `barcode` and `alias`.
 + `barcode` must use the usual ONT-style naming such as `barcode01`,
   `barcode02`, and the values must be unique.
-+ `alias` is the user-facing sample name, must be unique, and must not begin
-  with the word `barcode`.
++ `alias` is the user-facing sample name, must be unique, must not begin
+  with the word `barcode` and may contain only letters, numbers, `.`, `_` or `-`.
 + If a `type` column is present, it must use one of:
   `test_sample`, `positive_control`, `negative_control`, or
   `no_template_control`.
 + If an `analysis_group` column is present, every row must have a value.
 + For `--de_analysis`, the sheet must also contain the primary condition
-  column, `condition` by default, plus any columns named in `--covariates`.
+  column (`condition` by default, overridable with `--condition_column`),
+  plus any columns named in `--covariates`.
 
 When multiplexed input folders are named by barcode, the workflow matches those
 folder names against the `barcode` column. If the folders are named by alias,
@@ -256,7 +259,7 @@ for DE/DTU.
 ### 7. Transcript sequence generation and QC
 
 Transcript FASTA files are derived from GTF plus genome using `gffread`.
-When `--skip_sqanti` is not set, `SQANTI3` classifies the cohort and per-sample
+`SQANTI3` classifies the cohort and per-sample
 transcriptomes and produces structural QC summaries. The cohort `SQANTI3`
 results live under `cohort/sqanti/`, while per-sample `SQANTI3`
 directories are published under `samples/<alias>/sqanti/`.
@@ -302,25 +305,24 @@ directories:
 
 ## Input parameters
 
-### Input Options
+### Main Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
 | fastq | string | FASTQ reads to analyse. | You can provide a single FASTQ, a folder of FASTQs, or a multiplexed folder containing one sub-folder per sample or barcode. |  |
 | bam | string | BAM or uBAM reads to analyse. | You can provide a single BAM or uBAM, a folder of BAMs, or a multiplexed folder containing one sub-folder per sample or barcode. |  |
-| analyse_unclassified | boolean | Include unclassified reads from multiplexed input directories. |  | False |
-| analyse_fail | boolean | Include fail reads from multiplexed input directories. |  | False |
-| fastq_chunk | integer | Maximum number of reads per ingress chunk. | Useful mainly for testing or for splitting very large inputs into smaller pieces. |  |
-
-
-### Reference Options
-
-| Nextflow parameter name  | Type | Description | Help | Default |
-|--------------------------|------|-------------|------|---------|
 | ref_genome | string | Reference genome FASTA. | Required in both discover and fixed_annotation modes. |  |
 | ref_annotation | string | Reference transcript annotation in GTF or GFF format. | Required in both discover and fixed_annotation modes. |  |
 | transcriptome_mode | string | How bambu should prepare the transcriptome model. | Use discover for reference-guided transcript discovery and quantification, or fixed_annotation for quantification only against the supplied annotation. | discover |
 | direct_rna | boolean | Set this for direct RNA sequencing libraries. |  | False |
+
+
+### Read Filtering Options
+
+| Nextflow parameter name  | Type | Description | Help | Default |
+|--------------------------|------|-------------|------|---------|
+| analyse_unclassified | boolean | Include unclassified reads from multiplexed input directories. |  | False |
+| analyse_fail | boolean | Include fail reads from bam_fail and fastq_fail folders found in sample folders on the input path. |  | False |
 
 
 ### Sample Options
@@ -331,7 +333,7 @@ directories:
 | sample | string | Single sample name for singleplexed input or to restrict multiplexed analysis to one sample. |  |  |
 
 
-### Analysis Options
+### Differential Expression Analysis Options
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
@@ -355,12 +357,9 @@ directories:
 |--------------------------|------|-------------|------|---------|
 | threads | integer | Thread count to use for the core workflow processes. |  | 4 |
 | mod_codes | string | Comma-separated modified base codes to pass to modkit pileup. | Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`. |  |
-| minimap2_opts | string | Extra command-line options to pass to minimap2. |  |  |
 | force_alignment | boolean | Force re-alignment of input BAM files. | Read alignment is skipped if the existing sequence names in the aligned BAM match the provided reference. Enable this if the existing alignments used incorrect minimap2 presets (e.g. missing --splice or direct RNA settings). | False |
 | ndr | number | Optional bambu novel discovery rate override. |  |  |
-| skip_sqanti | boolean | Skip SQANTI3 transcript classification and QC. |  | False |
 | sqanti_skip_orf | boolean | Skip ORF prediction during SQANTI3 QC. |  | True |
-| sqanti_extra_args | string | Extra command-line options to pass to SQANTI3. |  |  |
 
 
 
@@ -407,8 +406,8 @@ Output files may be aggregated including information for all samples or provided
 | DTU failure diagnostic | de_analysis/{{ contrast }}/DTU_ANALYSIS_FAILED.txt | Diagnostic details when DEXSeq fails for a contrast. | aggregated |
 | Multiple-testing warning | de_analysis/MULTIPLE_TESTING_WARNING.txt | Family-wise error-rate note generated when multiple contrasts are tested. | aggregated |
 | IGV configuration | igv.json | JSON configuration for viewing the aligned BAMs in IGV. | aggregated |
-| Reference FASTA index | igv_reference/{{ ref_genome_file }}.fai | FAI index for the reference genome published for IGV. | aggregated |
-| Reference GZI index | igv_reference/{{ ref_genome_file }}.gzi | GZI index for a compressed reference genome published for IGV. | aggregated |
+| Reference FASTA index | reference/{{ ref_genome_file }}.fai | FAI index for the reference genome published for IGV. | aggregated |
+| Reference GZI index | reference/{{ ref_genome_file }}.gzi | GZI index for a compressed reference genome published for IGV. | aggregated |
 
 
 
