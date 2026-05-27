@@ -72,7 +72,6 @@ process faidx {
 
 // Process to create the faidx indexes for a gzipped reference
 process gz_faidx {
-    publishDir "${params.out_dir}", mode: 'copy', pattern: "*"
     label "wf_common"
     cpus 1
     memory 4.GB
