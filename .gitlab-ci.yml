@@ -69,7 +69,7 @@ docker-run:
             - MATRIX_NAME: [
                 "int_discover_dna", "int_fixed_rna", "int_de_control_vs_control",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
-                "mouse_de_0countquant", "mods_bigwig_igv"
+                "mouse_de_0countquant", "mods_bigwig_igv", "mismatch-sample-alias"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -173,6 +173,13 @@ docker-run:
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dge.tsv &&
                   test -f ${CI_PROJECT_NAME}/de_analysis/condition_treated_vs_control/results_dtu_transcript.tsv &&
                   [ "$(find ${CI_PROJECT_NAME}/samples -type f -name 'gene_counts.tsv' | wc -l)" -eq 4 ]
+        - if: $MATRIX_NAME == "mismatch-sample-alias"
+          variables:
+              NF_BEFORE_SCRIPT: ":"
+              NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de/barcode01/reads.fastq --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf"
+              ASSERT_NEXTFLOW_FAILURE: "1"
+              AFTER_NEXTFLOW_CMD: >
+                  grep -F "Sample alias 'reads' was not found in the sample_sheet alias column." .nextflow.log
         # Tests a common error when there are 0 annotation counts for a chunk
         - if: $MATRIX_NAME == "mouse_de_0countquant"
           variables:

@@ -236,6 +236,24 @@ workflow {
             "force_alignment": params.force_alignment,
         ] + ingress_args, ref_genome)
     }
+
+
+    sample_sheet_aliases = sample_sheet == OPTIONAL_FILE ?
+        null :
+        sample_sheet
+            .splitCsv(header: true, quote: '"')
+            .collect { it.alias }
+            .findAll { it != null }
+            .toSet()
+    samples.subscribe { meta, xam, xai, stats ->
+        if (sample_sheet_aliases != null && !sample_sheet_aliases.contains(meta.alias)) {
+            throw new Exception(
+                "Sample alias '${meta.alias}' was not found in the sample_sheet alias column."
+            )
+        }
+    }
+
+
     analysis_samples = samples
         .filter { meta, xam, xai, stats ->
             boolean is_excluded = false

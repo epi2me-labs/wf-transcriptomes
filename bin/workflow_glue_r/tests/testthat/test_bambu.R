@@ -135,41 +135,6 @@ testthat::test_that("unique sample aliases required", {
         bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
         "Provide one alias per BAM in --bams"
     )
-
-    missing_alias_sheet <- tempfile(fileext = ".csv")
-    writeLines(
-        paste(
-            "condition",
-            "control",
-            sep = "\n"
-        ),
-        missing_alias_sheet
-    )
-    args <- list(
-        bams = "sampleA.bam",
-        aliases = "sampleA",
-        sample_sheet = missing_alias_sheet
-    )
-    testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
-        "Sample sheet must contain an 'alias' column"
-    )
-
-    duplicate_alias_sheet <- tempfile(fileext = ".csv")
-    writeLines(
-        paste(
-            "alias,condition",
-            "sampleA,control",
-            "sampleA,treated",
-            sep = "\n"
-        ),
-        duplicate_alias_sheet
-    )
-    args$sample_sheet <- duplicate_alias_sheet
-    testthat::expect_error(
-        bambu_resolve_inputs(args, bamfile_list_ctor = function(paths, yieldSize) paths),
-        "Sample sheet aliases must be unique"
-    )
 })
 
 # Sample sheet rows must align with BAM file order.

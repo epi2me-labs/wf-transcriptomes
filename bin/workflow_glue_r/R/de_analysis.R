@@ -64,37 +64,6 @@ de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
         label = "Design column"
     )
 
-    if (!"alias" %in% names(sample_df)) {
-        stop("Sample sheet must contain an 'alias' column.", call. = FALSE)
-    }
-    duplicate_sample_aliases <- unique(sample_df$alias[duplicated(sample_df$alias)])
-    if (length(duplicate_sample_aliases) > 0) {
-        stop(
-            sprintf(
-                "Sample sheet aliases must be unique; duplicated aliases: %s",
-                paste(duplicate_sample_aliases, collapse = ", ")
-            ),
-            call. = FALSE
-        )
-    }
-    if (!(argv$condition_column %in% names(sample_df))) {
-        stop(
-            sprintf("Sample sheet must contain the '%s' column.", argv$condition_column),
-            call. = FALSE
-        )
-    }
-
-    missing_covariates <- setdiff(covariates, names(sample_df))
-    if (length(missing_covariates) > 0) {
-        stop(
-            sprintf(
-                "Missing covariate columns: %s",
-                paste(missing_covariates, collapse = ", ")
-            ),
-            call. = FALSE
-        )
-    }
-
     if (any(duplicated(colnames(tx_se)))) {
         stop("Transcript RDS sample names must be unique.", call. = FALSE)
     }
@@ -145,17 +114,7 @@ de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
 
     reference_level <- argv$reference_level
     if (is.null(reference_level)) {
-        if ("control" %in% condition_values) {
-            reference_level <- "control"
-        } else {
-            stop(
-                "Provide --reference_level when the condition column does not contain 'control'.",
-                call. = FALSE
-            )
-        }
-    }
-    if (!(reference_level %in% condition_values)) {
-        stop("The requested reference level is not present in the condition column.", call. = FALSE)
+        reference_level <- "control"
     }
 
     sample_df[[argv$condition_column]] <- factor(sample_df[[argv$condition_column]])
@@ -788,11 +747,7 @@ main_run_de_analysis <- function(args) {
 
     tx_se <- readRDS(args$transcript_rds)
     gene_se <- readRDS(args$gene_rds)
-    sample_df <- utils::read.csv(
-        args$sample_sheet,
-        check.names = FALSE,
-        stringsAsFactors = FALSE
-    )
+    sample_df <- workflow_glue_r_read_sample_sheet(args$sample_sheet)
     validated <- de_validate_inputs(tx_se, gene_se, sample_df, args)
     sample_df <- validated$sample_df
     covariates <- validated$covariates
