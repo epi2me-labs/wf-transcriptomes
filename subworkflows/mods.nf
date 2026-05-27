@@ -44,7 +44,7 @@ process runModkitPileup {
         tuple val(alias),
             path("${alias}.mods.bedmethyl.gz"),
             emit: bedmethyl
-    publishDir "${params.out_dir}/${output_key}/mods"
+    publishDir "${params.out_dir}/${output_key}/mods", mode: 'copy'
 
     script:
     output_key = alias == "cohort" ? "cohort" : "samples/${alias}"  // nodef
@@ -77,7 +77,7 @@ process modkit_tobigwig {
         tuple val(alias),
             path("${alias}.mods.*.bw"),
             emit: bigwig
-    publishDir "${params.out_dir}/${output_key}/mods"
+    publishDir "${params.out_dir}/${output_key}/mods", mode: 'copy'
 
     script:
     output_key = alias == "cohort" ? "cohort" : "samples/${alias}"  // nodef
@@ -112,7 +112,7 @@ process summariseModkitBedmethyl {
         tuple val(alias),
             path("${alias}.mods.summary.tsv"),
             emit: summary
-    publishDir "${params.out_dir}/${output_key}/mods"
+    publishDir "${params.out_dir}/${output_key}/mods", mode: 'copy'
 
     script:
     output_key = alias == "cohort" ? "cohort" : "samples/${alias}"  // nodef
