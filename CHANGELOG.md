@@ -4,21 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v2.0.0-rc1]
+
+This release refreshes `wf-transcriptomes` around a new reference-guided transcriptomics workflow built on `bambu`, with `SQANTI3` transcript classification and QC, `DESeq2` for differential gene expression, `DEXSeq` for differential transcript usage, and per-sample modified base summarisation with `modkit` when modification tags are present in aligned BAMs.
 
 ### Changed
-- Updated to wf-template v6.0.0 to maintain compliance with our latest wf-template standard, changing:
-  - Pipeline overview now appears before pipeline parameters in README.
-  - Fastcat FASTQ pre-processing program has been updated to 0.24.2, it is more robust to malformed FASTQ input.
-
-### Added
-- Updated to wf-template v6.0.0, adding:
-    - Support for workflows to define non-main entrypoints for additional functionality.
-    - ezcharts 0.16.1, to provide UpSetPlot, BaseComposition and polya components
-
-### Fixed
-- Updated to wf-template v6.0.0, fixing:
-    - `configure_igv` process crashes when reference names include special characters.
+- Replaced the previous `StringTie/GffCompare/Salmon-based` transcript discovery and quantification workflow with a `bambu`-based workflow.
+- The main transcriptome result is now a shared cohort transcriptome built from all samples together.
+- Per-sample transcriptome FASTA outputs are now supplemented with per-sample GTF files, count tables, transcript metadata and QC summaries.
+- Differential gene expression now uses `DESeq2`.
+- Differential transcript usage continues to use `DEXSeq`, now driven from the shared bambu outputs.
+- Transcript classification and QC is now performed for both cohort and per-sample transcriptomes with `SQANTI3`.
+- Workflow prerequisites and experimental design inputs are validated earlier to catch common setup issues sooner.
+- Output structure has been reorganised around:
+  - `cohort/`
+  - `samples/<alias>/`
+  - `de_analysis/<contrast>/`
+- Differential analysis outputs are now grouped per contrast under `de_analysis/<contrast>/`.
+- The workflow now supports two bambu modes via `--transcriptome_mode`:
+  - `discover`
+  - `fixed_annotation`
+- Per-sample modified base summarisation from aligned BAMs containing `MM` and `ML` tags using modkit, including:
+  - `bedMethyl` pileup
+  - per-sample modification summary tables
+  - per-modification bigWig tracks
+- Reports have been refreshed with new components including:
+    - Sample-level hierarchical clustering, PCA and distance heatmap plots
+    - Contrast-level interactive volcano plots
+### Removed
+- `--transcriptome_source` parameter; use `--transcriptome_mode` instead.
+- `--ref_transcriptome` parameter; use `--transcriptome_mode fixed_annotation` together with `--ref_genome` and `--ref_annotation`.
+- Dependence on the older `StringTie/GffCompare/Salmon` transcriptomics pathway.
 
 ## [v1.7.2]
 This patch release of wf-transcriptomes updates internal workflow naming, and does not affect any workflow outputs.
