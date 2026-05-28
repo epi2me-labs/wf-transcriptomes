@@ -104,7 +104,7 @@
           "format": "file-path",
           "title": "Sample sheet",
           "description": "CSV file describing barcodes, aliases, and optional experimental design columns.",
-          "help_text": "For multiplexed runs, the sample sheet should contain both barcode and alias. For differential analysis it must also contain alias, the condition column, and any extra columns named in `--covariates`."
+          "help_text": "For multiplexed runs, the sample sheet should contain both barcode and alias. Additionally, for differential analysis, it must also contain the condition column, and any extra columns named in `--covariates`."
         },
         "sample": {
           "type": "string",
@@ -185,7 +185,8 @@
         },
         "ndr": {
           "type": "number",
-          "description": "Optional bambu novel discovery rate override."
+          "description": "Optional bambu novel discovery rate override.",
+          "help_text": "Lower values are more conservative (higher precision), while higher values are more permissive (higher novel-discovery sensitivity). See the [`bambu` repository](https://github.com/GoekeLab/bambu) for method details."
         },
         "sqanti_skip_orf": {
           "type": "boolean",
@@ -279,7 +280,7 @@
       "cpus": 12,
       "memory": "64GB"
     },
-    "run_time": "Varies with read depth and sample count; expect a small single-sample run to finish in under 30 minutes with the recommended resources.",
+    "run_time": "Varies with read depth and sample count; a small (1-5 million reads) single-sample run may finish in under 60 minutes with the recommended resources. Compute requirements are influenced most by total read count, reference complexity, number of samples, and whether optional steps such as DE/DTU, and modified-base summarisation are enabled.",
     "arm_support": false
   }
 }

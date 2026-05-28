@@ -1,12 +1,13 @@
-### 0. Background.
+### Background
 
-The methodology implemented within the wf-transcriptomics workflow follows from the largest independent long-read RNA benchmark to date.
+The methodology implemented within the wf-transcriptomes workflow follows from the largest independent long-read RNA benchmark to date.
 The [Systematic assessment of long-read RNA-seq methods for transcript identification and quantification](https://www.nature.com/articles/s41592-024-02298-3) concluded that, in well-annotated genomes, reference-based methods perform best.
 Our own previous research, benchmarking, and support of community members has shown that an automated, hands-off de-novo discovery pipeline to be bothersome for many use cases.
 The wf-transcriptomes workflow therefore focuses on a reference-guided approach rather than a novelty-first one.
 
 The benchmark paper above explicitly recommends `bambu` for identifying sample-specific transcriptomes in well-annotated organisms when only limited novelty is expected.
 The paper also names `bambu` as one of the best options when quantification is important, which supports using it as the core engine for downstream DGE and DTU analyses.
+For method details and current implementation notes, see the [`bambu` GitHub repository](https://github.com/GoekeLab/bambu).
 
 In spike-in evaluations, `bambu` generally showed high precision and was among the better F1 performers.
 This is an acceptable tradeoff for a production workflow where false transcript calls might be confound downstream analysis.
@@ -14,6 +15,10 @@ Users interested more in novel discovery may wish to amend the parameters of the
 `bambu` also performed especially well on long non-spliced SIRVs, which supports its use on long-read datasets where transcript-end definition matters.
 
 The workflow's choice of SQANTI3 as a companion QC and annotation layer matches the benchmark paper, which used SQANTI3 categories and metrics as its transcript assessment framework; so our outputs align with the field’s standard reporting language.
+This step is useful for structural isoform classification and provides standard QC summaries for reporting, method comparison, or deeper transcript model review.
+See the [`SQANTI3` repository](https://github.com/ConesaLab/SQANTI3) and the
+[`SQANTI3` isoform classification documentation](https://github.com/ConesaLab/SQANTI3/wiki/)
+for category definitions and usage details.
 
 
 
@@ -25,8 +30,8 @@ FASTQ files plus read statistics. These files are used in the downstream report.
 
 ### 2. Sample sheet formulation
 
-The sample sheet is optional for simple single-sample runs, but it becomes the
-main source of sample names for multiplexed runs and is required for
+The sample sheet is optional for simple single-sample runs, but it allows
+sample aliases to be mapped to barcodes in multiplexed runs and is required for
 `--de_analysis`.
 
 + Every row must contain `barcode` and `alias`.
@@ -47,26 +52,43 @@ folder names against the `barcode` column. If the folders are named by alias,
 the workflow can match them against `alias`, but the sample sheet still needs a
 `barcode` column because the shared validator expects it.
 
-Example sample sheet:
+Example sample sheets:
+
+#### Example sample sheet for a simple multiplexed analysis
+This example contains the minimal `barcode` and `alias` columns:
 
 ```csv
-barcode,alias,type,condition,batch
-barcode01,control_rep1,test_sample,control,b1
-barcode02,control_rep2,test_sample,control,b2
-barcode03,treated_rep1,test_sample,treated,b1
-barcode04,treated_rep2,test_sample,treated,b2
+barcode,alias
+barcode01,rep1
+barcode02,rep2
+barcode03,rep3
+barcode04,rep4
 ```
 
+
+#### Example sample sheet for a differential expression analysis
 This example is suitable for a multiplexed run and also satisfies the minimum
-requirements for a two-group DE/DTU comparison.
+requirements for a two-group DE/DTU comparison; containing the `barcode`, `alias` 
+and `condition` columns.
+
+```csv
+barcode,alias,condition
+barcode01,control_rep1,control
+barcode02,control_rep2,control
+barcode03,control_rep3,control
+barcode04,treated_rep1,treated
+barcode05,treated_rep2,treated
+barcode06,treated_rep3,treated
+```
+Additional columns to use as contrast facets may be named with the `--covariates` parameter.
 
 ### 3. Genome alignment
 
 Each sample is aligned to the supplied reference genome with
-[`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
+[`minimap2`](https://github.com/lh3/minimap2) in a splice aware mode, then sorted and indexed with
 [`samtools`](https://www.htslib.org/). The aligned BAMs under
 `samples/<alias>/alignment/` are the main alignment files used for transcriptome
-analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
+analysis, [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
 
 ### 4. Optional modified base summarisation
 
@@ -130,15 +152,3 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 * when `--de_analysis` is enabled, the sample sheet must contain `alias`, the
   primary condition column, and any requested columns named in `--covariates`
 
-### 10. How to read the output folder
-
-The published outputs are organised around a small number of top-level
-directories:
-
-+ `cohort/` contains the primary joint `bambu` transcriptome, count tables, and optional cohort `SQANTI3` outputs
-+ `samples/<alias>/` contains alignments, independent per-sample `bambu` outputs and
-  optional per-sample `SQANTI3` outputs; `samples/<alias>/mods/` is populated
-  when modified base tags are present in the aligned BAM
-+ `de_analysis/<contrast>/` contains DE and DTU results for each contrast when
-  differential analysis is enabled
-+ `igv_reference/` contains the published reference indexes used for IGV
