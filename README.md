@@ -1,6 +1,6 @@
 # Transcriptomes
 
-Long-read transcriptome analysis using bambu with optional SQANTI3 QC, DESeq2, and DEXSeq.
+Long-read transcript discovery, quantification, differential expression, QC and mod counting.
 
 
 

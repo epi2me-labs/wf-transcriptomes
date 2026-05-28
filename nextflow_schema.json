@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/epi2me-labs/wf-transcriptomes/master/nextflow_schema.json",
   "title": "epi2me-labs/wf-transcriptomes",
   "workflow_title": "Transcriptomes",
-  "description": "Long-read transcriptome analysis using bambu with optional SQANTI3 QC, DESeq2, and DEXSeq.",
+  "description": "Long-read transcript discovery, quantification, differential expression, QC and mod counting.",
   "url": "https://github.com/epi2me-labs/wf-transcriptomes",
   "type": "object",
   "definitions": {
