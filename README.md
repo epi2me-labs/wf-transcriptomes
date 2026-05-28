@@ -108,24 +108,6 @@ the following command:
 nextflow pull epi2me-labs/wf-transcriptomes
 ```
 
-A demo dataset is provided for testing of the workflow.
-It can be downloaded and unpacked using the following commands:
-```
-wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo.tar.gz
-tar -xzvf wf-transcriptomes-demo.tar.gz
-```
-The workflow can then be run with the downloaded demo data using:
-```
-nextflow run epi2me-labs/wf-transcriptomes \
-	--de_analysis \
-	--direct_rna \
-	--fastq 'wf-transcriptomes-demo/differential_expression_fastq' \
-	--ref_annotation 'wf-transcriptomes-demo/gencode.v22.annotation.chr20.gtf' \
-	--ref_genome 'wf-transcriptomes-demo/hg38_chr20.fa' \
-	--sample_sheet 'wf-transcriptomes-demo/sample_sheet.csv' \
-	-profile standard
-```
-
 
 
 
