@@ -17,15 +17,15 @@ Yes. Use `--transcriptome_mode fixed_annotation` together with `--de_analysis`.
 
 ### What changed from the previous workflow version?
 
-The current workflow uses `bambu`, optional `SQANTI3`, `DESeq2`, and `DEXSeq`.
+The current workflow uses `bambu`, `SQANTI3`, `DESeq2`, and `DEXSeq`.
 The main transcriptome result is now one shared `bambu` model built from all
 samples together, with separate per-sample `bambu` outputs published alongside
-it. The most important differences are summarised below.
+it. The most important differences are summarised in this FAQ section.
 
 #### Why do the results now mention `bambu` and `SQANTI3` instead of StringTie or GffCompare?
 
 The workflow now uses a different set of transcript analysis tools. It builds
-its transcript models with `bambu`, optionally classifies them with `SQANTI3`,
+its transcript models with `bambu`, classifies them with `SQANTI3`,
 and performs DE/DTU from the cohort `bambu` outputs.
 
 #### Why is `--ref_annotation` now required even in fixed-annotation mode?
@@ -83,10 +83,8 @@ Expect the report and output folder to emphasise:
 
 + the joint cohort `bambu` transcriptome under `cohort/`
 + the per-sample `bambu` transcriptomes under `samples/<alias>/`
-+ optional `SQANTI3` results under cohort and per-sample directories
++ `SQANTI3` results under cohort and per-sample directories
 + contrast-specific DE/DTU outputs under `de_analysis/<contrast>/`
 
-If your question is not answered here, please report issues or suggestions on
-the [GitHub issues](https://github.com/epi2me-labs/wf-transcriptomes/issues)
-page or start a discussion on the
+If your question is not answered here, please start a discussion on the
 [community](https://community.nanoporetech.com/).

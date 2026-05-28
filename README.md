@@ -6,9 +6,9 @@ Long-read transcriptome analysis using bambu with optional SQANTI3 QC, DESeq2, a
 
 ## Introduction
 
-This workflow analyses Oxford Nanopore long-read RNA sequencing data. It uses
+This workflow analyses Oxford Nanopore long-read transcript sequencing data. It uses
 [`bambu`](https://bioconductor.org/packages/bambu/) to build and quantify
-transcript models, can optionally run
+transcript models,
 [`SQANTI3`](https://github.com/ConesaLab/SQANTI3) for transcript classification
 and QC, can optionally run
 [`DESeq2`](https://bioconductor.org/packages/DESeq2/) and
@@ -19,17 +19,17 @@ pileups on aligned reads if relevant tags are present.
 
 The workflow supports:
 
-+ transcript identification from either cDNA or direct RNA reads
-+ transcript discovery guided by a supplied genome and annotation
-+ quantification against a supplied reference annotation
-+ optional transcript classification and QC with `SQANTI3`
-+ differential gene expression with `DESeq2`
-+ differential transcript usage with `DEXSeq`
-+ base modification pileups with `modkit`
++ Transcript identification from either cDNA or direct RNA reads
++ Transcript discovery guided by a supplied genome and annotation
++ Quantification against a supplied reference annotation
++ Transcript classification and QC with `SQANTI3`
++ Differential gene expression with `DESeq2`
++ Differential transcript usage with `DEXSeq`
++ Base modification pileups with `modkit`
 
 The main transcriptome result is a shared `bambu` model built from all samples
 together. The workflow also produces separate per-sample transcriptomes, so
-each sample has its own GTF, FASTA, count tables, and optional `SQANTI3`
+each sample has its own GTF, FASTA, count tables, and `SQANTI3`
 summary alongside the shared results.
 
 <figure>
@@ -43,6 +43,10 @@ now use the shared `bambu` outputs rather than the older
 StringTie/GffCompare/Salmon-based approach. The rest of this README explains
 the current workflow in plain terms, while the `FAQ` and `Troubleshooting`
 sections call out the main differences from the previous workflow version.
+For `bambu` implementation details, see the
+[`bambu` GitHub repository](https://github.com/GoekeLab/bambu). For
+`SQANTI3` classification categories, see the
+[`SQANTI3` isoform classification documentation](https://github.com/ConesaLab/SQANTI3/wiki/).
 
 
 
@@ -59,7 +63,7 @@ Minimum requirements:
 + CPUs = 12
 + Memory = 64GB
 
-Approximate run time: Varies with read depth and sample count; expect a small single-sample run to finish in under 30 minutes with the recommended resources.
+Approximate run time: Varies with read depth and sample count; a small (1-5 million reads) single-sample run may finish in under 60 minutes with the recommended resources. Compute requirements are influenced most by total read count, reference complexity, number of samples, and whether optional steps such as DE/DTU, and modified-base summarisation are enabled.
 
 ARM processor support: False
 
@@ -137,15 +141,16 @@ input_reads.fastq   ─── input_directory  ─── input_directory
 
 ## Pipeline overview
 
-### 0. Background.
+### Background
 
-The methodology implemented within the wf-transcriptomics workflow follows from the largest independent long-read RNA benchmark to date.
+The methodology implemented within the wf-transcriptomes workflow follows from the largest independent long-read RNA benchmark to date.
 The [Systematic assessment of long-read RNA-seq methods for transcript identification and quantification](https://www.nature.com/articles/s41592-024-02298-3) concluded that, in well-annotated genomes, reference-based methods perform best.
 Our own previous research, benchmarking, and support of community members has shown that an automated, hands-off de-novo discovery pipeline to be bothersome for many use cases.
 The wf-transcriptomes workflow therefore focuses on a reference-guided approach rather than a novelty-first one.
 
 The benchmark paper above explicitly recommends `bambu` for identifying sample-specific transcriptomes in well-annotated organisms when only limited novelty is expected.
 The paper also names `bambu` as one of the best options when quantification is important, which supports using it as the core engine for downstream DGE and DTU analyses.
+For method details and current implementation notes, see the [`bambu` GitHub repository](https://github.com/GoekeLab/bambu).
 
 In spike-in evaluations, `bambu` generally showed high precision and was among the better F1 performers.
 This is an acceptable tradeoff for a production workflow where false transcript calls might be confound downstream analysis.
@@ -153,6 +158,10 @@ Users interested more in novel discovery may wish to amend the parameters of the
 `bambu` also performed especially well on long non-spliced SIRVs, which supports its use on long-read datasets where transcript-end definition matters.
 
 The workflow's choice of SQANTI3 as a companion QC and annotation layer matches the benchmark paper, which used SQANTI3 categories and metrics as its transcript assessment framework; so our outputs align with the field’s standard reporting language.
+This step is useful for structural isoform classification and provides standard QC summaries for reporting, method comparison, or deeper transcript model review.
+See the [`SQANTI3` repository](https://github.com/ConesaLab/SQANTI3) and the
+[`SQANTI3` isoform classification documentation](https://github.com/ConesaLab/SQANTI3/wiki/)
+for category definitions and usage details.
 
 
 
@@ -164,8 +173,8 @@ FASTQ files plus read statistics. These files are used in the downstream report.
 
 ### 2. Sample sheet formulation
 
-The sample sheet is optional for simple single-sample runs, but it becomes the
-main source of sample names for multiplexed runs and is required for
+The sample sheet is optional for simple single-sample runs, but it allows
+sample aliases to be mapped to barcodes in multiplexed runs and is required for
 `--de_analysis`.
 
 + Every row must contain `barcode` and `alias`.
@@ -186,26 +195,43 @@ folder names against the `barcode` column. If the folders are named by alias,
 the workflow can match them against `alias`, but the sample sheet still needs a
 `barcode` column because the shared validator expects it.
 
-Example sample sheet:
+Example sample sheets:
+
+#### Example sample sheet for a simple multiplexed analysis
+This example contains the minimal `barcode` and `alias` columns:
 
 ```csv
-barcode,alias,type,condition,batch
-barcode01,control_rep1,test_sample,control,b1
-barcode02,control_rep2,test_sample,control,b2
-barcode03,treated_rep1,test_sample,treated,b1
-barcode04,treated_rep2,test_sample,treated,b2
+barcode,alias
+barcode01,rep1
+barcode02,rep2
+barcode03,rep3
+barcode04,rep4
 ```
 
+
+#### Example sample sheet for a differential expression analysis
 This example is suitable for a multiplexed run and also satisfies the minimum
-requirements for a two-group DE/DTU comparison.
+requirements for a two-group DE/DTU comparison; containing the `barcode`, `alias` 
+and `condition` columns.
+
+```csv
+barcode,alias,condition
+barcode01,control_rep1,control
+barcode02,control_rep2,control
+barcode03,control_rep3,control
+barcode04,treated_rep1,treated
+barcode05,treated_rep2,treated
+barcode06,treated_rep3,treated
+```
+Additional columns to use as contrast facets may be named with the `--covariates` parameter.
 
 ### 3. Genome alignment
 
 Each sample is aligned to the supplied reference genome with
-[`minimap2`](https://github.com/lh3/minimap2), then sorted and indexed with
+[`minimap2`](https://github.com/lh3/minimap2) in a splice aware mode, then sorted and indexed with
 [`samtools`](https://www.htslib.org/). The aligned BAMs under
 `samples/<alias>/alignment/` are the main alignment files used for transcriptome
-analysis, optional [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
+analysis, [`SQANTI3`](https://github.com/conesalab/SQANTI3) QC, and optional IGV viewing.
 
 ### 4. Optional modified base summarisation
 
@@ -269,18 +295,6 @@ The workflow's analysis is controlled by a user provided genome, annotation, and
 * when `--de_analysis` is enabled, the sample sheet must contain `alias`, the
   primary condition column, and any requested columns named in `--covariates`
 
-### 10. How to read the output folder
-
-The published outputs are organised around a small number of top-level
-directories:
-
-+ `cohort/` contains the primary joint `bambu` transcriptome, count tables, and optional cohort `SQANTI3` outputs
-+ `samples/<alias>/` contains alignments, independent per-sample `bambu` outputs and
-  optional per-sample `SQANTI3` outputs; `samples/<alias>/mods/` is populated
-  when modified base tags are present in the aligned BAM
-+ `de_analysis/<contrast>/` contains DE and DTU results for each contrast when
-  differential analysis is enabled
-+ `igv_reference/` contains the published reference indexes used for IGV
 
 
 
@@ -311,7 +325,7 @@ directories:
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
-| sample_sheet | string | CSV file describing barcodes, aliases, and optional experimental design columns. | For multiplexed runs, the sample sheet should contain both barcode and alias. For differential analysis it must also contain alias, the condition column, and any extra columns named in `--covariates`. |  |
+| sample_sheet | string | CSV file describing barcodes, aliases, and optional experimental design columns. | For multiplexed runs, the sample sheet should contain both barcode and alias. Additionally, for differential analysis, it must also contain the condition column, and any extra columns named in `--covariates`. |  |
 | sample | string | Single sample name for singleplexed input or to restrict multiplexed analysis to one sample. |  |  |
 
 
@@ -340,7 +354,7 @@ directories:
 | threads | integer | Thread count to use for the core workflow processes. |  | 4 |
 | mod_codes | string | Comma-separated modified base codes to pass to modkit pileup. | Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`. |  |
 | force_alignment | boolean | Force re-alignment of input BAM files. | Read alignment is skipped if the existing sequence names in the aligned BAM match the provided reference. Enable this if the existing alignments used incorrect minimap2 presets (e.g. missing --splice or direct RNA settings). | False |
-| ndr | number | Optional bambu novel discovery rate override. |  |  |
+| ndr | number | Optional bambu novel discovery rate override. | Lower values are more conservative (higher precision), while higher values are more permissive (higher novel-discovery sensitivity). See the [`bambu` repository](https://github.com/GoekeLab/bambu) for method details. |  |
 | sqanti_skip_orf | boolean | Skip ORF prediction during SQANTI3 QC. |  | True |
 
 
@@ -354,8 +368,8 @@ Output files may be aggregated including information for all samples or provided
 
 | Title | File path | Description | Per sample or aggregated |
 |-------|-----------|-------------|--------------------------|
-| Workflow report | wf-transcriptomes-report.html | HTML report summarising transcript discovery, quantification, optional SQANTI3 classification, and optional differential analysis results. | aggregated |
-| Aligned BAM | samples/{{ alias }}/alignment/reads.bam | Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV. | per-sample |
+| Workflow report | wf-transcriptomes-report.html | HTML report summarising transcript discovery, quantification, SQANTI3 classification, and optional differential analysis results. | aggregated |
+| Aligned BAM | samples/{{ alias }}/alignment/reads.bam | Genome-aligned BAM used for bambu, SQANTI3 QC, and IGV. | per-sample |
 | Aligned BAM index | samples/{{ alias }}/alignment/reads.bam.bai | Index for the aligned BAM. | per-sample |
 | Alignment summary | samples/{{ alias }}/alignment/bamstats.flagstat.tsv | bamstats flagstat summary for the aligned BAM. | per-sample |
 | Modified base pileup | samples/{{ alias }}/mods/{{ alias }}.mods.bedmethyl.gz | Per-sample modkit bedMethyl pileup generated from the aligned BAM when MM and ML tags are present. | per-sample |
@@ -368,13 +382,13 @@ Output files may be aggregated including information for all samples or provided
 | Cohort transcript counts | cohort/transcript_counts.tsv | Transcript-level count matrix produced by bambu. | aggregated |
 | Cohort gene counts | cohort/gene_counts.tsv | Gene-level count matrix derived from bambu output. | aggregated |
 | Cohort transcript metadata | cohort/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the cohort model. | aggregated |
-| Cohort SQANTI3 summary | cohort/sqanti/classification_summary.tsv | SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled. | aggregated |
+| Cohort SQANTI3 summary | cohort/sqanti/classification_summary.tsv | SQANTI3 classification summary for the cohort transcriptome. | aggregated |
 | Per-sample transcriptome GTF | samples/{{ alias }}/transcripts.gtf | Independent bambu transcript model for an individual sample. | per-sample |
 | Per-sample transcriptome FASTA | samples/{{ alias }}/{{ alias }}.transcriptome.fa | Transcript sequences derived from the per-sample GTF. | per-sample |
 | Per-sample transcript counts | samples/{{ alias }}/transcript_counts.tsv | Transcript-level abundance estimates for the per-sample bambu model. | per-sample |
 | Per-sample gene counts | samples/{{ alias }}/gene_counts.tsv | Gene-level abundance estimates for the per-sample bambu model. | per-sample |
 | Per-sample transcript metadata | samples/{{ alias }}/transcript_metadata.tsv | Transcript annotations and bambu transcript classes for the per-sample model. | per-sample |
-| Per-sample SQANTI3 summary | samples/{{ alias }}/sqanti/classification_summary.tsv | SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled. | per-sample |
+| Per-sample SQANTI3 summary | samples/{{ alias }}/sqanti/classification_summary.tsv | SQANTI3 classification summary for the per-sample transcriptome. | per-sample |
 | Differential gene expression results | de_analysis/{{ contrast }}/results_dge.tsv | DESeq2 gene-level differential expression results for one contrast. | aggregated |
 | Differential gene expression plots | de_analysis/{{ contrast }}/results_dge.pdf | PDF plots generated during DESeq2 analysis for one contrast. | aggregated |
 | Differential transcript usage results | de_analysis/{{ contrast }}/results_dtu_transcript.tsv | Transcript-level DTU results for one contrast. | aggregated |
@@ -385,6 +399,7 @@ Output files may be aggregated including information for all samples or provided
 | Differential analysis text summary | de_analysis/de_overall_summary.txt | Human-readable DE/DTU run summary across all contrasts. | aggregated |
 | Per-contrast QC summary | de_analysis/{{ contrast }}/contrast_qc_summary.txt | Human-readable per-contrast DE/DTU QC summary including sample counts and key significance totals. | aggregated |
 | DESeq2 fallback diagnostic | de_analysis/DESeq2_dispersion_fallback_{{ contrast }}.txt | Diagnostic details when DESeq2 falls back to gene-wise dispersion estimation. | aggregated |
+| DGE failure diagnostic | de_analysis/{{ contrast }}/DGE_ANALYSIS_FAILED.txt | Diagnostic details when DESeq2 fails for a contrast. | aggregated |
 | DTU failure diagnostic | de_analysis/{{ contrast }}/DTU_ANALYSIS_FAILED.txt | Diagnostic details when DEXSeq fails for a contrast. | aggregated |
 | Multiple-testing warning | de_analysis/MULTIPLE_TESTING_WARNING.txt | Family-wise error-rate note generated when multiple contrasts are tested. | aggregated |
 | IGV configuration | igv.json | JSON configuration for viewing the aligned BAMs in IGV. | aggregated |
@@ -414,7 +429,7 @@ Find related RNA and cDNA sequencing protocols in the
 + DE/DTU requires at least two condition levels and at least two samples per
   level.
 + See how to interpret common Nextflow exit codes
-  [here](https://labs.epi2me.io/trouble-shooting/).
+  [here](https://epi2me.nanoporetech.com/epi2me-docs/help/troubleshooting/).
 
 ### Common confusion when coming from the previous workflow version
 
@@ -457,13 +472,14 @@ In the current version DE and DTU results are grouped by contrast under
 
 #### I expected the old output layout or transcriptome files
 
-The previous workflow version emitted one flat set of transcriptome.
-In the current versions, the output folder is organised around
-`cohort/`, `samples/<alias>/`, `de_analysis/<contrast>/`, and
-`igv_reference/`.
+The previous workflow version emitted a single folder of all analysis outputs.
+In the current version, the output folders are organised around
+`cohort/`, `samples/<alias>/` and `de_analysis/<contrast>/`.
 
-Primary shared transcriptome results are under `cohort/`, and
-`samples/<alias>/` for sample-specific models.
+The previous workflow output a non-redundant transcriptome whereas
+the current version of the workflow outputs a true joint transcriptome
+in the `cohort/` folder, with individual transcriptome analyses
+additionally output in the `samples/<alias>/` folders.
 
 #### My DE/DTU run fails because of `--sample_sheet`
 
@@ -511,15 +527,15 @@ Yes. Use `--transcriptome_mode fixed_annotation` together with `--de_analysis`.
 
 ### What changed from the previous workflow version?
 
-The current workflow uses `bambu`, optional `SQANTI3`, `DESeq2`, and `DEXSeq`.
+The current workflow uses `bambu`, `SQANTI3`, `DESeq2`, and `DEXSeq`.
 The main transcriptome result is now one shared `bambu` model built from all
 samples together, with separate per-sample `bambu` outputs published alongside
-it. The most important differences are summarised below.
+it. The most important differences are summarised in this FAQ section.
 
 #### Why do the results now mention `bambu` and `SQANTI3` instead of StringTie or GffCompare?
 
 The workflow now uses a different set of transcript analysis tools. It builds
-its transcript models with `bambu`, optionally classifies them with `SQANTI3`,
+its transcript models with `bambu`, classifies them with `SQANTI3`,
 and performs DE/DTU from the cohort `bambu` outputs.
 
 #### Why is `--ref_annotation` now required even in fixed-annotation mode?
@@ -577,18 +593,20 @@ Expect the report and output folder to emphasise:
 
 + the joint cohort `bambu` transcriptome under `cohort/`
 + the per-sample `bambu` transcriptomes under `samples/<alias>/`
-+ optional `SQANTI3` results under cohort and per-sample directories
++ `SQANTI3` results under cohort and per-sample directories
 + contrast-specific DE/DTU outputs under `de_analysis/<contrast>/`
 
-If your question is not answered here, please report issues or suggestions on
-the [GitHub issues](https://github.com/epi2me-labs/wf-transcriptomes/issues)
-page or start a discussion on the
+If your question is not answered here, please start a discussion on the
 [community](https://community.nanoporetech.com/).
 
 
 
 
 ## Related blog posts
+
+
+
++ [Transcriptomic reference sets](https://epi2me.nanoporetech.com/transcriptomic-reference/).
 
 + See the [EPI2ME website](https://epi2me.nanoporetech.com/) for more workflow resources and blog posts.
 

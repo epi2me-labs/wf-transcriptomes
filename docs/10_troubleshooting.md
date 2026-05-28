@@ -6,7 +6,7 @@
 + DE/DTU requires at least two condition levels and at least two samples per
   level.
 + See how to interpret common Nextflow exit codes
-  [here](https://labs.epi2me.io/trouble-shooting/).
+  [here](https://epi2me.nanoporetech.com/epi2me-docs/help/troubleshooting/).
 
 ### Common confusion when coming from the previous workflow version
 
@@ -49,13 +49,14 @@ In the current version DE and DTU results are grouped by contrast under
 
 #### I expected the old output layout or transcriptome files
 
-The previous workflow version emitted one flat set of transcriptome.
-In the current versions, the output folder is organised around
-`cohort/`, `samples/<alias>/`, `de_analysis/<contrast>/`, and
-`igv_reference/`.
+The previous workflow version emitted a single folder of all analysis outputs.
+In the current version, the output folders are organised around
+`cohort/`, `samples/<alias>/` and `de_analysis/<contrast>/`.
 
-Primary shared transcriptome results are under `cohort/`, and
-`samples/<alias>/` for sample-specific models.
+The previous workflow output a non-redundant transcriptome whereas
+the current version of the workflow outputs a true joint transcriptome
+in the `cohort/` folder, with individual transcriptome analyses
+additionally output in the `samples/<alias>/` folders.
 
 #### My DE/DTU run fails because of `--sample_sheet`
 

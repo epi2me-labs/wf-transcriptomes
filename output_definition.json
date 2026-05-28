@@ -3,7 +3,7 @@
     "workflow-report": {
       "filepath": "wf-transcriptomes-report.html",
       "title": "Workflow report",
-      "description": "HTML report summarising transcript discovery, quantification, optional SQANTI3 classification, and optional differential analysis results.",
+      "description": "HTML report summarising transcript discovery, quantification, SQANTI3 classification, and optional differential analysis results.",
       "mime-type": "text/html",
       "optional": false,
       "type": "aggregated"
@@ -11,7 +11,7 @@
     "sample-bam": {
       "filepath": "samples/{{ alias }}/alignment/reads.bam",
       "title": "Aligned BAM",
-      "description": "Genome-aligned BAM used for bambu, optional SQANTI3 QC, and IGV.",
+      "description": "Genome-aligned BAM used for bambu, SQANTI3 QC, and IGV.",
       "mime-type": "application/gzip",
       "optional": false,
       "type": "per-sample"
@@ -115,7 +115,7 @@
     "cohort-sqanti-summary": {
       "filepath": "cohort/sqanti/classification_summary.tsv",
       "title": "Cohort SQANTI3 summary",
-      "description": "SQANTI3 classification summary for the cohort transcriptome when SQANTI3 QC is enabled.",
+      "description": "SQANTI3 classification summary for the cohort transcriptome.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "aggregated"
@@ -163,7 +163,7 @@
     "sample-sqanti-summary": {
       "filepath": "samples/{{ alias }}/sqanti/classification_summary.tsv",
       "title": "Per-sample SQANTI3 summary",
-      "description": "SQANTI3 classification summary for the per-sample transcriptome when SQANTI3 QC is enabled.",
+      "description": "SQANTI3 classification summary for the per-sample transcriptome.",
       "mime-type": "text/tab-separated-values",
       "optional": true,
       "type": "per-sample"
@@ -244,6 +244,14 @@
       "filepath": "de_analysis/DESeq2_dispersion_fallback_{{ contrast }}.txt",
       "title": "DESeq2 fallback diagnostic",
       "description": "Diagnostic details when DESeq2 falls back to gene-wise dispersion estimation.",
+      "mime-type": "text/plain",
+      "optional": true,
+      "type": "aggregated"
+    },
+    "dge-analysis-failed-diagnostic": {
+      "filepath": "de_analysis/{{ contrast }}/DGE_ANALYSIS_FAILED.txt",
+      "title": "DGE failure diagnostic",
+      "description": "Diagnostic details when DESeq2 fails for a contrast.",
       "mime-type": "text/plain",
       "optional": true,
       "type": "aggregated"
