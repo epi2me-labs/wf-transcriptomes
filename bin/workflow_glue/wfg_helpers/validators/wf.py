@@ -5,7 +5,7 @@ import re
 
 from .default import SampleSheetValidator  # noqa: ABS101
 
-_R_FORMULA_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_R_FORMULA_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*$")
 
 
 def _split_covariates(value):
@@ -31,8 +31,8 @@ def _validate_r_formula_names(names, label="Column"):
             details.append(f"Invalid names: {', '.join(invalid)}")
         raise ValueError(
             f"{label} names must be safe for R formulas. {'; '.join(details)}. "
-            "Names must start with a letter or number and contain "
-            "only letters, numbers, underscores, dots, and hyphens."
+            "Names must start with a letter and contain "
+            "only letters, numbers, underscores, and dots."
         )
 
 

@@ -3,7 +3,7 @@ nextflow.enable.dsl = 2
 
 process runDifferentialAnalysis {
     label "wf_transcriptomes"
-    cpus { params.threads ?: 4 }
+    cpus 4
     memory "32 GB"
     input:
         path transcript_rds

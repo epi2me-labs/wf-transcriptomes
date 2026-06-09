@@ -1,35 +1,6 @@
-// Check that the bam has modifications
-process validate_modbam {
-    label "wf_common"
-    cpus 1
-    memory 4.GB
-    input:
-        tuple val(meta),
-            path(alignment),
-            path(alignment_index),
-            val(alignment_stats)
-    output:
-        tuple val(meta),
-            path(alignment),
-            path(alignment_index),
-            val(alignment_stats),
-            env(valid)
-
-    script:
-    """
-    valid=0
-    workflow-glue check_valid_modbam ${alignment} || valid=\$?
-
-    # Allow EX_OK and EX_DATAERR, otherwise explode
-    if [ \$valid -ne 0 ] && [ \$valid -ne 65 ]; then
-        exit 1
-    fi
-    """
-}
-
 process runModkitPileup {
     label "modkit"
-    cpus { params.threads ?: 4 }
+    cpus 4
     memory "16 GB"
     input:
         tuple val(alias),
@@ -158,15 +129,12 @@ workflow mods {
         xams
         ref_genome
     main:
-        // Check inputs have modtags, we'll early abort mod analysis for any that don't
-        validate_modbam(xams)
-            .branch {
-                nomods: it[-1] == '65'
-                    return it[0].alias
-                mods: it[-1] == '0'
-                    return [it[0].alias] + it[0..-2]  // prepend alias for joining and drop exit_code marker
-            }
-            .set{xams_with}
+        xams.branch {
+            nomods: it[0].has_modbase_tags != true
+                return it[0].alias
+            mods: it[0].has_modbase_tags == true
+                return [it[0].alias] + it  // prepend alias for joining
+        }.set{xams_with}
 
         // warn for samples without mods
         xams_with.nomods.subscribe {

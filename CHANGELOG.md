@@ -4,7 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v2.0.0-rc1]
+
+## [v2.0.0]
 
 This release refreshes `wf-transcriptomes` around a new reference-guided transcriptomics workflow built on `bambu`, with `SQANTI3` transcript classification and QC, `DESeq2` for differential gene expression, `DEXSeq` for differential transcript usage, and per-sample modified base summarisation with `modkit` when modification tags are present in aligned BAMs.
 
@@ -32,9 +33,10 @@ This release refreshes `wf-transcriptomes` around a new reference-guided transcr
     - Sample-level hierarchical clustering, PCA and distance heatmap plots
     - Contrast-level interactive volcano plots
 ### Removed
+- Dependence on the older `StringTie/GffCompare/Salmon` transcriptomics pathway.
 - `--transcriptome_source` parameter; use `--transcriptome_mode` instead.
 - `--ref_transcriptome` parameter; use `--transcriptome_mode fixed_annotation` together with `--ref_genome` and `--ref_annotation`.
-- Dependence on the older `StringTie/GffCompare/Salmon` transcriptomics pathway.
+- `--threads` parameter; advanced users may use Nextflow process selectors to override the preset per-process CPU and memory limits.
 
 ## [v1.7.2]
 This patch release of wf-transcriptomes updates internal workflow naming, and does not affect any workflow outputs.

@@ -59,10 +59,6 @@ de_analysis_arg_parser <- function() {
 
 de_validate_inputs <- function(tx_se, gene_se, sample_df, argv) {
     covariates <- workflow_glue_r_parse_csv_list(argv$covariates)
-    workflow_glue_r_validate_r_formula_names(
-        c(argv$condition_column, covariates),
-        label = "Design column"
-    )
 
     if (any(duplicated(colnames(tx_se)))) {
         stop("Transcript RDS sample names must be unique.", call. = FALSE)

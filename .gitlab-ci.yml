@@ -16,9 +16,7 @@ variables:
               PYTEST_TESTS_PATH: "bin/workflow_glue/tests/common"
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
-              WF_TEMPLATE_ENFORCEMENT_BRANCH: "ruo-next"
-              RELEASE_WORKFLOW: "no" # do not release this workflow!
-              RELEASE_WITHOUT_DEMO: "yes"
+              WF_TEMPLATE_ENFORCEMENT_REF: "v6.1.0-rc1"
 
 pytest_wfcontainer:
     extends: pytest
@@ -74,7 +72,8 @@ docker-run:
             - MATRIX_NAME: [
                 "int_discover_dna", "int_fixed_rna", "int_de_control_vs_control",
                 "smoke_discover", "smoke_fixed", "smoke_direct_rna", "smoke_de",
-                "mouse_de_0countquant", "mods_bigwig_igv", "mismatch-sample-alias"
+                "mouse_de_0countquant", "mods_bigwig_igv", "mismatch-sample-alias",
+                "mouse_splice_error", "mouse_splice_realign"
             ]
     rules:
         # NOTE As we're overriding the rules block for the included docker-run
@@ -202,6 +201,26 @@ docker-run:
                 --ref_annotation ${CI_PROJECT_NAME}/data/gencode.v22.annotation.chr20.gtf \
                 --sample_sheet ${CI_PROJECT_NAME}/data/mods_rna_subset/sample_sheet.csv \
                 --igv"
+        - if: $MATRIX_NAME == "mouse_splice_error"
+          variables:
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/mouse_splice_fail.tar.gz -O ${CI_PROJECT_NAME}/data/mouse_splice_fail.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/mouse_splice_fail.tar.gz  -C ${CI_PROJECT_NAME}/data/" 
+              NF_WORKFLOW_OPTS: "--bam ${CI_PROJECT_NAME}/data/mouse_splice_fail/samples \
+                  --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/mouse_splice_fail/mouse_subset.fa \
+                  --ref_annotation ${CI_PROJECT_NAME}/data/mouse_splice_fail/mouse_subset.gtf.gz \
+                  --sample_sheet ${CI_PROJECT_NAME}/data/mouse_splice_fail/sample_sheet.csv"
+              ASSERT_NEXTFLOW_FAILURE: "1"
+              AFTER_NEXTFLOW_CMD: >
+                  grep -qF 'Cannot proceed with mixed splice-aware CIGAR evidence in input BAMs.' .nextflow.log
+        - if: $MATRIX_NAME == "mouse_splice_realign"
+          variables:
+              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/mouse_splice_realign.tar.gz -O ${CI_PROJECT_NAME}/data/mouse_splice_realign.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/mouse_splice_realign.tar.gz  -C ${CI_PROJECT_NAME}/data/" 
+              NF_WORKFLOW_OPTS: "--bam ${CI_PROJECT_NAME}/data/mouse_splice_realign/samples \
+                  --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/mouse_splice_realign/mouse_subset.fa \
+                  --ref_annotation ${CI_PROJECT_NAME}/data/mouse_splice_realign/mouse_subset.gtf.gz \
+                  --sample_sheet ${CI_PROJECT_NAME}/data/mouse_splice_realign/sample_sheet.csv"
+              AFTER_NEXTFLOW_CMD: >
+                  grep -q 'bam_alignment' ${CI_PROJECT_NAME}/execution/trace.txt && grep -q 'No input BAMs appear to contain splice-aware CIGAR evidence. The workflow will realign all inputs.' .nextflow.log
+        
 
 
 singularity-run:

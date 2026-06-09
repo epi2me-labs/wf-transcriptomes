@@ -26,13 +26,12 @@ def _run_check_sample_sheet(sample_sheet_path, params_json, capsys):
     [
         [
             "condition", "batch_1", "site.2",
-            "S01", "a1", "sample_group",
-            "01", "1batch", "2.site-3"
+            "S01", "a1", "sample_group"
         ],
     ],
 )
 def test_validate_r_formula_names_accepts_valid_names(names):
-    """R formula names accept alnum-led names with safe punctuation."""
+    """R formula names accept letter-led names with safe punctuation."""
     _validate_r_formula_names(names)
 
 
@@ -45,6 +44,9 @@ def test_validate_r_formula_names_accepts_valid_names(names):
         ["size:batch"],
         ["size|batch"],
         ["sueño"],
+        ["01"],
+        ["1batch"],
+        ["2.site-3"],
         [""]
     ],
 )
@@ -240,7 +242,7 @@ def test_check_sample_sheet_rejects_unsafe_covariate_values(
     """Configured covariate values must use safe contrast/design characters."""
     sample_sheet_path = tmp_path / "sample_sheet_invalid_covariate_value.csv"
     sample_sheet_path.write_text(
-        "sample_name,condition,good-batch,site\n"
+        "sample_name,condition,good_batch,site\n"
         "test_name1,control,b1,s1\n"
         "test_name2,control,b2,s2\n"
         "test_name3,treated,b 1,s1\n"
@@ -252,7 +254,7 @@ def test_check_sample_sheet_rejects_unsafe_covariate_values(
         json.dumps({
             "de_analysis": True,
             "condition_column": "condition",
-            "covariates": "good-batch,site",
+            "covariates": "good_batch,site",
         })
     )
 
@@ -260,16 +262,16 @@ def test_check_sample_sheet_rejects_unsafe_covariate_values(
 
     assert out.startswith(
         "Covariate value names must be safe for R formulas. "
-        "Invalid names: b 1. Names must start with a letter or number and "
-        "contain only letters, numbers, underscores, dots, and hyphens. "
-        "(column: good-batch, line: 3)"
+        "Invalid names: b 1. Names must start with a letter and "
+        "contain only letters, numbers, underscores, and dots. "
+        "(column: good_batch, line: 3)"
     )
 
 
 def test_check_sample_sheet_rejects_unsafe_column_names(
         tmp_path, capsys
 ):
-    """Configured DE condition and covariate column names may include hyphens."""
+    """Configured DE design names may not include hyphens or spaces."""
     sample_sheet_path = tmp_path / "sample_sheet_invalid_design_name.csv"
     sample_sheet_path.write_text(
         "sample_name,condition-column,bad covariate\n"
@@ -289,12 +291,14 @@ def test_check_sample_sheet_rejects_unsafe_column_names(
     )
 
     out = _run_check_sample_sheet(sample_sheet_path, params_json, capsys)
-    assert out.startswith(
+    assert out.splitlines() == [
+        "Design column names must be safe for R formulas. "
+        "Invalid names: condition-column. Names must start with a letter and "
+        "contain only letters, numbers, underscores, and dots.",
         "Covariate column names must be safe for R formulas. "
-        "Invalid names: bad covariate. Names must start with a letter or "
-        "number and contain only letters, numbers, underscores, dots, and "
-        "hyphens."
-    )
+        "Invalid names: bad covariate. Names must start with a letter and "
+        "contain only letters, numbers, underscores, and dots.",
+    ]
 
 
 def test_check_sample_sheet_rejects_unsafe_condition_values(
@@ -323,13 +327,13 @@ def test_check_sample_sheet_rejects_unsafe_condition_values(
 
     assert out.splitlines() == [
         "Condition value names must be safe for R formulas. "
-        "Invalid names: control/group. Names must start with a letter or "
-        "number and contain only letters, numbers, underscores, dots, and "
-        "hyphens. (column: condition, line: 1)",
+        "Invalid names: control/group. Names must start with a letter and "
+        "contain only letters, numbers, underscores, and dots. "
+        "(column: condition, line: 1)",
         "Condition value names must be safe for R formulas. "
-        "Invalid names: control/group. Names must start with a letter or "
-        "number and contain only letters, numbers, underscores, dots, and "
-        "hyphens. (column: condition, line: 2)",
+        "Invalid names: control/group. Names must start with a letter and "
+        "contain only letters, numbers, underscores, and dots. "
+        "(column: condition, line: 2)",
     ]
 
 

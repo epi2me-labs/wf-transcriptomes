@@ -138,7 +138,7 @@ process buildSampleTranscriptomeFasta {
 
 process runJointSqanti {
     label "wf_transcriptomes_sqanti"
-    cpus { params.threads ?: 4 }
+    cpus 2
     memory "24 GB"
     publishDir "${params.out_dir}/cohort",
         mode: "copy",
@@ -172,7 +172,7 @@ process runJointSqanti {
 
 process runPerSampleSqanti {
     label "wf_transcriptomes_sqanti"
-    cpus { params.threads ?: 4 }
+    cpus 2
     memory "24 GB"
     publishDir "${params.out_dir}/samples/${meta.alias}",
         mode: "copy",
