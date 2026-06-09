@@ -13,6 +13,7 @@ variables:
               RTEST_CONTAINER_NAME: "wf-transcriptomes-core"
               RTEST_CONTAINER_CONFIG_KEY: "container_sha"
               WF_TEMPLATE_ENFORCEMENT_REF: "v6.1.0-rc1"
+              EKS_RUNNER_SIZE: "xlarge-highio"
 
 pytest_wfcontainer:
     extends: pytest
@@ -32,13 +33,6 @@ aws-run:
         - when: never
 
 docker-run:
-    tags:
-        - linux
-        - prod
-        - amd64
-        - eks
-        - xlarge-highio
-        - docker
     artifacts:
         when: always
         paths:
