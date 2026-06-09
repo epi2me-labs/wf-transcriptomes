@@ -340,6 +340,9 @@ def fastq_ingress(Map arguments, aln_ref_ch = null)
        `cram` outputs a CRAM file with index (.cram, .crai)
  *  - "sort_threads": number of threads to use for sorting aligned reads (default: 1)
  *  - "force_alignment": boolean. Run alignment regardless of inputs.
+ *  - "checked_bam_hook": closure. Optional hook called after all BAM header/read checks
+ *     complete. Receives a list of `[meta, paths]` tuples and must return replacement
+ *     tuples of the same shape. Can warn, error, or add routing metadata.
  * @param aln_ref_ch: optional channel with a reference tuple (ref, ref_idx) to align against.
  *  If provided alignment will be attempted if inputs are unaligned or not already aligned to this ref.
  * @return: channel of `[Map(alias, barcode, type, ...), Path|null, Path|null]`.
@@ -361,8 +364,13 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
             "fastcat_extra_args": "",
             "fastq_chunk": null,
             "force_alignment": false,
+            "checked_bam_hook": null,
         ]
     )
+    // immediately separate hooks from margs as they cannot be serialised
+    // and are currently only needed in this scope
+    def checked_bam_hook = margs.remove("checked_bam_hook")
+
     margs["fastq_chunk"] ?= 0  // cant pass null through channel
 
     if (margs["return_fastq"] && aln_ref_ch){
@@ -408,14 +416,24 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
         [meta + [src_xam: src_xam, src_xai: src_xai], paths]
     }
     | combine(aln_ref)
-    | checkBamHeaders
-    | map { meta, paths, is_unaligned_env, mixed_sq_headers_env, is_sorted_env, has_reads_env ->
+    | checkBamHeads
+    | map {
+        meta,
+        paths,
+        is_unaligned_env,
+        mixed_sq_headers_env,
+        is_sorted_env,
+        has_reads_env,
+        has_splice_cigars_env,
+        has_modbase_tags_env ->
         // convert the env. variables from strings ('0' or '1') into bools
         boolean is_unaligned = is_unaligned_env as int as boolean
         boolean mixed_sq_headers = mixed_sq_headers_env as int as boolean
         boolean is_sorted = is_sorted_env as int as boolean
         // if no reads, no error (multisample may have some empty bams) but do not attempt alignment
         boolean has_reads = has_reads_env as int as boolean
+        boolean has_splice_cigars = has_splice_cigars_env as int as boolean
+        boolean has_modbase_tags = has_modbase_tags_env as int as boolean
         // throw an error if there was a sample with mixed headers
         if (mixed_sq_headers) {
             error "Found mixed headers in (u)BAM files of sample '${meta.alias}'."
@@ -423,7 +441,24 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
         // add `is_unaligned` to the metamap (note the use of `+` to create a copy of
         // `meta` to avoid modifying every item in the channel;
         // https://github.com/nextflow-io/nextflow/issues/2660)
-        [meta + [is_unaligned: is_unaligned, is_sorted: is_sorted, has_reads: has_reads], paths]
+        [
+            meta + [
+                is_unaligned: is_unaligned,
+                is_sorted: is_sorted,
+                has_reads: has_reads,
+                has_splice_cigars: has_splice_cigars,
+                has_modbase_tags: has_modbase_tags,
+            ],
+            paths
+        ]
+    }
+
+    if (aln_ref_ch && checked_bam_hook) {
+        ch_check_bams = ch_check_bams
+        | collect(flat: false)
+        | flatMap { checked_bams ->
+            checked_bam_hook(checked_bams)
+        }
     }
 
     // Handle alignment
@@ -431,7 +466,7 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
         alignment_fork = ch_check_bams
         | branch {
             meta, paths ->
-                to_align: (meta.is_unaligned || margs.force_alignment) && meta.has_reads
+                to_align: (meta.is_unaligned || meta.requires_alignment || margs.force_alignment) && meta.has_reads
                 noalign: true
         }
         if (margs["output_xam_fmt"] == "bam"){
@@ -448,14 +483,18 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
         // Update meta is unaligned
         mm2_aln_final = mm2_aln.alignment.map{
             meta, xam, xai, stats ->
-                // remove has reads from meta as no longer required
-                def newmeta = meta.findAll { k, v -> k != 'has_reads' }
+                // remove alignment routing metadata that is no longer required
+                def newmeta = meta.findAll {
+                    k, v -> !(k in ['has_reads', 'requires_alignment'])
+                }
                 [newmeta + [is_unaligned: false], xam, xai, stats]
         }
         // Process BAM files that do not require realignment by passing them through the standard downstream steps (merging, sorting, indexing, etc.)
         ch_result_tmp = alignment_fork.noalign.map{
             meta, paths -> 
-                def newmeta = meta.findAll { k, v -> k != 'has_reads' }
+                def newmeta = meta.findAll {
+                    k, v -> !(k in ['has_reads', 'requires_alignment'])
+                }
                 [newmeta, paths]
         }
     } else {
@@ -769,7 +808,7 @@ process fastcat {
     """
 }
 
-process checkBamHeaders {
+process checkBamHeads {
     label "ingress"
     label "wf_common"
     cpus 1
@@ -784,6 +823,8 @@ process checkBamHeaders {
             env(MIXED_SQ_HEADERS),
             env(IS_SORTED),
             env(HAS_READS),
+            env(HAS_SPLICE_CIGARS),
+            env(HAS_MODBASE_TAGS),
         )
     script:
     String ref_arg = ref.fileName.name == OPTIONAL_FILE.name ? "" : "--ref $ref --ref_idx $ref_index"

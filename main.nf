@@ -20,6 +20,8 @@ process getVersions {
     publishDir "${params.out_dir}", mode: 'copy', pattern: "versions.txt"
     cpus 1
     memory "2 GB"
+    input:
+        path "additional_versions.txt"
     output:
         path "versions.txt"
     script:
@@ -28,6 +30,36 @@ process getVersions {
     samtools --version | head -n 1 | sed 's/ /,/' >> versions.txt
     gffread --version | sed 's/^/gffread,/' >> versions.txt || true
     Rscript -e 'pkgs <- c("bambu", "DESeq2", "DEXSeq"); for (pkg in pkgs) {cat(pkg, as.character(packageVersion(pkg)), sep = ","); cat("\\n")}' >> versions.txt
+    cat additional_versions.txt >> versions.txt
+    """
+}
+
+
+process getSqantiVersion {
+    label "wf_transcriptomes_sqanti"
+    cpus 1
+    memory "2 GB"
+    output:
+        path "versions.txt"
+    script:
+    """
+    sqanti3_qc.py --version | sed 's/ /,/' >> versions.txt
+    """
+}
+
+
+process getModkitVersion {
+    label "modkit"
+    cpus 1
+    memory "2 GB"
+    input:
+        path "old_versions.txt"
+    output:
+        path "versions.txt"
+    script:
+    """
+    cp old_versions.txt versions.txt
+    modkit --version | sed 's/ /,/' >> versions.txt
     """
 }
 
@@ -100,7 +132,7 @@ workflow wf {
         ref_genome
         ref_annotation
     main:
-        software_versions = getVersions()
+        software_versions = getVersions(getModkitVersion(getSqantiVersion()))
         workflow_params = getParams()
 
         transcriptome_results = transcriptome(reads, ref_genome, ref_annotation, sample_sheet)
@@ -235,6 +267,70 @@ workflow {
         "sort_threads": 3,
     ]
 
+    def checked_bam_hook = { checked_bams ->
+        if (params.force_alignment) {
+            // short-circuit this hook to allow for forced realignment
+            return checked_bams
+        }
+
+        // determine BAMs with and without splice-aware CIGAR evidence
+        ArrayList aliases_with_splice_cigars = []
+        ArrayList aliases_without_splice_cigars = []
+        checked_bams.each {
+            def meta = it[0]
+            if (meta.has_reads) {
+                if (meta.has_splice_cigars) {
+                    aliases_with_splice_cigars.add(meta.alias)
+                } else {
+                    aliases_without_splice_cigars.add(meta.alias)
+                }
+            }
+        }
+        boolean any_with_splice_cigars = aliases_with_splice_cigars
+        boolean any_without_splice_cigars = aliases_without_splice_cigars
+
+        // explode on mixed splice-aware status
+        if (any_with_splice_cigars && any_without_splice_cigars) {
+            log.error """
+                Cannot proceed with mixed splice-aware CIGAR evidence in input BAMs.
+
+                This workflow requires splice-aware alignment. It cannot safely realign
+                only the BAMs that appear to lack splice-aware CIGARs, because the
+                original alignment parameters for the other BAMs are unknown.
+
+                It is unlikely for a splice-aware aligned transcriptome BAM to have no
+                reads with N CIGAR operations. Inspect your BAMs to understand why their
+                splice-aware alignment evidence differs. Either remove the BAMs without
+                splice-aware CIGARs from the analysis, or use --force_alignment to realign
+                all inputs.
+
+                Samples with splice CIGARs: ${aliases_with_splice_cigars.join(', ')}
+                Samples without splice CIGARs: ${aliases_without_splice_cigars.join(', ')}
+                """.stripIndent().trim()
+            error "Mixed splice-aware CIGAR evidence in input BAMs."
+        }
+
+        // all read-containing BAMs have splice-aware CIGAR evidence, or there are no reads
+        if (!any_without_splice_cigars) {
+            return checked_bams
+        }
+
+        // if we're here, all read-containing BAMs lack splice-aware CIGAR evidence
+        // fiddle the metamap to set requires_alignment (if there are reads to align)
+        log.warn "No input BAMs appear to contain splice-aware CIGAR evidence. " +
+            "The workflow will realign all inputs."
+        checked_bams.collect {
+            def meta = it[0]
+            def paths = it[1]
+            [
+                meta + [
+                    requires_alignment: meta.has_reads,
+                ],
+                paths
+            ]
+        }
+    }
+
     if (params.fastq) {
         samples = fastq_ingress([
             "input": params.fastq,
@@ -243,6 +339,7 @@ workflow {
         samples = xam_ingress([
             "input": params.bam,
             "force_alignment": params.force_alignment,
+            "checked_bam_hook": checked_bam_hook,
         ] + ingress_args, ref_genome)
     }
 

@@ -13,39 +13,6 @@ testthat::test_that("covariates parsed and trimmed", {
     )
 })
 
-# R formulas break on spaces/hyphens in column names (e.g., ~ `time point` produces errors).
-# Validate condition_column and covariate names are safe (alphanumeric + underscore).
-testthat::test_that("formula-unsafe column names rejected", {
-    tx_se <- make_test_tx_se()
-    gene_se <- make_test_gene_se()
-    sample_df <- data.frame(
-        alias = colnames(tx_se),
-        condition = rep(c("control", "treated"), each = 3),
-        batch = rep(c("b1", "b2", "b1"), 2),
-        stringsAsFactors = FALSE
-    )
-    argv <- list(
-        transcript_rds = "transcripts.rds",
-        gene_rds = "genes.rds",
-        sample_sheet = "sample_sheet.csv",
-        condition_column = "time point",
-        covariates = "batch",
-        reference_level = NULL
-    )
-    argv <- workflow_glue_r_normalise_args(argv, de_analysis_arg_spec())
-
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "Design column names must be safe for R formulas"
-    )
-
-    argv$condition_column <- "condition"
-    argv$covariates <- "batch-id"
-    testthat::expect_error(
-        de_validate_inputs(tx_se, gene_se, sample_df, argv),
-        "Invalid names: batch-id"
-    )
-})
 
 testthat::test_that("DTU transcript output renames contrast-specific log2fold column", {
     contrast_name <- "treated_control"

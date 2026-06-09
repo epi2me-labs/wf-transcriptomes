@@ -4,6 +4,8 @@
   "title": "epi2me-labs/wf-transcriptomes",
   "workflow_title": "Transcriptomes",
   "description": "Long-read transcript discovery, quantification, differential expression, QC and mod counting.",
+  "demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/v2/wf-transcriptomes-demo.tar.gz",
+  "aws_demo_url": "https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/wf-transcriptomes-demo/transcriptomes.v2.aws.nextflow.config",
   "url": "https://github.com/epi2me-labs/wf-transcriptomes",
   "type": "object",
   "definitions": {
@@ -167,11 +169,6 @@
       "type": "object",
       "description": "Performance tuning and tool-specific advanced parameters.",
       "properties": {
-        "threads": {
-          "type": "integer",
-          "default": 4,
-          "description": "Thread count to use for the core workflow processes."
-        },
         "mod_codes": {
           "type": "string",
           "description": "Comma-separated modified base codes to pass to modkit pileup.",

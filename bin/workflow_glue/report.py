@@ -386,21 +386,28 @@ def _mod_summary_matrix_style():
     """
 
 
-def _contrast_results(de_dir, filename, n=None):
+def _contrast_results(de_dir, filename):
     """Return a dict of per-contrast result DataFrames read from filename."""
     tables = {}
     for contrast_dir in sorted(Path(de_dir).iterdir()):
         if not contrast_dir.is_dir():
             continue
-        table = _read_table(contrast_dir / filename)
+        # Enforce str dtype in case of all Nan values.
+        table = _read_table(
+            contrast_dir / filename,
+            dtype={'gene_name': str, 'transcript_name': str}
+        )
         if table is None or table.empty:
             continue
-        data = table
-        if n is not None:
-            data = data.head(n)
-        if "padj" in data.columns:
-            data.sort_values("padj", ascending=True, inplace=True)
-        tables[contrast_dir.name] = data
+
+        if 'gene_name' in table.columns:
+            table["gene_name"] = table["gene_name"].fillna("-")
+        if 'transcript_name' in table.columns:
+            table["transcript_name"] = table["transcript_name"].fillna("-")
+
+        if "padj" in table.columns:
+            table.sort_values("padj", ascending=True, inplace=True)
+        tables[contrast_dir.name] = table
 
     return tables
 
@@ -548,17 +555,23 @@ def _heatmap_style():
 
 def _volcano_style():
     return """
-        .volcano-table-grid {
+        .volcano-plot-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 20px 10px;
+            grid-template-columns: minmax(0, 1fr) minmax(430px, 34%);
+            gap: 18px;
             align-items: start;
         }
-        .volcano-table-grid > * {
+        .volcano-plot-grid > *,
+        .volcano-side-panel > * {
             min-width: 0;
         }
-        @media screen and (max-width: 1000px) {
-            .volcano-table-grid {
+        .volcano-side-panel {
+            display: grid;
+            gap: 10px;
+            align-items: start;
+        }
+        @media screen and (max-width: 1100px) {
+            .volcano-plot-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -1417,10 +1430,11 @@ def main(args):
 
                     h3("Gene expression volcano Plot")
                     gn_vol, gn_class_table, gn_selected_table = volcano(table)
-                    EZChart(gn_vol, width="100%", height="550")
-                    with div(_class="volcano-table-grid"):
-                        EZChart(gn_class_table, width="100%", height="auto")
-                        EZChart(gn_selected_table, width="100%", height="auto")
+                    with div(_class="volcano-plot-grid"):
+                        EZChart(gn_vol, width="100%", height="550")
+                        with div(_class="volcano-side-panel"):
+                            EZChart(gn_class_table, width="100%", height="auto")
+                            EZChart(gn_selected_table, width="100%", height="auto")
 
         with report.add_section("Differential transcript usage", "DTU"):
             p(
@@ -1505,10 +1519,11 @@ def main(args):
 
                         h3("Transcript expression volcano Plot")
                         tr_vol, tr_class_table, tr_selected_table = volcano(dtu_table)
-                        EZChart(tr_vol, width="100%", height="550")
-                        with div(_class="volcano-table-grid"):
-                            EZChart(tr_class_table, width="100%", height="auto")
-                            EZChart(tr_selected_table, width="100%", height="auto")
+                        with div(_class="volcano-plot-grid"):
+                            EZChart(tr_vol, width="100%", height="550")
+                            with div(_class="volcano-side-panel"):
+                                EZChart(tr_class_table, width="100%", height="auto")
+                                EZChart(tr_selected_table, width="100%", height="auto")
                     else:
                         p("No DTU results available for this contrast.")
 

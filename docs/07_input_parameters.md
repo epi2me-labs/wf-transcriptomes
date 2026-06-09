@@ -48,7 +48,6 @@
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
-| threads | integer | Thread count to use for the core workflow processes. |  | 4 |
 | mod_codes | string | Comma-separated modified base codes to pass to modkit pileup. | Provide values accepted by `modkit pileup --modified-bases`, for example `A:a,C:m`. If omitted, the workflow infers `primary_base:mod_code` pairs from the BAM with `modkit modbam check-tags`. |  |
 | force_alignment | boolean | Force re-alignment of input BAM files. | Read alignment is skipped if the existing sequence names in the aligned BAM match the provided reference. Enable this if the existing alignments used incorrect minimap2 presets (e.g. missing --splice or direct RNA settings). | False |
 | ndr | number | Optional bambu novel discovery rate override. | Lower values are more conservative (higher precision), while higher values are more permissive (higher novel-discovery sensitivity). See the [`bambu` repository](https://github.com/GoekeLab/bambu) for method details. |  |

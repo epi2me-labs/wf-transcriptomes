@@ -1,6 +1,6 @@
 """Interactive volcano plot visualization for differential expression analysis."""
 
-from bokeh.events import Tap
+from bokeh.events import DocumentReady, Tap
 from bokeh.layouts import column as bokeh_column, row as bokeh_row
 from bokeh.models import (
     AutocompleteInput,
@@ -102,15 +102,7 @@ def _volcano_source_data(data, fold_threshold=1, p_threshold=0.05):
     if not has_gene_name:
         data["gene_name"] = ""
 
-    data["gene_group"] = data["GENEID"] if "GENEID" in data.columns else ""
-    if is_transcript_plot:
-        if "gene_name" in data.columns:
-            named_group = data["gene_name"].astype(bool)
-            data.loc[named_group, "gene_group"] = data.loc[named_group, "gene_name"]
-        else:
-            named_group = data["GENEID"].astype(bool)
-            data.loc[named_group, "gene_group"] = data.loc[named_group, "GENEID"]
-
+    data["gene_group"] = data["GENEID"]
     data["selected_label"] = ""
 
     # Transformations and thresholds
@@ -306,6 +298,25 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     _pos_means = source_data["mean_expression"][source_data["mean_expression"] > 0]
     mean_min_log = float(_pos_means.min()) if len(_pos_means) > 0 else 0.01
     y_threshold = -np.log10(p_threshold)
+    responsive_slider_title_stylesheet = """
+    @media screen and (max-width: 1100px) {
+        .bk-slider-title {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .bk-slider-title:hover {
+            overflow: visible;
+            text-overflow: clip;
+            white-space: normal;
+            position: relative;
+            z-index: 1;
+            background: white;
+        }
+    }
+    """
 
     source = ColumnDataSource(source_data)
     selection_state = ColumnDataSource({"indices": [[]]})
@@ -577,8 +588,9 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         source=selected_source,
         columns=table_columns,
         autosize_mode="force_fit",
-        height=310,
+        height=355,
         index_position=None,
+        visible=False,
     )
     legend_table = DataTable(
         source=legend_source,
@@ -654,6 +666,7 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         step=0.1,
         show_value=False,
         sizing_mode="stretch_width",
+        stylesheets=[responsive_slider_title_stylesheet],
     )
     fold_input = TextInput(
         title="",
@@ -668,6 +681,7 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         step=0.1,
         show_value=False,
         sizing_mode="stretch_width",
+        stylesheets=[responsive_slider_title_stylesheet],
     )
     p_input = TextInput(
         title="",
@@ -681,6 +695,7 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
             selection_state=selection_state,
             highlight_source=highlight_source,
             selected_source=selected_source,
+            selected_table=selected_table,
             legend_source=legend_source,
             fold_slider=fold_slider,
             fold_input=fold_input,
@@ -783,6 +798,8 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
             selectedData.volcano_class.push(data.volcano_class[index]);
         });
         selected_source.data = selectedData;
+        selected_table.visible = selected.length > 0;
+        selected_table.height = window.innerWidth <= 1100 ? 180 : 355;
         if (view_toggle.active) {
             const highlightData = {
                 log2FoldChange: [],
@@ -1060,7 +1077,8 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
             "Search by gene/transcript…" if is_transcript_plot else "Search by gene…"),
         completions=[],
         min_characters=1,
-        width=240,
+        height=32,
+        width=225,
     )
     search_input.js_on_change("value_input", CustomJS(
         args=dict(
@@ -1169,7 +1187,8 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     clear_button = Button(
         label="Clear selection",
         button_type="default",
-        width=130,
+        height=32,
+        width=120,
     )
     clear_button.js_on_click(CustomJS(
         args=dict(
@@ -1186,6 +1205,7 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     export_button = Button(
         label="\u2B07 TSV",
         button_type="light",
+        height=32,
         width=55
     )
 
@@ -1232,8 +1252,15 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     controls = bokeh_row(
         fold_slider, fold_input, p_slider, p_input, sizing_mode="stretch_width")
     toggle_row = bokeh_row(
-        plot_mode_toggle, view_toggle,
-        gene_select_toggle, select_significant_button
+        plot_mode_toggle,
+        view_toggle,
+        gene_select_toggle,
+        select_significant_button,
+        sizing_mode="stretch_width",
+        styles={
+            "flex-wrap": "wrap",
+            "row-gap": "6px",
+        },
     )
     volcano_ma_plot._fig = bokeh_column(
         bokeh_row(controls, sizing_mode="stretch_width"),
@@ -1255,8 +1282,6 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         sizing_mode="stretch_width",
         styles={
             "padding-top": "4px",
-            "padding-left": "35px",
-            "padding-right": "20px"
         },
     )
     selected_plot = BokehPlot()
@@ -1265,8 +1290,27 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
             bokeh_row(
                 search_input, clear_button, export_button)
         ),
-        selected_table, sizing_mode="stretch_width",
+        selected_table,
+        sizing_mode="stretch_width",
         styles={
-            "padding-top": "25px",
+            "padding-top": "8px",
         })
+    selected_plot._fig.js_on_event(DocumentReady, CustomJS(
+        args=dict(
+            selected_source=selected_source,
+            selected_table=selected_table,
+        ),
+        code="""
+        const listenerKey = "volcano_selected_table_resize_" + selected_source.id;
+        function updateSelectedTableLayout() {
+            selected_table.visible = selected_source.data.source_index.length > 0;
+            selected_table.height = window.innerWidth <= 1100 ? 180 : 355;
+        }
+        updateSelectedTableLayout();
+        if (!window[listenerKey]) {
+            window[listenerKey] = true;
+            window.addEventListener("resize", updateSelectedTableLayout);
+        }
+        """,
+    ))
     return volcano_ma_plot, classes_table, selected_plot

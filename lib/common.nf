@@ -67,7 +67,7 @@ process minimap2_alignment {
     cpus { bsargs["alignment_threads"] }
     memory { bsargs["minimap2_memory"][task.attempt - 1] }
     maxRetries { bsargs["minimap2_memory"].size() - 1 }
-    errorStrategy = {task.exitStatus in [137,140] ? 'retry' : 'finish'}
+    errorStrategy "retry"  // retry on any error as we may not exit with appropriate codes when exceeding memory
     input:
         tuple val(meta), path(reads, stageAs: 'reads/*'), path(reference), path(ref_index)
         tuple val(align_ext), val(index_ext) // either [bam, bai] or [cram, crai]

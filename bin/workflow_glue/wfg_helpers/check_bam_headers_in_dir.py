@@ -8,37 +8,69 @@ import pysam
 from ..util import get_named_logger, wf_parser  # noqa: ABS101
 
 
-def extract_header_info(xam_file, has_reads, check_ref=False):
+READ_SCAN_LIMIT = 10000
+
+
+def alignment_has_cigar_op(alignment, cigar_op):
+    """Return whether an alignment has a splice/reference-skip CIGAR op."""
+    return any(op == cigar_op for op, _ in (alignment.cigartuples or []))
+
+
+def alignment_has_tags(alignment, tags):
+    """Return whether an alignment carries all tags in a list of SAM tags."""
+    alignment_tags = {tag.upper() for tag, _ in alignment.get_tags()}
+    return all(tag in alignment_tags for tag in tags)
+
+
+def check_n_reads(
+    alignment_file,
+    check_modbase_tags=False,
+    check_splice_cigars=False,
+    read_scan_limit=READ_SCAN_LIMIT,
+):
+    """Extract bounded read-level facts from an open XAM file."""
+    read_facts = {
+        "has_reads": False,
+    }
+    if check_splice_cigars:
+        read_facts["has_splice_cigars"] = False
+    if check_modbase_tags:
+        read_facts["has_modbase_tags"] = False
+
+    for i, alignment in enumerate(alignment_file.fetch(until_eof=True)):
+        if i >= read_scan_limit:
+            break
+        read_facts["has_reads"] = True
+        if check_splice_cigars and not read_facts["has_splice_cigars"]:
+            read_facts["has_splice_cigars"] = alignment_has_cigar_op(
+                alignment, cigar_op=3)
+        if check_modbase_tags and not read_facts["has_modbase_tags"]:
+            read_facts["has_modbase_tags"] = alignment_has_tags(
+                alignment, tags=["MM", "ML"])
+
+        if all(read_facts.values()):
+            break
+
+    return read_facts
+
+
+def check_header(alignment_file, check_ref=False):
     """Extract header information from a BAM/CRAM file."""
-    try:
-        f = pysam.AlignmentFile(xam_file, check_sq=False)
-    except (ValueError, IOError):
-        return None, None, None, False
+    # Extract SQ lines, comparing only SN/LN/M5 elements
+    # (see CW-4842 - ignore different SQ.UR values)
+    sq_lines = [{
+        "SN": sq["SN"],
+        "LN": sq["LN"],
+        "M5": sq.get("M5"),
+    } for sq in alignment_file.header.get("SQ", [])]
 
-    with f:
-        # Extract SQ lines, comparing only SN/LN/M5 elements
-        # (see CW-4842 - ignore different SQ.UR values)
-        sq_lines = [{
-            "SN": sq["SN"],
-            "LN": sq["LN"],
-            "M5": sq.get("M5"),
-        } for sq in f.header.get("SQ", [])]
+    hd_lines = alignment_file.header.get("HD")
 
-        hd_lines = f.header.get("HD")
+    xam_reflen = None
+    if check_ref:
+        xam_reflen = set(zip(alignment_file.references, alignment_file.lengths))
 
-        xam_reflen = None
-        if check_ref:
-            xam_reflen = set(zip(f.references, f.lengths))
-        # Whilst we have file open check for atleast 1 reads
-        # unless reads already found
-        if not has_reads:
-            try:
-                next(f.fetch(until_eof=True))
-                has_reads = True
-            except StopIteration:
-                has_reads = False
-
-    return sq_lines, hd_lines, xam_reflen, has_reads
+    return sq_lines, hd_lines, xam_reflen
 
 
 def compare_ref_lengths(xam_reflen, ref_reflen, logger):
@@ -107,15 +139,36 @@ def main(args):
     requires_realign = False
     any_sq_lines = False  # Track if any file has @SQ lines
     has_reads = False
+    # a bit hacky to check these specific XAM properties here but this is a very good
+    # place to do it. in future i'd like to abstract this out to be more like how sample
+    # sheets are checked, with delegation to the workflow scope for determining checks
+    has_splice_cigars = False
+    has_modbase_tags = False
 
     for xam_file in target_files:
-        sq_lines, hd_lines, xam_reflen, has_reads = extract_header_info(
-            xam_file, has_reads, check_ref=bool(args.ref))
-
-        if sq_lines is None:
+        try:
+            xam_fh = pysam.AlignmentFile(xam_file, check_sq=False)
+        except (ValueError, IOError):
             # File couldn't be opened
             logger.error(f"Failed to open {xam_file}")
             continue
+
+        with xam_fh:
+            sq_lines, hd_lines, xam_reflen = check_header(
+                xam_fh,
+                check_ref=bool(args.ref),
+            )
+            if not (has_reads and has_splice_cigars and has_modbase_tags):
+                read_facts = check_n_reads(
+                    xam_fh,
+                    check_splice_cigars=not has_splice_cigars,
+                    check_modbase_tags=not has_modbase_tags,
+                )
+                has_reads = has_reads or read_facts["has_reads"]
+                has_splice_cigars = (
+                    has_splice_cigars or read_facts["has_splice_cigars"])
+                has_modbase_tags = (
+                    has_modbase_tags or read_facts["has_modbase_tags"])
 
         if sq_lines:
             any_sq_lines = True
@@ -157,9 +210,11 @@ def main(args):
         f"IS_UNALIGNED={int(is_unaligned)};" +
         f"MIXED_SQ_HEADERS={int(mixed_sq_headers)};" +
         f"IS_SORTED={int(sorted_xam)};" +
-        f"HAS_READS={int(has_reads)};"
+        f"HAS_READS={int(has_reads)};" +
+        f"HAS_SPLICE_CIGARS={int(has_splice_cigars)};" +
+        f"HAS_MODBASE_TAGS={int(has_modbase_tags)};"
     )
-    logger.info(f"Checked (u)BAM headers in '{args.input_path}'.")
+    logger.info(f"Checked (u)BAM heads in '{args.input_path}'.")
 
 
 def argparser():
