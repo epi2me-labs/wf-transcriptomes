@@ -4,12 +4,8 @@ include:
       file: "wf-containers.yaml"
 
 variables:
-              NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget -nv -O ${CI_PROJECT_NAME}/data/differential_expression.tar.gz https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/differential_expression.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/differential_expression.tar.gz -C ${CI_PROJECT_NAME}/data/  &&  wget -nv -O ${CI_PROJECT_NAME}/data/demo.nextflow.config https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-isoforms/demo.nextflow.config"
-              NF_WORKFLOW_OPTS: "--fastq  ${CI_PROJECT_NAME}/data/differential_expression/differential_expression_fastq \
-              --de_analysis --ref_genome ${CI_PROJECT_NAME}/data/differential_expression/hg38_chr20.fa \
-              --ref_annotation ${CI_PROJECT_NAME}/data/differential_expression/gencode.v22.annotation.chr20.gtf \
-              --direct_rna --minimap2_index_opts '-k 15' --sample_sheet ${CI_PROJECT_NAME}/data/differential_expression/sample_sheet.csv \
-              -c ${CI_PROJECT_NAME}/data/demo.nextflow.config"
+              NF_BEFORE_SCRIPT: ":"
+              NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --de_analysis --reference_level control --covariates batch"
               CI_FLAVOUR: "new"
               PYTEST_CONTAINER_NAME: "wf-common"
               PYTEST_CONTAINER_CONFIG_KEY: "common_sha"
