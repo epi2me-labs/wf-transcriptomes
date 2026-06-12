@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v2.0.1]
+
+This patch release of `wf-transcriptomes` handles an additional quantification failure case that was not observed before release.
+Users of wf-transcriptomes v2.0.0 who have encountered issues during quantification should adopt this release.
+
+### Fixed
+- Error in full_join encountered during runPerSampleBambuQuant when all read classes have no compatible transcript assignment.
+
+
 ## [v2.0.0]
 
 This release refreshes `wf-transcriptomes` around a new reference-guided transcriptomics workflow built on `bambu`, with `SQANTI3` transcript classification and QC, `DESeq2` for differential gene expression, `DEXSeq` for differential transcript usage, and per-sample modified base summarisation with `modkit` when modification tags are present in aligned BAMs.

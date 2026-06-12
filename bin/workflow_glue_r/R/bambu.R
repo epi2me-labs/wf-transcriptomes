@@ -325,6 +325,9 @@ bambu_known_quant_edge_error_kind <- function(msg) {
     if (grepl("eqClassById` with `y$eqClassById` due to incompatible types.", msg, fixed = TRUE)) {
         return("eqClassById_incompatible_types")
     }
+    if (grepl("Can't convert `x$txid` <vctrs_unspecified> to match type of `txid` <integer>.", msg, fixed = TRUE)) {
+        return("txid_unspecified_incompatible_types")
+    }
     NA_character_
 }
 
