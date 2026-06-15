@@ -280,6 +280,22 @@ bambu_normalise_rc_file_list <- function(rc_files, aliases = NULL) {
     rc_files
 }
 
+bambu_load_rc_file <- function(rc_file) {
+    if (is.character(rc_file) && length(rc_file) == 1L) {
+        rc_file <- readRDS(rc_file)
+    }
+    if (!methods::is(rc_file, "RangedSummarizedExperiment")) {
+        stop(
+            sprintf(
+                "Expected bambu read-class output to be a RangedSummarizedExperiment or RDS path, got '%s'.",
+                paste(class(rc_file), collapse = ", ")
+            ),
+            call. = FALSE
+        )
+    }
+    rc_file
+}
+
 bambu_chunk_id_for_seqname <- function(seqname) {
     seqname <- as.character(seqname)
     seqname <- gsub("[^A-Za-z0-9._-]+", "_", seqname)
@@ -293,6 +309,8 @@ bambu_chunk_id_for_seqname <- function(seqname) {
 
 bambu_chunk_rc_files <- function(rc_files, aliases, sample_df) {
     rc_files <- bambu_normalise_rc_file_list(rc_files, aliases = aliases)
+    # bambu may provide a RangedSummarizedExperiment or a path to an RDS spilled to disk [CW-7338]
+    rc_files <- lapply(rc_files, bambu_load_rc_file)
     seqnames <- unique(unlist(lapply(rc_files, function(rcf) {
         as.character(SummarizedExperiment::rowData(rcf)$chr.rc)
     })))

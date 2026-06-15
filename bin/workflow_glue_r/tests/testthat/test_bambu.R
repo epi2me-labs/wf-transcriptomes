@@ -383,6 +383,33 @@ testthat::test_that("discover mode writes chunked rc outputs", {
     testthat::expect_equal(chunk_bundle$aliases, c("sampleA", "sampleB"))
 })
 
+testthat::test_that("cw-7338 chunking accepts path-backed rc outputs", {
+    fixture_dir <- tempfile("bambu-path-backed-rc-")
+    dir.create(fixture_dir)
+
+    make_rc_sample <- function(alias) {
+        rcf <- make_test_tx_se(sample_names = alias)
+        S4Vectors::mcols(SummarizedExperiment::rowRanges(rcf))$chr.rc <- c("chr1", "chr1", "chr2", "chr2")
+        rcf
+    }
+
+    rc_paths <- file.path(fixture_dir, paste0(c("sampleA", "sampleB"), "_readClassSe.rds"))
+    saveRDS(make_rc_sample("sampleA"), rc_paths[[1]])
+    saveRDS(make_rc_sample("sampleB"), rc_paths[[2]])
+    names(rc_paths) <- c("sampleA", "sampleB")
+
+    chunk_bundles <- bambu_chunk_rc_files(
+        as.list(rc_paths),
+        aliases = c("sampleA", "sampleB"),
+        sample_df = data.frame(alias = c("sampleA", "sampleB"), stringsAsFactors = FALSE)
+    )
+
+    testthat::expect_equal(unname(sort(vapply(chunk_bundles, `[[`, character(1), "seqname"))), c("chr1", "chr2"))
+    testthat::expect_equal(chunk_bundles[[1]]$aliases, c("sampleA", "sampleB"))
+    testthat::expect_s4_class(chunk_bundles[[1]]$rc_files$sampleA, "RangedSummarizedExperiment")
+    testthat::expect_s4_class(chunk_bundles[[1]]$rc_files$sampleB, "RangedSummarizedExperiment")
+})
+
 testthat::test_that("annotation tx counts are computed once per seqname", {
     discovered_annotations <- GenomicRanges::GRangesList(
         tx1 = GenomicRanges::GRanges(seqnames = "chr1", ranges = IRanges::IRanges(c(1, 10), width = 5)),
