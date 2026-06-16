@@ -13,6 +13,7 @@ Users of wf-transcriptomes v2.0.0 who have encountered issues during discovery a
 ### Fixed
 - "Error in full_join" encountered during `runPerSampleBambuQuant` when all read classes have no compatible transcript assignment. An empty quant table is correctly emitted instead.
 - "unable to find an inherited method for function 'rowData'" encountered during `runJointBambuDiscover` when providing many samples. The workflow now correctly handles data spilled to disk by bambu discover.
+- Adjusted p-values below 0.001 in the volcano selection table are now shown in scientific notation instead of being rounded to 0.000.
 
 
 ## [v2.0.0]
@@ -323,4 +324,3 @@ This patch release of wf-transcriptomes updates internal workflow naming, and do
 ### Added
 - First release
 - Initial port of Snakemake WF from https://github.com/nanoporetech/pipeline-nanopore-ref-isoforms
-
