@@ -67,6 +67,10 @@ def _volcano_source_data(data, fold_threshold=1, p_threshold=0.05):
     input_columns = set(data.columns)
     data["log2FoldChange"] = pd.to_numeric(data["log2FoldChange"], errors="coerce")
     data["padj"] = pd.to_numeric(data["padj"], errors="coerce")
+
+    data.replace([np.inf, -np.inf], np.nan, inplace=True)
+    data.dropna(subset=["log2FoldChange", "padj"], inplace=True)
+
     is_transcript_plot = "featureID" in data.columns
     if is_transcript_plot:
         data.rename(columns={
@@ -267,6 +271,9 @@ def _tap_selection_callback_code(x_field, y_field):
 
 def volcano(data, fold_threshold=1, p_threshold=0.05):
     """Build an interactive volcano plot with selection and filtering widgets."""
+    input_size = len(data)
+    source_data = data.dropna(subset=["log2FoldChange", "padj"])
+    n_filtered = input_size - len(source_data)
     source_data, original_columns = _volcano_source_data(
         data, fold_threshold=fold_threshold, p_threshold=p_threshold
     )
@@ -1321,4 +1328,15 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         }
         """,
     ))
-    return volcano_ma_plot, classes_table, selected_plot
+    message = None
+    if n_filtered > 0:
+        tx_file = (
+            "results_dtu_transcript.tsv" if is_transcript_plot else "results_dge.tsv")
+        message = (
+            f"{n_filtered} features were omitted from the volcano plot because "
+            "they do not have plottable log2 fold-change or adjusted p-values. "
+            "<br>This is expected for low-information features filtered by the "
+            "differential analysis method. Full results are available in "
+            f"<i>{tx_file}</i>."
+        )
+    return volcano_ma_plot, classes_table, selected_plot, message
