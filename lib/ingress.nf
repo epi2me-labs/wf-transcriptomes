@@ -480,14 +480,15 @@ def xam_ingress(Map arguments, aln_ref_ch = null)
             output_xam_fmt,
             margs
         )
-        // Update meta is unaligned
+        // Update meta for newly aligned inputs
         mm2_aln_final = mm2_aln.alignment.map{
             meta, xam, xai, stats ->
                 // remove alignment routing metadata that is no longer required
                 def newmeta = meta.findAll {
                     k, v -> !(k in ['has_reads', 'requires_alignment'])
                 }
-                [newmeta + [is_unaligned: false], xam, xai, stats]
+                // flip is_unaligned marker and drop references to input xam
+                [newmeta + [is_unaligned: false, src_xam: null, src_xai: null], xam, xai, stats]
         }
         // Process BAM files that do not require realignment by passing them through the standard downstream steps (merging, sorting, indexing, etc.)
         ch_result_tmp = alignment_fork.noalign.map{
