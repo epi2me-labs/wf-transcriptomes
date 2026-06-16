@@ -177,8 +177,9 @@ workflow wf {
             .collect()
 
         // meta.src_xam is non-null if BAMs are "passed through"
+        // while meta.src_xai can be null if xam are provided without index
         generated_alignment_outputs = reads
-            .filter { meta, bam, bai, stats -> meta.src_xam == null }
+            .filter { meta, bam, bai, stats -> meta.src_xam == null || meta.src_xai == null }
             .flatMap { meta, bam, bai, stats ->
                 def outdir = "samples/${meta.alias}/alignment"
                 [
@@ -343,7 +344,6 @@ workflow {
         ] + ingress_args, ref_genome)
     }
 
-
     sample_sheet_aliases = sample_sheet == OPTIONAL_FILE ?
         null :
         sample_sheet
@@ -358,7 +358,6 @@ workflow {
             )
         }
     }
-
 
     analysis_samples = samples
         .filter { meta, xam, xai, stats ->
@@ -387,7 +386,6 @@ workflow {
         }
 
     processed_samples = analysis_samples
-
     pipeline_run = wf(processed_samples, sample_sheet, ref_genome, ref_annotation)
     results = pipeline_run.results
 
@@ -417,11 +415,18 @@ workflow {
             .map { [ it[0], "reference" ] }
 
         igv_alignment_paths = processed_samples
-            .map { meta, bam, bai, stat -> [
-                meta.src_xam ?: "${meta.alias},samples/${meta.alias}/alignment/reads.bam",
-                meta.src_xai ?: "${meta.alias},samples/${meta.alias}/alignment/reads.bam.bai"
-            ] }
-            .flatten()
+            .map { meta, bam, bai, stat ->
+                // Fall back to the published BAM/BAI pair whenever either source path is missing.
+                def use_published_alignment = (meta.src_xam == null || meta.src_xai == null)
+                [
+                    use_published_alignment
+                        ? "${meta.alias},samples/${meta.alias}/alignment/reads.bam"
+                        : "${meta.alias},${meta.src_xam}",
+                    use_published_alignment
+                        ? "${meta.alias},samples/${meta.alias}/alignment/reads.bam.bai"
+                        : "${meta.alias},${meta.src_xai}",
+                ]
+            }.flatten()
 
         // convert [alias0, [bw00...bw0N]] to [alias0, bw00] ... [aliasN, bwNN]
         // allowing for [aliasM, bwM0] if only one bw is output because ... nextflow
