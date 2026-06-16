@@ -548,7 +548,7 @@ def _heatmap_style():
                 grid-template-columns: 1fr;
             }
         }
-        .clustering-info {
+        .info-text {
             font-size: 11px;
         }"""
 
@@ -1384,7 +1384,7 @@ def main(args):
                             EZChart(hierarchical_result.heatmap, width="100%")
                             EZChart(hierarchical_result.pca, width="100%")
                             EZChart(hierarchical_result.distance, width="100%")
-                        with div(cls="clustering-info"):
+                        with div(cls="info-text"):
                             br()
                             clustering_info('gene')
             tabs = Tabs()
@@ -1422,19 +1422,22 @@ def main(args):
                         _round_de_table(table.head(args.de_table_size)),
                         use_index=False
                     )
-                    with div(cls="clustering-info"):
+                    with div(cls="info-text"):
                         raw(
                             f"Table showing the top {args.de_table_size} genes sorted "
                             "by adjusted p-value. <br><br><br>"
                         )
 
                     h3("Gene expression volcano Plot")
-                    gn_vol, gn_class_table, gn_selected_table = volcano(table)
+                    gn_vol, gn_class_table, gn_selected_table, vol_text = volcano(table)
                     with div(_class="volcano-plot-grid"):
                         EZChart(gn_vol, width="100%", height="550")
                         with div(_class="volcano-side-panel"):
                             EZChart(gn_class_table, width="100%", height="auto")
                             EZChart(gn_selected_table, width="100%", height="auto")
+                        if vol_text is not None:
+                            with div(cls="info-text"):
+                                raw(vol_text)
 
         with report.add_section("Differential transcript usage", "DTU"):
             p(
@@ -1467,7 +1470,7 @@ def main(args):
                             EZChart(hierarchical_result.heatmap, width="100%")
                             EZChart(hierarchical_result.pca, width="100%")
                             EZChart(hierarchical_result.distance, width="100%")
-                        with div(cls="clustering-info"):
+                        with div(cls="info-text"):
                             br()
                             clustering_info('transcript')
 
@@ -1511,19 +1514,24 @@ def main(args):
                             _round_de_table(dtu_table.head(args.de_table_size)),
                             use_index=False
                         )
-                        with div(cls="clustering-info"):
+                        with div(cls="info-text"):
                             raw(
                                 f"Table showing the top {args.de_table_size} "
                                 "transcripts sorted by adjusted p-value. <br><br><br>"
                             )
 
                         h3("Transcript expression volcano Plot")
-                        tr_vol, tr_class_table, tr_selected_table = volcano(dtu_table)
+                        (
+                            tr_vol, tr_class_table, tr_selected_table, vol_text
+                        ) = volcano(dtu_table)
                         with div(_class="volcano-plot-grid"):
                             EZChart(tr_vol, width="100%", height="550")
                             with div(_class="volcano-side-panel"):
                                 EZChart(tr_class_table, width="100%", height="auto")
                                 EZChart(tr_selected_table, width="100%", height="auto")
+                            if vol_text is not None:
+                                with div(cls="info-text"):
+                                    raw(vol_text)
                     else:
                         p("No DTU results available for this contrast.")
 
