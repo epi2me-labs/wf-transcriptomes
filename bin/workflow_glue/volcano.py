@@ -581,7 +581,15 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         TableColumn(
             field="padj",
             title="padj",
-            formatter=NumberFormatter(format="0.000e"),
+            formatter=HTMLTemplateFormatter(
+                template="""
+                <% if (value < 0.001 && value !== 0) { %>
+                    <span><%= value.toExponential(2) %></span>
+                <% } else { %>
+                    <span><%= value.toFixed(4) %></span>
+                <% } %>
+                """
+                ),
         ),
     ])
     selected_table = DataTable(
