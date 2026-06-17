@@ -1089,6 +1089,65 @@ testthat::test_that("chunk combiner sums duplicate transcript rows across chunks
     testthat::expect_equal(incompatible$sampleA, c(10, 20))
 })
 
+testthat::test_that("streaming chunk directory combiner matches in-memory combiner", {
+    sample_df <- data.frame(alias = "sampleA", stringsAsFactors = FALSE)
+    base_se <- make_test_tx_se(sample_names = sample_df$alias)
+    fixture_dir <- tempfile("bambu-combine-dirs-")
+    dir.create(fixture_dir)
+    tx_se <- SummarizedExperiment::SummarizedExperiment(
+        assays = SummarizedExperiment::assays(base_se),
+        rowRanges = make_test_bambu_row_ranges(fixture_dir)
+    )
+
+    chunk1 <- tx_se
+    chunk2 <- tx_se
+    counts1 <- SummarizedExperiment::assay(chunk1, "counts")
+    counts2 <- SummarizedExperiment::assay(chunk2, "counts")
+    counts1[3:4, ] <- 0
+    counts2[1:2, ] <- 0
+    SummarizedExperiment::assay(chunk1, "counts", withDimnames = FALSE) <- counts1
+    SummarizedExperiment::assay(chunk2, "counts", withDimnames = FALSE) <- counts2
+    SummarizedExperiment::assay(chunk1, "CPM", withDimnames = FALSE) <-
+        t(t(counts1) / pmax(colSums(counts1), 1)) * 1e6
+    SummarizedExperiment::assay(chunk2, "CPM", withDimnames = FALSE) <-
+        t(t(counts2) / pmax(colSums(counts2), 1)) * 1e6
+
+    S4Vectors::metadata(chunk1)$incompatibleCounts <- data.frame(
+        GENEID = c("gene1", "gene2"),
+        `01` = c(10, 0),
+        stringsAsFactors = FALSE
+    )
+    S4Vectors::metadata(chunk2)$incompatibleCounts <- data.frame(
+        GENEID = c("gene1", "gene2"),
+        `01` = c(0, 20),
+        stringsAsFactors = FALSE
+    )
+
+    chunk_dirs <- file.path(fixture_dir, c("chunk1", "chunk2"))
+    dir.create(chunk_dirs[[1]])
+    dir.create(chunk_dirs[[2]])
+    saveRDS(chunk1, file.path(chunk_dirs[[1]], "bambu_transcripts.rds"))
+    saveRDS(chunk2, file.path(chunk_dirs[[2]], "bambu_transcripts.rds"))
+
+    in_memory <- bambu_combine_transcript_chunks(list(chunk1, chunk2))
+    streaming <- bambu_combine_transcript_chunk_dirs(chunk_dirs)
+
+    testthat::expect_equal(rownames(streaming), rownames(in_memory))
+    testthat::expect_equal(SummarizedExperiment::rowData(streaming), SummarizedExperiment::rowData(in_memory))
+    testthat::expect_equal(
+        SummarizedExperiment::assay(streaming, "counts"),
+        SummarizedExperiment::assay(in_memory, "counts")
+    )
+    testthat::expect_equal(
+        SummarizedExperiment::assay(streaming, "CPM"),
+        SummarizedExperiment::assay(in_memory, "CPM")
+    )
+    testthat::expect_equal(
+        S4Vectors::metadata(streaming)$incompatibleCounts,
+        S4Vectors::metadata(in_memory)$incompatibleCounts
+    )
+})
+
 # Transcript filtering edge cases
 testthat::test_that("filters on counts when fullLengthCounts disagrees", {
     se <- make_test_tx_se(sample_names = c("sampleA", "sampleB"))

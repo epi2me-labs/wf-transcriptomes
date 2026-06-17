@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v2.0.1]
 
-This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, and fixes an issue encountered during joint discovery for many samples.
+This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, and fixes issues encountered by users during joint discovery when providing many samples.
 Users of wf-transcriptomes v2.0.0 who have encountered issues during discovery and quantification should adopt this release.
 
 ### Fixed
 - "Error in full_join" encountered during `runPerSampleBambuQuant` when all read classes have no compatible transcript assignment. An empty quant table is correctly emitted instead.
 - "unable to find an inherited method for function 'rowData'" encountered during `runJointBambuDiscover` when providing many samples. The workflow now correctly handles data spilled to disk by bambu discover.
+- Fatal memory error (exit 137) encountered during `collateBambuQuant` when providing many samples with a large reference. Collation now uses a two-pass approach to process the per-chunk RDS results to avoid exhausting memory limits.
 - Volcano plot class counts incorrect when `log2FoldChange` or `padj` columns contained NA values.
 - Adjusted p-values below 0.001 in the volcano selection table are now shown in scientific notation instead of being rounded to 0.000.
 - IGV track not correctly loading in EPI2ME Desktop when a sample consists of a single input BAM.
+
 
 ## [v2.0.0]
 

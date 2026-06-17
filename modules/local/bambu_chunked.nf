@@ -85,7 +85,7 @@ process bambuEmpty {
 process collateBambuQuant {
     label "wf_transcriptomes"
     cpus 1
-    memory "16 GB"
+    memory "8 GB"
     input:
         tuple val(meta), path(chunk_dirs, stageAs: "chunks/*")
         path annotation, stageAs: "annotation/*"

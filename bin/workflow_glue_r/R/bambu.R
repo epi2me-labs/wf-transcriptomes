@@ -959,6 +959,55 @@ bambu_sum_incompatible_counts <- function(tx_ses) {
     data.table::as.data.table(combined)
 }
 
+bambu_add_incompatible_counts <- function(combined, incompatible_counts, sample_names) {
+    if (is.null(incompatible_counts)) {
+        return(combined)
+    }
+
+    current_sample_cols <- setdiff(colnames(incompatible_counts), c("GENEID", "TXNAME"))
+    if (!identical(current_sample_cols, sample_names)) {
+        stop(
+            "Chunk quantification outputs have mismatched incompatible count columns.",
+            call. = FALSE
+        )
+    }
+
+    if (is.null(combined)) {
+        combined <- data.frame(
+            GENEID = as.character(incompatible_counts$GENEID),
+            stringsAsFactors = FALSE
+        )
+        for (sample_col in sample_names) {
+            values <- incompatible_counts[[sample_col]]
+            values[is.na(values)] <- 0
+            combined[[sample_col]] <- values
+        }
+        return(combined)
+    }
+
+    idx <- match(as.character(incompatible_counts$GENEID), combined$GENEID)
+    if (anyNA(idx)) {
+        new_gene_ids <- as.character(incompatible_counts$GENEID[is.na(idx)])
+        new_rows <- data.frame(
+            GENEID = new_gene_ids,
+            stringsAsFactors = FALSE
+        )
+        for (sample_col in sample_names) {
+            new_rows[[sample_col]] <- numeric(length(new_gene_ids))
+        }
+        combined <- rbind(combined, new_rows)
+        idx <- match(as.character(incompatible_counts$GENEID), combined$GENEID)
+    }
+
+    for (sample_col in sample_names) {
+        values <- incompatible_counts[[sample_col]]
+        values[is.na(values)] <- 0
+        combined[[sample_col]][idx] <- combined[[sample_col]][idx] + values
+    }
+
+    combined
+}
+
 bambu_unique_row_ranges <- function(tx_ses, tx_names) {
     combined_row_ranges <- do.call(c, lapply(tx_ses, SummarizedExperiment::rowRanges))
     unique_row_ranges <- combined_row_ranges[!duplicated(names(combined_row_ranges))]
@@ -1030,6 +1079,124 @@ bambu_combine_transcript_chunks <- function(tx_ses) {
     )
 }
 
+bambu_read_chunk_transcript_se <- function(chunk_dir) {
+    readRDS(file.path(chunk_dir, "bambu_transcripts.rds"))
+}
+
+bambu_validate_chunk_shape <- function(se, assay_names, sample_names) {
+    if (!identical(SummarizedExperiment::assayNames(se), assay_names)) {
+        stop("Chunk quantification outputs have mismatched assay sets.", call. = FALSE)
+    }
+    if (!identical(colnames(se), sample_names)) {
+        stop("Chunk quantification outputs have mismatched sample columns.", call. = FALSE)
+    }
+}
+
+bambu_collect_chunk_metadata <- function(chunk_dirs) {
+    # First pass: discover the global row order/metadata before allocating
+    # combined assay matrices, without retaining all chunk SEs in memory.
+    first_se <- bambu_read_chunk_transcript_se(chunk_dirs[[1]])
+    assay_names <- SummarizedExperiment::assayNames(first_se)
+    sample_names <- colnames(first_se)
+    col_data <- SummarizedExperiment::colData(first_se)
+    object_metadata <- S4Vectors::metadata(first_se)
+    empty_row_ranges <- SummarizedExperiment::rowRanges(first_se)[0]
+
+    tx_names <- character(0)
+    combined_row_ranges <- empty_row_ranges
+    incompatible_counts <- NULL
+
+    for (chunk_dir in chunk_dirs) {
+        se <- bambu_read_chunk_transcript_se(chunk_dir)
+        bambu_validate_chunk_shape(se, assay_names, sample_names)
+
+        row_names <- rownames(se)
+        new_idx <- !row_names %in% tx_names
+        if (any(new_idx)) {
+            tx_names <- c(tx_names, row_names[new_idx])
+            combined_row_ranges <- c(
+                combined_row_ranges,
+                SummarizedExperiment::rowRanges(se)[new_idx]
+            )
+        }
+
+        chunk_incompatible <- bambu_normalise_incompatible_counts(
+            S4Vectors::metadata(se)$incompatibleCounts,
+            sample_names = sample_names
+        )
+        incompatible_counts <- bambu_add_incompatible_counts(
+            incompatible_counts,
+            chunk_incompatible,
+            sample_names
+        )
+    }
+
+    row_ranges <- combined_row_ranges[match(tx_names, names(combined_row_ranges))]
+    if (is.null(incompatible_counts)) {
+        incompatible_counts <- bambu_empty_incompatible_counts(sample_names)
+    }
+    object_metadata$incompatibleCounts <- data.table::as.data.table(incompatible_counts)
+
+    list(
+        assay_names = assay_names,
+        sample_names = sample_names,
+        col_data = col_data,
+        object_metadata = object_metadata,
+        tx_names = tx_names,
+        row_ranges = row_ranges
+    )
+}
+
+bambu_fill_combined_assays_from_chunks <- function(chunk_dirs, chunk_metadata) {
+    combined_assays <- stats::setNames(lapply(chunk_metadata$assay_names, function(assay_name) {
+        matrix(
+            0,
+            nrow = length(chunk_metadata$tx_names),
+            ncol = length(chunk_metadata$sample_names),
+            dimnames = list(chunk_metadata$tx_names, chunk_metadata$sample_names)
+        )
+    }), chunk_metadata$assay_names)
+
+    for (chunk_dir in chunk_dirs) {
+        se <- bambu_read_chunk_transcript_se(chunk_dir)
+        for (assay_name in chunk_metadata$assay_names) {
+            assay_mat <- SummarizedExperiment::assay(se, assay_name)
+            collapsed <- rowsum(assay_mat, group = rownames(se), reorder = FALSE)
+            idx <- match(rownames(collapsed), chunk_metadata$tx_names)
+            combined_assays[[assay_name]][idx, ] <-
+                combined_assays[[assay_name]][idx, , drop = FALSE] + collapsed
+        }
+    }
+
+    if ("counts" %in% names(combined_assays) && "CPM" %in% names(combined_assays)) {
+        counts_mat <- combined_assays[["counts"]]
+        combined_assays[["CPM"]] <- t(t(counts_mat) / pmax(colSums(counts_mat), 1)) * 1e6
+    }
+
+    combined_assays
+}
+
+# Directory-backed equivalent of bambu_combine_transcript_chunks(); production
+# collation uses this to preserve combiner semantics without retaining all chunks.
+bambu_combine_transcript_chunk_dirs <- function(chunk_dirs) {
+    if (length(chunk_dirs) < 1) {
+        stop("No chunk quantification results were provided for collation.", call. = FALSE)
+    }
+    if (length(chunk_dirs) == 1) {
+        return(bambu_read_chunk_transcript_se(chunk_dirs[[1]]))
+    }
+
+    chunk_metadata <- bambu_collect_chunk_metadata(chunk_dirs)
+    combined_assays <- bambu_fill_combined_assays_from_chunks(chunk_dirs, chunk_metadata)
+
+    SummarizedExperiment::SummarizedExperiment(
+        assays = combined_assays,
+        rowRanges = chunk_metadata$row_ranges,
+        colData = chunk_metadata$col_data,
+        metadata = chunk_metadata$object_metadata
+    )
+}
+
 bambu_collate_chunk_outputs <- function(
     chunk_dirs,
     out_dir,
@@ -1043,10 +1210,8 @@ bambu_collate_chunk_outputs <- function(
         stop("No chunk quantification directories were provided for collation.", call. = FALSE)
     }
 
-    tx_ses <- lapply(chunk_dirs, function(chunk_dir) {
-        readRDS(file.path(chunk_dir, "bambu_transcripts.rds"))
-    })
-    raw_se <- bambu_combine_transcript_chunks(tx_ses)
+    # Avoid retaining every chunk SE in memory; large cohorts can otherwise exceed 25 GB here.
+    raw_se <- bambu_combine_transcript_chunk_dirs(chunk_dirs)
 
     sample_df <- workflow_glue_r_read_sample_sheet(file.path(chunk_dirs[[1]], "samples.csv"))
 
