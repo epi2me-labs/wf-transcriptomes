@@ -1,6 +1,6 @@
 """Interactive volcano plot visualization for differential expression analysis."""
 
-from bokeh.events import DocumentReady, Tap
+from bokeh.events import DocumentReady, Reset, Tap
 from bokeh.layouts import column as bokeh_column, row as bokeh_row
 from bokeh.models import (
     AutocompleteInput,
@@ -61,6 +61,19 @@ def _class_attr_list(attr):
     return [v[attr] for k, v in SIGNIFICANCE_CLASSES.items()]
 
 
+def _padded_range(start, end, padding_fraction=0.02, min_padding=0.1):
+    """Return a lightly padded numeric range for plot axes."""
+    span = end - start
+    padding = max(min_padding, span * padding_fraction)
+    return start - padding, end + padding
+
+
+def _padded_log_range(start, end, padding_fraction=0.02):
+    """Return a lightly padded positive range for log-scaled axes."""
+    factor = 1 + padding_fraction
+    return start / factor, end * factor
+
+
 def _volcano_source_data(data, fold_threshold=1, p_threshold=0.05):
     """Prepare the minimal browser payload for the volcano/MA plot."""
     data = data.copy()
@@ -108,6 +121,8 @@ def _volcano_source_data(data, fold_threshold=1, p_threshold=0.05):
 
     data["gene_group"] = data["GENEID"]
     data["selected_label"] = ""
+    data["label_x_offset"] = 7
+    data["label_align"] = "left"
 
     # Transformations and thresholds
     data["neg_log10_padj"] = -np.log10(data["padj"])
@@ -143,6 +158,8 @@ def _volcano_source_data(data, fold_threshold=1, p_threshold=0.05):
         "neg_log10_padj",
         "padj",
         "selected_label",
+        "label_x_offset",
+        "label_align",
         "color",
         "volcano_class",
     ]
@@ -284,26 +301,22 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     x_min = float(source_data["log2FoldChange"].min())
     x_max = float(source_data["log2FoldChange"].max())
     y_max = float(source_data["neg_log10_padj"].max())
-    # Exclude the top 0.1% from the initial axis scaling to prevent outliers dominating
-    y_init_max = (
-        np.nanpercentile(
-            source_data["neg_log10_padj"]
-            .replace([np.inf, -np.inf], np.nan), 99.9)
-    )
     mean_min = float(source_data["mean_expression"].min())
     mean_max = float(source_data["mean_expression"].max())
     if x_min == x_max:
         x_min -= 1
         x_max += 1
+    x_range_min, x_range_max = _padded_range(x_min, x_max)
     if y_max <= 0:
         y_max = 1
-        y_init_max = 1
+    _, y_axis_max = _padded_range(0, y_max, min_padding=0.2)
     if mean_min == mean_max:
         mean_min *= 0.9
         mean_max *= 1.1
     # Log scale requires strictly positive lower bound; baseMean can be 0
     _pos_means = source_data["mean_expression"][source_data["mean_expression"] > 0]
     mean_min_log = float(_pos_means.min()) if len(_pos_means) > 0 else 0.01
+    ma_x_range_min, ma_x_range_max = _padded_log_range(mean_min_log, mean_max)
     y_threshold = -np.log10(p_threshold)
     responsive_slider_title_stylesheet = """
     @media screen and (max-width: 1100px) {
@@ -422,8 +435,9 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         height=480,
         sizing_mode="stretch_width",
         tools="pan,wheel_zoom,box_zoom,reset,save",
-        x_range=Range1d(x_min, x_max, bounds=(x_min, x_max)),
-        y_range=Range1d(0, y_init_max, bounds=(0, y_max)),
+        x_range=Range1d(
+            x_range_min, x_range_max, bounds=(x_range_min, x_range_max)),
+        y_range=Range1d(0, y_axis_max, bounds=(0, y_axis_max)),
     )
     vol_fig.toolbar.logo = None
 
@@ -482,8 +496,9 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         y="neg_log10_padj",
         text="selected_label",
         source=source,
-        x_offset=7,
+        x_offset="label_x_offset",
         y_offset=7,
+        text_align="label_align",
         text_font_size="10px",
         text_color="#111111",
     )
@@ -500,8 +515,11 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         sizing_mode="stretch_width",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         x_axis_type="log",
-        x_range=Range1d(mean_min_log, mean_max, bounds=(mean_min_log, mean_max)),
-        y_range=Range1d(x_min, x_max, bounds=(x_min, x_max)),
+        x_range=Range1d(
+            ma_x_range_min, ma_x_range_max,
+            bounds=(ma_x_range_min, ma_x_range_max),
+        ),
+        y_range=Range1d(x_range_min, x_range_max, bounds=(x_range_min, x_range_max)),
     )
     ma_fig.toolbar.logo = None
     ma_fig.visible = False
@@ -703,10 +721,22 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         value=f"{p_threshold:.3f}" if p_threshold >= 0.001 else f"{p_threshold:.2e}",
         width=80,
     )
+    y_axis_slider = Slider(
+        title="y-axis maximum",
+        value=y_axis_max,
+        start=0.1,
+        end=max(5, np.ceil(y_axis_max)),
+        step=0.1,
+        show_value=False,
+        orientation="horizontal",
+        sizing_mode="stretch_width",
+        stylesheets=[responsive_slider_title_stylesheet],
+    )
     # Setup callbacks for interactivity
     update_callback = CustomJS(
         args=dict(
             source=source,
+            vol_fig=vol_fig,
             selection_state=selection_state,
             highlight_source=highlight_source,
             selected_source=selected_source,
@@ -741,6 +771,8 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         const marker = data.marker;
         const volcanoClass = data.volcano_class;
         const selectedLabel = data.selected_label;
+        const labelXOffset = data.label_x_offset;
+        const labelAlign = data.label_align;
         const counts = {
             significant_high_effect: 0,
             significant_low_effect: 0,
@@ -794,13 +826,23 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         i = 0;
         while (i !== selectedLabel.length) {
             selectedLabel[i] = "";
+            labelXOffset[i] = 7;
+            labelAlign[i] = "left";
             i += 1;
         }
+        const xRangeStart = vol_fig.x_range.start;
+        const xRangeEnd = vol_fig.x_range.end;
+        const xSpan = xRangeEnd - xRangeStart;
+        const labelFlipThreshold = xRangeEnd - (xSpan * 0.12);
         selected.forEach(function(index) {
             if (view_toggle.active) {
                 selectedLabel[index] = identifier_col === "TXNAME"
                     ? data.TXNAME[index]
                     : (data.gene_name[index] || data[identifier_col][index]);
+                if (data.log2FoldChange[index] >= labelFlipThreshold) {
+                    labelXOffset[index] = -7;
+                    labelAlign[index] = "right";
+                }
             }
             selectedData.source_index.push(index);
             selectedData.owner_id.push(selected_source.id);
@@ -909,9 +951,22 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         update_callback.execute(source);
         """,
     ))
+    y_axis_slider.js_on_change("value", CustomJS(
+        args=dict(vol_fig=vol_fig, y_axis_slider=y_axis_slider),
+        code="""
+        vol_fig.y_range.end = y_axis_slider.value;
+        """,
+    ))
+    vol_fig.js_on_event(Reset, CustomJS(
+        args=dict(vol_fig=vol_fig, y_axis_slider=y_axis_slider),
+        code="""
+        y_axis_slider.value = vol_fig.y_range.end;
+        """,
+    ))
     view_toggle.js_on_change("active", CustomJS(
         args=dict(
             source=source,
+            vol_fig=vol_fig,
             selection_state=selection_state,
             highlight_source=highlight_source,
             view_toggle=view_toggle,
@@ -919,9 +974,17 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         ),
         code="""
         const selectedLabel = source.data.selected_label;
+        const labelXOffset = source.data.label_x_offset;
+        const labelAlign = source.data.label_align;
+        const xRangeStart = vol_fig.x_range.start;
+        const xRangeEnd = vol_fig.x_range.end;
+        const xSpan = xRangeEnd - xRangeStart;
+        const labelFlipThreshold = xRangeEnd - (xSpan * 0.12);
         let i = 0;
         while (i !== selectedLabel.length) {
             selectedLabel[i] = "";
+            labelXOffset[i] = 7;
+            labelAlign[i] = "left";
             i += 1;
         }
         source.selected.indices = [];
@@ -937,6 +1000,10 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
                     ? source.data.TXNAME[index]
                     : (source.data.gene_name[index] || \
                         source.data[identifier_col][index]);
+                if (source.data.log2FoldChange[index] >= labelFlipThreshold) {
+                    labelXOffset[index] = -7;
+                    labelAlign[index] = "right";
+                }
                 highlightData.log2FoldChange.push(source.data.log2FoldChange[index]);
                 highlightData.neg_log10_padj.push(source.data.neg_log10_padj[index]);
                 highlightData.mean_expression.push(source.data.mean_expression[index]);
@@ -955,6 +1022,8 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
         highlight_source.change.emit();
         """,
     ))
+    vol_fig.x_range.js_on_change("start", update_callback)
+    vol_fig.x_range.js_on_change("end", update_callback)
     gene_select_toggle.js_on_change("active", CustomJS(
         args=dict(
             source=source,
@@ -986,12 +1055,14 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
     plot_mode_toggle.js_on_click(CustomJS(
         args=dict(
             volcano_fig=vol_fig,
+            y_axis_slider=y_axis_slider,
             ma_fig=ma_fig,
             plot_mode_toggle=plot_mode_toggle,
         ),
         code="""
         const showingVolcano = volcano_fig.visible;
         volcano_fig.visible = !showingVolcano;
+        y_axis_slider.visible = !showingVolcano;
         ma_fig.visible = showingVolcano;
         plot_mode_toggle.label = showingVolcano
             ? "Show volcano plot"
@@ -1265,7 +1336,13 @@ def volcano(data, fold_threshold=1, p_threshold=0.05):
 
     volcano_ma_plot = BokehPlot()
     controls = bokeh_row(
-        fold_slider, fold_input, p_slider, p_input, sizing_mode="stretch_width")
+        fold_slider,
+        fold_input,
+        p_slider,
+        p_input,
+        y_axis_slider,
+        sizing_mode="stretch_width",
+    )
     toggle_row = bokeh_row(
         plot_mode_toggle,
         view_toggle,
