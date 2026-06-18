@@ -5,10 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-
 ## [v2.0.1]
 
-This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, and fixes issues encountered by users during joint discovery when providing many samples.
+This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, fixes issues encountered by users during joint discovery when providing many samples, and makes some improvements to the volcano plot in the output report.
 Users of wf-transcriptomes v2.0.0 who have encountered issues during discovery and quantification should adopt this release.
 
 ### Fixed
@@ -16,12 +15,12 @@ Users of wf-transcriptomes v2.0.0 who have encountered issues during discovery a
 - "unable to find an inherited method for function 'rowData'" encountered during `runJointBambuDiscover` when providing many samples. The workflow now correctly handles data spilled to disk by bambu discover.
 - Fatal memory error (exit 137) encountered during `collateBambuQuant` when providing many samples with a large reference. Collation now uses a two-pass approach to process the per-chunk RDS results to avoid exhausting memory limits.
 - Volcano plot class counts incorrect when `log2FoldChange` or `padj` columns contained NA values.
-- Adjusted p-values below 0.001 in the volcano selection table are now shown in scientific notation instead of being rounded to 0.000.
 - IGV track not correctly loading in EPI2ME Desktop when a sample consists of a single input BAM.
-- Volcano plots now display the full y-axis value range instead of initially setting the range to the 99.9th percentile.
 
 ### Added
-- Volcano plots now include a slider to control the y-axis range maximum, which can be useful to exclude low p-value outliers.
+- Volcano plots now display the full y-axis range and include a slider to control the y-axis range maximum, which can be useful to exclude low p-value outliers.
+### Changed
+- Adjusted p-values below 0.001 in the volcano selection table were rounded to 0.000, these are now shown in scientific notation.
 
 
 ## [v2.0.0]
