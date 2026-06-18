@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
 ## [v2.0.1]
 
 This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, and fixes issues encountered by users during joint discovery when providing many samples.
@@ -17,6 +18,10 @@ Users of wf-transcriptomes v2.0.0 who have encountered issues during discovery a
 - Volcano plot class counts incorrect when `log2FoldChange` or `padj` columns contained NA values.
 - Adjusted p-values below 0.001 in the volcano selection table are now shown in scientific notation instead of being rounded to 0.000.
 - IGV track not correctly loading in EPI2ME Desktop when a sample consists of a single input BAM.
+- Volcano plots now display the full y-axis value range instead of initially setting the range to the 99.9th percentile.
+
+### Added
+- Volcano plots now include a slider to control the y-axis range maximum, which can be useful to exclude low p-value outliers.
 
 
 ## [v2.0.0]
