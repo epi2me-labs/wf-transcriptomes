@@ -256,7 +256,7 @@ workflow {
 
     def ingress_args = [
         "minimap2_memory": ["31GB", "62GB"],
-        "minimap2_opts": params.direct_rna ? "-ax splice -uf -k14" : "-ax splice -uf",
+        "minimap2_opts": params.direct_rna ? "-ax splice -uf -k14" : "-ax splice -ub",
         "alignment_threads": 12,
         "output_xam_fmt": "bam",
         "sample": params.sample,

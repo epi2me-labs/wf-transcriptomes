@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+- Incorrect strand assignment when mapping cDNA reads is fixed by using minimap2 `-ub` instead of `-uf`.
+
 ## [v2.0.1]
 
 This patch release of `wf-transcriptomes` handles an additional quantification failure edge case that was not observed before release, fixes issues encountered by users during joint discovery when providing many samples, and makes some improvements to the volcano plot in the output report.
