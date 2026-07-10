@@ -39,10 +39,6 @@ sample aliases to be mapped to barcodes in multiplexed runs and is required for
   `barcode02`, and the values must be unique.
 + `alias` is the user-facing sample name, must be unique, must not begin
   with the word `barcode` and may contain only letters, numbers, `.`, `_` or `-`.
-+ If a `type` column is present, it must use one of:
-  `test_sample`, `positive_control`, `negative_control`, or
-  `no_template_control`.
-+ If an `analysis_group` column is present, every row must have a value.
 + For `--de_analysis`, the sheet must also contain the primary condition
   column (`condition` by default, overridable with `--condition_column`),
   plus any columns named in `--covariates`.

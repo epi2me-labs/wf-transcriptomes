@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Incorrect strand assignment when mapping cDNA reads is fixed by using minimap2 `-ub` instead of `-uf`.
+- Remove mention of analysis_group and type from `README.md` as they are not relevant for this workflow.
 
 ## [v2.0.1]
 
