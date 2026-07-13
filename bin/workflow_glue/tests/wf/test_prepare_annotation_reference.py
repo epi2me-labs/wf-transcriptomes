@@ -37,6 +37,13 @@ chr1\tsim\texon\t1\t5\t.\t+\t.\tParent=transcript1
 chr1\tsim\texon\t6\t10\t.\t+\t.\tParent=transcript1
 """
 
+GFF3_INPUT_WITH_REGION = """##gff-version 3
+chr1\tsim\tgene\t1\t10\t.\t+\t.\tID=gene1
+chr1\tsim\tmRNA\t1\t10\t.\t+\t.\tID=transcript1;Parent=gene1
+chr1\tsim\texon\t1\t10\t.\t+\t.\tParent=transcript1
+NT_167211.2\tRefSeq\tregion\t1\t176608\t.\t+\t.\tID=id1487055
+"""
+
 NCBI_REFERENCE = """>chr1 GRCh38 RefSeq primary assembly
 AAAA
 >chrExtra
@@ -116,6 +123,14 @@ def test_prepare_all_formats_produce_valid_outputs(
     # paths returned in summary must match
     assert summary["annotation"]["prepared"] == str(out_dir / "annotation.gtf")
     assert summary["reference"]["input"] == str(ref_path)
+    if summary["annotation"]["was_gff"]:
+        assert summary["gff_conversion"]["input_count"] is not None
+        assert summary["gff_conversion"]["output_count"] is not None
+        assert summary["gff_conversion"]["pruned_count"] is not None
+    else:
+        assert summary["gff_conversion"]["input_count"] is None
+        assert summary["gff_conversion"]["output_count"] is None
+        assert summary["gff_conversion"]["pruned_count"] is None
 
     # outputs must be valid for downstream tools (Bambu, SQANTI)
     reference = Path(summary["reference"]["input"])
@@ -175,6 +190,55 @@ def test_gff3_conversion_via_gffread(tmp_path):
     assert 'gene_id "gene1"' in prepared_text
     assert 'transcript_id "transcript1"' in prepared_text
     assert "\texon\t" in prepared_text
+
+
+def test_gffread_omissions_are_reported_separately(tmp_path, monkeypatch):
+    """GFF records and seqnames dropped by gffread are reported explicitly."""
+    reference = _write(
+        tmp_path / "reference.fa",
+        SIMPLE_REFERENCE + ">NT_167211.2\nAAAA\n",
+    )
+    annotation = _write(tmp_path / "annotation.gff3", GFF3_INPUT_WITH_REGION)
+
+    def fake_gffread_conversion(self, _gff_path, gtf_path):
+        Path(gtf_path).write_text(
+            'chr1\tsim\ttranscript\t1\t10\t.\t+\t.\t'
+            'gene_id "gene1"; transcript_id "transcript1";\n'
+            'chr1\tsim\texon\t1\t10\t.\t+\t.\t'
+            'gene_id "gene1"; transcript_id "transcript1";\n',
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(
+        prepare_annotation_reference.Annotation,
+        "_run_gffread_conversion",
+        fake_gffread_conversion,
+    )
+
+    summary = prepare_annotation_reference.prepare_annotation_reference(
+        annotation,
+        reference,
+        tmp_path / "prepared",
+    )
+
+    assert summary["gff_conversion"]["input_count"] == 4
+    assert summary["gff_conversion"]["output_count"] == 2
+    assert summary["gff_conversion"]["pruned_count"] == 2
+    assert summary["only_in_gff"] == ["NT_167211.2"]
+
+    assert "NT_167211.2" not in summary["seqnames"]["only_in_annotation"]
+    assert "NT_167211.2" not in summary["seqnames"]["only_in_reference"]
+    pruned_warning = next(
+        w
+        for w in summary["warnings"]
+        if "no transcript records retained during GFF-to-GTF conversion" in w
+    )
+    assert pruned_warning.startswith("Info:")
+    assert (
+        "expected for seqnames containing only non-transcript GFF features"
+        in pruned_warning
+    )
+    assert "Examples:\nNT_167211.2" in pruned_warning
 
 
 def test_normalise_unknown_gff_strands_rewrites_question_mark(tmp_path):

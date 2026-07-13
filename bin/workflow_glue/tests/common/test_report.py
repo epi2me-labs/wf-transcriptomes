@@ -247,7 +247,8 @@ def test_report_main_accepts_optional_file_sentinels(monkeypatch, tmp_path):
     assert out_report.exists()
     assert any("Overlapping seqnames" in table.to_string() for table in tables)
     assert any(
-        "Annotation attributes sanitised" in table.to_string() for table in tables
+        "Transcript annotation attributes sanitised" in table.to_string()
+        for table in tables
     )
     assert any("GRCh38" in table.to_string() for table in tables)
 

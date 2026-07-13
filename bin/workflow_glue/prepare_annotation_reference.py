@@ -154,6 +154,10 @@ class Annotation:
         self.input_path = Path(input_path)
         self.work_dir = Path(work_dir)
         self.normalised_records = 0
+        self.gff_convert_input_count = None
+        self.gff_convert_output_count = None
+        self.gff_convert_pruned_count = None
+        self.only_in_gff = []
         # outputs
         self.was_gff = _is_gff(self.input_path)
         self.unfiltered_path = self.input_path  # intermediate GTF before filtering
@@ -166,9 +170,23 @@ class Annotation:
             intermediate, self.normalised_records = (
                 self._normalise_unknown_gff_strands(intermediate)
             )
+            self.gff_convert_input_count = self._count_records(intermediate)
+            gff_input_seqnames = self._extract_seqnames(intermediate)
 
             self.unfiltered_path = self.work_dir / "annotation_unfiltered.gtf"
             self._run_gffread_conversion(intermediate, self.unfiltered_path)
+            self.gff_convert_output_count = self._count_records(
+                self.unfiltered_path
+            )
+            gff_converted_seqnames = self._extract_seqnames(
+                self.unfiltered_path
+            )
+            self.gff_convert_pruned_count = (
+                self.gff_convert_input_count - self.gff_convert_output_count
+            )
+            self.only_in_gff = sorted(
+                set(gff_input_seqnames) - set(gff_converted_seqnames)
+            )
 
         self.output_path = self.unfiltered_path  # maybe mutated after filtering
 
@@ -286,6 +304,16 @@ class Annotation:
                         ids.add(fields[0])
         return sorted(ids)
 
+    def _count_records(self, path):
+        """Count non-empty, non-comment annotation records."""
+        records = 0
+        with self._open_gtf(path) as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    records += 1
+        return records
+
     @property
     def seqnames(self):
         """Get seqnames from the current annotation output path."""
@@ -374,13 +402,18 @@ class Annotation:
         }
 
 
-def validate_seqname_overlap(annotation_seqnames, reference_seqnames):
+def validate_seqname_overlap(
+    annotation_seqnames,
+    reference_seqnames,
+    gff_seqnames=None,
+):
     """Return overlap statistics for annotation/reference seqnames."""
     ann_set = set(annotation_seqnames)
     ref_set = set(reference_seqnames)
+    gff_set = set(gff_seqnames or [])
     matches = sorted(ann_set & ref_set)
     only_in_annotation = sorted(ann_set - ref_set)
-    only_in_reference = sorted(ref_set - ann_set)
+    only_in_reference = sorted(ref_set - ann_set - gff_set)
 
     return {
         "has_overlap": bool(matches),
@@ -390,9 +423,19 @@ def validate_seqname_overlap(annotation_seqnames, reference_seqnames):
     }
 
 
-def build_warnings(filter_stats, seqnames, ref_hints, ann_hints):
+def build_warnings(filter_stats, seqnames, ref_hints, ann_hints, ann=None):
     """Build all warning messages."""
     warnings = []
+
+    if ann is not None and ann.was_gff and ann.only_in_gff:
+        examples = "\n".join(ann.only_in_gff[:5])
+        warnings.append(
+            f"Info: {len(ann.only_in_gff)} annotation "
+            "seqnames had no transcript records retained during GFF-to-GTF "
+            "conversion. This is expected for seqnames containing only "
+            "non-transcript GFF features.\n"
+            f"Examples:\n{examples}"
+        )
 
     if filter_stats["excluded_unstranded_records"]:
         warnings.extend([
@@ -413,15 +456,19 @@ def build_warnings(filter_stats, seqnames, ref_hints, ann_hints):
         )
 
     if seqnames["only_in_annotation"]:
-        warnings.extend([
-            "Warning: Some seqnames are present in the annotation but not the genome:",
-            *seqnames["only_in_annotation"][:5],
-        ])
+        examples = "\n".join(seqnames["only_in_annotation"][:5])
+        warnings.append(
+            f"Warning: {len(seqnames['only_in_annotation'])} annotation "
+            "seqnames are not present in the reference.\n"
+            f"Examples:\n{examples}"
+        )
     if seqnames["only_in_reference"]:
-        warnings.extend([
-            "Warning: Some seqnames are present in the genome but not the annotation:",
-            *seqnames["only_in_reference"][:5],
-        ])
+        examples = "\n".join(seqnames["only_in_reference"][:5])
+        warnings.append(
+            f"Warning: {len(seqnames['only_in_reference'])} reference "
+            "seqnames are not present in the annotation.\n"
+            f"Examples:\n{examples}"
+        )
 
     ref_builds = ref_hints["builds"]
     ann_builds = ann_hints["builds"]
@@ -466,7 +513,11 @@ def prepare_annotation_reference(annotation, reference, out_dir):
     filter_stats = ann.filter_stranded()
 
     # check seqname overlap between prepared annotation and reference
-    seqnames = validate_seqname_overlap(ann.seqnames, ref.seqnames)
+    seqnames = validate_seqname_overlap(
+        ann.seqnames,
+        ref.seqnames,
+        gff_seqnames=ann.only_in_gff,
+    )
 
     if not seqnames["has_overlap"]:
         raise ValueError(
@@ -482,7 +533,7 @@ def prepare_annotation_reference(annotation, reference, out_dir):
     # heuristically detect build and provider hints from filenames and headers
     ref_hints = ref.detect_hints()
     ann_hints = ann.detect_hints()
-    warnings = build_warnings(filter_stats, seqnames, ref_hints, ann_hints)
+    warnings = build_warnings(filter_stats, seqnames, ref_hints, ann_hints, ann)
     if ann.normalised_records:
         warnings.append(
             "Warning: Replaced "
@@ -500,6 +551,11 @@ def prepare_annotation_reference(annotation, reference, out_dir):
             "normalised_unknown_strand_records": ann.normalised_records,
             **filter_stats,
         },
+        "gff_conversion": {
+            "input_count": ann.gff_convert_input_count,
+            "output_count": ann.gff_convert_output_count,
+            "pruned_count": ann.gff_convert_pruned_count,
+        },
         "reference": {
             "input": str(ref.input_path),
         },
@@ -508,6 +564,7 @@ def prepare_annotation_reference(annotation, reference, out_dir):
         "seqname_overlap": seqnames["matches"],
         "only_in_annotation": seqnames["only_in_annotation"],
         "only_in_reference": seqnames["only_in_reference"],
+        "only_in_gff": ann.only_in_gff,
         "reference_build_hints": ref_hints["builds"],
         "annotation_build_hints": ann_hints["builds"],
         "reference_provider_hints": ref_hints["providers"],
