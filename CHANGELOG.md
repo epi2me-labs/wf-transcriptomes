@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Annotation preparation summary JSON and output report include a count of non-transcript records and associated seqnames that are pruned when converting a GFF to GTF. Seqnames that do not appear in the converted GTF but were present in the input GFF are now classified as "only in GFF" rather than "only in reference".
+
 ### Fixed
 - Incorrect strand assignment when mapping cDNA reads is fixed by using minimap2 `-ub` instead of `-uf`.
 - Remove mention of analysis_group and type from `README.md` as they are not relevant for this workflow.

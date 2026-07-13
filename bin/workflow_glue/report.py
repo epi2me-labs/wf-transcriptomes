@@ -501,35 +501,20 @@ def _format_hint_values(hints):
 
 def _create_warning_banner(message, level="warning"):
     """Create a styled warning banner."""
-    colors = {
-        "warning": "#fff3cd",
-        "danger": "#f8d7da",
-        "info": "#d1ecf1",
-    }
-    border_colors = {
-        "warning": "#ffc107",
-        "danger": "#dc3545",
-        "info": "#0dcaf0",
-    }
-    style = (
-        "padding: 15px; margin: 10px 0; "
-        "background-color: {}; "
-        "border-left: 4px solid {}; "
-        "border-radius: 4px;".format(
-            colors.get(level, colors["warning"]),
-            border_colors.get(level, border_colors["warning"]),
-        )
+    alert_level = level if level in {"warning", "danger", "info"} else "warning"
+    icon = (
+        "⚠️"
+        if alert_level == "warning"
+        else "❌"
+        if alert_level == "danger"
+        else "ℹ️"
     )
-    with div(style=style):
-        with strong():
-            raw(
-                "⚠️ "
-                if level == "warning"
-                else "❌ "
-                if level == "danger"
-                else "ℹ️ "
-            )
-        raw(message)
+    with div(
+        cls=f"alert alert-{alert_level}",
+        role="alert",
+        style="white-space: pre-line;",
+    ):
+        raw(f"<strong>{icon}</strong> {escape(message)}")
 
 
 def _heatmap_style():
@@ -751,43 +736,91 @@ def main(args):
                 "combinations."
             )
             for warning in annotation_reference_summary.get("warnings", []):
-                _create_warning_banner(warning, level="warning")
+                _create_warning_banner(
+                    warning,
+                    level="info" if warning.startswith("Info:") else "warning",
+                )
 
             seqname_rows = [
                 (
                     "Overlapping seqnames",
-                    len(annotation_reference_summary.get("seqname_overlap", [])),
+                    _format_count_value(
+                        len(annotation_reference_summary.get("seqname_overlap", []))
+                    ),
                 ),
                 (
                     "Seqnames only in annotation",
-                    len(annotation_reference_summary.get("only_in_annotation", [])),
+                    _format_count_value(
+                        len(
+                            annotation_reference_summary.get(
+                                "only_in_annotation", []
+                            )
+                        )
+                    ),
                 ),
                 (
                     "Seqnames only in reference",
-                    len(annotation_reference_summary.get("only_in_reference", [])),
+                    _format_count_value(
+                        len(
+                            annotation_reference_summary.get(
+                                "only_in_reference", []
+                            )
+                        )
+                    ),
                 ),
             ]
             annotation_summary = annotation_reference_summary.get("annotation", {})
-            seqname_rows.extend([
+            gff_conversion = annotation_reference_summary.get("gff_conversion", {})
+            if annotation_summary.get("was_gff"):
+                seqname_rows.extend([
+                    (
+                        "Seqnames only in GFF (pruned during GTF conversion)",
+                        _format_count_value(
+                            len(annotation_reference_summary.get("only_in_gff", []))
+                        ),
+                    ),
+                ])
+            annotation_rows = [
                 (
-                    "Annotation records retained",
-                    annotation_summary.get("kept_records", "N/A"),
+                    "Transcript annotation records retained",
+                    _format_count_value(annotation_summary.get("kept_records")),
                 ),
                 (
                     "Unstranded records excluded",
-                    annotation_summary.get("excluded_unstranded_records", "N/A"),
+                    _format_count_value(
+                        annotation_summary.get("excluded_unstranded_records")
+                    ),
                 ),
                 (
-                    "Annotation attributes sanitised",
-                    annotation_summary.get("sanitised_attribute_records", "N/A"),
+                    "Transcript annotation attributes sanitised",
+                    _format_count_value(
+                        annotation_summary.get("sanitised_attribute_records")
+                    ),
                 ),
-            ])
-            DataTable.from_pandas(
-                pd.DataFrame(seqname_rows, columns=["Check", "Value"]),
-                paging=False,
-                searchable=False,
-                use_index=False,
-            )
+            ]
+            if annotation_summary.get("was_gff"):
+                annotation_rows.append(
+                    (
+                        "Non-transcript records excluded "
+                        "(pruned during GTF conversion)",
+                        _format_count_value(gff_conversion.get("pruned_count")),
+                    ),
+                )
+            with div(cls="row"):
+                with div(cls="col-md-6"):
+                    DataTable.from_pandas(
+                        pd.DataFrame(seqname_rows, columns=["Check", "Value"]),
+                        paging=False,
+                        searchable=False,
+                        use_index=False,
+                    )
+                with div(cls="col-md-6"):
+                    DataTable.from_pandas(
+                        pd.DataFrame(annotation_rows, columns=["Check", "Value"]),
+                        paging=False,
+                        searchable=False,
+                        use_index=False,
+                    )
 
             h4("Build and Provider Hints")
             hint_rows = [

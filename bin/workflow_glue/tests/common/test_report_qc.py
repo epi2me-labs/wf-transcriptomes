@@ -168,7 +168,7 @@ def test_warning_banner_creation():
 
     html = doc.render()
     assert "Test warning message" in html
-    assert "background-color" in html
+    assert "alert alert-warning" in html
 
 
 def test_bambu_qc_with_warnings():
