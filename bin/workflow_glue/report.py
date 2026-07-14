@@ -63,6 +63,22 @@ classification_categories = {
     "Intergenic": "Query isoform lies in an intergenic region.",
 }
 
+transcript_meta_dtypes = {
+    "TXNAME": "string",
+    "GENEID": "string",
+    "NDR": "Float64",
+    "novelGene": "boolean",
+    "novelTranscript": "boolean",
+    "txClassDescription": "string",
+    "readCount": "Int64",
+    "relReadCount": "Float64",
+    "relSubsetCount": "Float64",
+    "txid": "string",
+    "eqClassById": "string",
+    "gene_name": "string",
+    "transcript_name": "string"
+}
+
 
 def get_bokeh_widgets_js():
     """Return the inline Bokeh widgets JavaScript bundle."""
@@ -114,20 +130,15 @@ def _format_ratio_value(value):
 
 def _sorted_transcript_abundance_table(tx_counts_file, sample_aliases):
     """Get transcript abundance rows by descending total abundance of sample columns."""
-    tx_counts = _read_table(tx_counts_file)
+    dtype = transcript_meta_dtypes | {sample: "Float64" for sample in sample_aliases}
+    tx_counts = _read_table(tx_counts_file, dtype=dtype)
+
     if tx_counts is None or tx_counts.empty:
         return tx_counts
-
-    count_columns = [
-        column for column in tx_counts.columns if column in set(sample_aliases)
-    ]
-    if not count_columns:
-        return tx_counts
-
-    numeric_counts = tx_counts[count_columns].apply(pd.to_numeric, errors="coerce")
-    abundance = numeric_counts.sum(axis=1, min_count=1)
-    order = abundance.fillna(float("-inf")).sort_values(ascending=False).index
-    return tx_counts.loc[order].reset_index(drop=True)
+    # Single sample data will not have 'readCount' column,
+    # so sort by the first sample alias counts instead.
+    sort_col = 'readCount' if 'readCount' in tx_counts.columns else sample_aliases[0]
+    return tx_counts.sort_values(sort_col, ascending=False)
 
 
 def _format_classification_label(name):
@@ -137,7 +148,10 @@ def _format_classification_label(name):
 
 def _transcriptome_summary(transcriptome_dir):
     """Return transcriptome metrics and transcript class counts DataFrames."""
-    tx_meta = _read_table(Path(transcriptome_dir) / "transcript_metadata.tsv")
+    tx_meta = _read_table(
+        Path(transcriptome_dir) / "transcript_metadata.tsv",
+        dtype=transcript_meta_dtypes
+    )
     if tx_meta is None:
         return None, None
 
@@ -168,7 +182,10 @@ def _sample_summaries(samples_dir):
     for sample_dir in sorted(samples_path.iterdir()):
         if not sample_dir.is_dir():
             continue
-        tx_meta = _read_table(sample_dir / "transcript_metadata.tsv")
+        tx_meta = _read_table(
+            sample_dir / "transcript_metadata.tsv",
+            dtype=transcript_meta_dtypes
+        )
         if tx_meta is None:
             continue
         summaries[sample_dir.name] = pd.DataFrame(
@@ -196,7 +213,13 @@ def _sqanti_table(sqanti_dir):
         if "classification_summary.tsv" in files:
             summaries.append(Path(root) / "classification_summary.tsv")
     for summary in sorted(summaries):
-        table = _read_table(summary)
+        table = _read_table(
+            summary,
+            dtype={
+                'structural_category': 'string',
+                'count': 'Int64'
+            }
+        )
         if table is None or table.empty:
             continue
 
@@ -235,7 +258,17 @@ def _sample_mod_summaries(summary_dir):
     for summary_file in sorted(summaries_path.glob("*.mods.summary.tsv")):
         if not summary_file.is_file():
             continue
-        summary = _read_table(summary_file)
+        summary = _read_table(
+            summary_file,
+            dtype={
+                "sample": "string",
+                "full_mod_code": "string",
+                "mod_label": "string",
+                "valid_coverage": "Int64",
+                "modified_calls": "Int64",
+                "modification_percent": "Float64"
+            },
+        )
         if summary is None or summary.empty:
             continue
         if "sample" not in summary.columns:
@@ -395,7 +428,7 @@ def _contrast_results(de_dir, filename):
         # Enforce str dtype in case of all Nan values.
         table = _read_table(
             contrast_dir / filename,
-            dtype={'gene_name': str, 'transcript_name': str}
+            dtype={'gene_name': 'string', 'transcript_name': 'string'}
         )
         if table is None or table.empty:
             continue
@@ -466,15 +499,32 @@ def _load_de_qc(de_dir):
     return None
 
 
-def _load_cpm_tables(cohort_dir):
+def _load_cpm_tables(cohort_dir, sample_aliases):
     """Load cohort-level gene and transcript CPM tables."""
     cohort_dir = Path(cohort_dir)
-    gene_cpm = _read_table(cohort_dir / "gene_cpm.tsv")
+    gene_columns = ["GENEID", *sample_aliases]
+    transcript_columns = ["TXNAME", *sample_aliases]
+
+    gene_cpm = _read_table(
+        cohort_dir / "gene_cpm.tsv",
+        dtype={
+            "GENEID": "string",
+            **{sample: "Float64" for sample in sample_aliases},
+        },
+        usecols=gene_columns,
+    )
 
     if gene_cpm is None or gene_cpm.empty:
         gene_cpm = None
 
-    transcript_cpm = _read_table(cohort_dir / "transcript_cpm.tsv")
+    transcript_cpm = _read_table(
+        cohort_dir / "transcript_cpm.tsv",
+        dtype={
+            "TXNAME": "string",
+            **{sample: "Float64" for sample in sample_aliases},
+        },
+        usecols=transcript_columns,
+    )
     if transcript_cpm is None or transcript_cpm.empty:
         transcript_cpm = None
 
@@ -489,7 +539,7 @@ def _load_cohort_samples(cohort_dir):
     sample_file = Path(cohort_dir) / "samples.csv"
     if not sample_file.exists():
         return None
-    return pd.read_csv(sample_file)
+    return pd.read_csv(sample_file, dtype='string')
 
 
 def _format_hint_values(hints):
@@ -647,6 +697,7 @@ def main(args):
 
     with open(args.metadata, "r") as handle:
         metadata = json.load(handle)
+    sample_aliases = [item["alias"] for item in metadata]
 
     if args.stats:
         with report.add_section("Read summary", "Reads"):
@@ -1038,7 +1089,7 @@ def main(args):
 
         tx_counts = _sorted_transcript_abundance_table(
             Path(bambu_dir) / "transcript_counts.tsv",
-            [item["alias"] for item in metadata]
+            sample_aliases
         )
         if tx_counts is not None and not tx_counts.empty:
             p(
@@ -1382,7 +1433,7 @@ def main(args):
 
         if de_qc:
             condition_column = de_qc.get("condition_column")
-            cohort_cpm = _load_cpm_tables(args.cohort_dir)
+            cohort_cpm = _load_cpm_tables(args.cohort_dir, sample_aliases)
             cohort_samples = _load_cohort_samples(args.cohort_dir)
 
         with report.add_section("Differential gene expression", "DGE"):

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Incorrect strand assignment when mapping cDNA reads is fixed by using minimap2 `-ub` instead of `-uf`.
+- Dataframe merge error during PCA plotting caused by all numeric aliases in the sample sheet.
 - Remove mention of analysis_group and type from `README.md` as they are not relevant for this workflow.
 ### Changed
 - 2Ome* mod code labels are used in place of CHEBI numbers in output file names and reports for 2'-O-methylation modifications.

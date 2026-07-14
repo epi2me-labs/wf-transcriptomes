@@ -129,7 +129,7 @@ def test_load_cpm_tables_exists(tmp_path):
         "tx1\t3.0\t4.0\n"
     )
 
-    result = _load_cpm_tables(cohort_dir)
+    result = _load_cpm_tables(cohort_dir, sample_aliases=["sample1", "sample2"])
     assert result["gene"] is not None
     assert result["transcript"] is not None
     assert list(result["gene"]["GENEID"]) == ["gene1"]
@@ -143,7 +143,7 @@ def test_load_cpm_tables_missing(tmp_path):
     cohort_dir = tmp_path / "cohort"
     cohort_dir.mkdir()
 
-    result = _load_cpm_tables(cohort_dir)
+    result = _load_cpm_tables(cohort_dir, sample_aliases=[])
     assert result["gene"] is None
     assert result["transcript"] is None
 
