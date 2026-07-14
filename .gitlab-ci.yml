@@ -191,6 +191,13 @@ docker-run:
                 --ref_annotation ${CI_PROJECT_NAME}/data/gencode.v22.annotation.chr20.gtf \
                 --sample_sheet ${CI_PROJECT_NAME}/data/mods_rna_subset/sample_sheet.csv \
                 --igv"
+            AFTER_NEXTFLOW_CMD: >
+                for sample in sample01 sample02; do
+                  for suffix in mods.bedmethyl.gz mods.inosine.bw mods.m5C.bw mods.m6A.bw mods.pseU.bw mods.summary.tsv; do
+                    test -f ${CI_PROJECT_NAME}/samples/$${sample}/mods/$${sample}.$${suffix};
+                  done;
+                done;
+                
         - if: $MATRIX_NAME == "mouse_splice_error"
           variables:
               NF_BEFORE_SCRIPT: "mkdir -p ${CI_PROJECT_NAME}/data/ && wget https://ont-exd-int-s3-euwst1-epi2me-labs.s3.amazonaws.com/wf-transcriptomes/mouse_splice_fail.tar.gz -O ${CI_PROJECT_NAME}/data/mouse_splice_fail.tar.gz && tar -xzvf ${CI_PROJECT_NAME}/data/mouse_splice_fail.tar.gz  -C ${CI_PROJECT_NAME}/data/" 
