@@ -45,9 +45,21 @@ def _write(path, text):
 
 def _build_report_args(tmp_path, de_qc=None):
     """Create minimal report inputs, optionally including DE QC JSON."""
+    # When DE/DTU QC inputs are present, the report also loads
+    # cohort CPM tables and samples.csv, so metadata.json must
+    # match the sample aliases in those files.
+    metadata_rows = [{"alias": "sampleA", "has_stats": False}]
+    if de_qc is not None and "contrasts" in de_qc:
+        metadata_rows = [
+            {"alias": f"sample_control_{i}", "has_stats": False}
+            for i in range(3)
+        ] + [
+            {"alias": f"sample_treated_{i}", "has_stats": False}
+            for i in range(3)
+        ]
     metadata = _write(
         tmp_path / "metadata.json",
-        json.dumps([{"alias": "sampleA", "has_stats": False}]),
+        json.dumps(metadata_rows),
     )
     params = _write(tmp_path / "params.json", "{}")
     versions = tmp_path / "versions"
@@ -798,15 +810,15 @@ def test_round_de_table_uses_scientific_notation_when_fixed_decimal_would_zero()
     assert rounded.loc[0, "padj"] == "4.900e-04"
 
 
-def test_sorted_transcript_abundance_table_uses_sample_alias_columns(tmp_path):
-    """Transcript abundance sorting should use only real sample alias columns."""
+def test_sorted_transcript_abundance_table_sorting(tmp_path):
+    """Transcript abundance sorting should sort by sample cohort readCount."""
     tx_counts_file = _write(
         tmp_path / "transcript_counts.tsv",
         (
-            "TXNAME\tsampleA\tsampleB\tgene_length\tannotation_score\n"
-            "tx_low\t1\t1\t10000\t999\n"
-            "tx_high\t5\t5\t10\t1\n"
-            "tx_mid\t2\t2\t5000\t500\n"
+            "TXNAME\treadCount\tsampleA\tsampleB\tgene_length\tannotation_score\n"
+            "tx_low\t2\t1\t1\t10000\t999\n"
+            "tx_high\t8\t5\t5\t10\t1\n"
+            "tx_mid\t4\t2\t2\t5000\t500\n"
         ),
     )
 
@@ -815,3 +827,23 @@ def test_sorted_transcript_abundance_table_uses_sample_alias_columns(tmp_path):
     )
 
     assert sorted_table["TXNAME"].tolist() == ["tx_high", "tx_mid", "tx_low"]
+
+
+def test_read_table_preserves_na_with_nullable_float_dtype(tmp_path):
+    """_read_table should preserve NA values with pandas nullable Float64."""
+    table_file = _write(
+        tmp_path / "nullable_float.tsv",
+        (
+            "name\tvalue\n"
+            "row1\t1.5\n"
+            "row2\tNA\n"
+        ),
+    )
+
+    table = report._read_table(
+        table_file, dtype={"value": "Float64"}, index_col="name"
+    )
+
+    assert str(table["value"].dtype) == "Float64"
+    assert table.loc["row1", "value"] == 1.5
+    assert pd.isna(table.loc["row2", "value"])
