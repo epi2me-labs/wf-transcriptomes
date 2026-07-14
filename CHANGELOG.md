@@ -5,17 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [v2.0.2]
 
-### Added
-- Annotation preparation summary JSON and output report include a count of non-transcript records and associated seqnames that are pruned when converting a GFF to GTF. Seqnames that do not appear in the converted GTF but were present in the input GFF are now classified as "only in GFF" rather than "only in reference".
+This patch release of `wf-transcriptomes` fixes the `minimap2` invocation for cDNA read mapping, ensuring that both strands are searched for canonical splice sites.
+This release also distinguishes annotation seqnames with no transcript records after GFF-to-GTF conversion from seqnames that are absent from the annotation.
+Users analysing cDNA data should adopt this release.
 
 ### Fixed
 - Incorrect strand assignment when mapping cDNA reads is fixed by using minimap2 `-ub` instead of `-uf`.
 - Dataframe merge error during PCA plotting caused by all numeric aliases in the sample sheet.
-- Remove mention of analysis_group and type from `README.md` as they are not relevant for this workflow.
+
+### Added
+- Annotation preparation summary JSON and output report include a count of non-transcript records and associated seqnames that are pruned when converting a GFF to GTF. Seqnames that do not appear in the converted GTF but were present in the input GFF are now classified as "only in GFF" rather than "only in reference".
+
 ### Changed
 - 2Ome* mod code labels are used in place of CHEBI numbers in output file names and reports for 2'-O-methylation modifications.
+- Removed mention of `analysis_group` and `type` sample sheet columns from `README.md` as they are not relevant for this workflow.
+
 
 ## [v2.0.1]
 
