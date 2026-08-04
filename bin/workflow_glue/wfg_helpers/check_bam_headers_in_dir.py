@@ -146,12 +146,9 @@ def main(args):
     has_modbase_tags = False
 
     for xam_file in target_files:
-        try:
-            xam_fh = pysam.AlignmentFile(xam_file, check_sq=False)
-        except (ValueError, IOError):
-            # File couldn't be opened
-            logger.error(f"Failed to open {xam_file}")
-            continue
+
+        # let pysam fail if malformed file is being read [CW-7480]
+        xam_fh = pysam.AlignmentFile(xam_file, check_sq=False)
 
         with xam_fh:
             sq_lines, hd_lines, xam_reflen = check_header(
