@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v2.0.3]
 This patch release of `wf-transcriptomes` removes a legacy configuration override that limited the memory allocation of the workflow when executed with the AWS Batch profile.
-Users who have encountered issues with the alignment step in EPI2ME Cloud should adopt this release.
+This version will be deployed into EPI2ME Cloud to address issues with the alignment step. Local users do not need to adopt this release.
 
 ### Fixed
 - "Container killed due to memory usage" when executing alignment in EPI2ME Cloud, by removing an errant configuration override that limited the memory allocated for cloud workflows.
