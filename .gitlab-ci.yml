@@ -28,8 +28,39 @@ macos-run:
     - x86
 
 aws-run:
+    stage: test
+    artifacts:
+        when: always
+        paths:
+            - ${CI_PROJECT_NAME}
+            - .nextflow.log
+        exclude:
+            - ${CI_PROJECT_NAME}/**/*.gtf
+            - ${CI_PROJECT_NAME}/**/*.gtf.gz
+            - ${CI_PROJECT_NAME}/**/*.gff3
+            - ${CI_PROJECT_NAME}/**/*.gff3.gz
+            - ${CI_PROJECT_NAME}/**/*.gff
+            - ${CI_PROJECT_NAME}/**/*.gff.gz
+            - ${CI_PROJECT_NAME}/**/*.fna
+            - ${CI_PROJECT_NAME}/**/*.fasta
+            - ${CI_PROJECT_NAME}/**/*.mmi
+            - ${CI_PROJECT_NAME}/data/**/*
+            - ${CI_PROJECT_NAME}/store_dir/**/*
+    variables:
+        CWG_AWS_ENV_NAME: "stack"
+    parallel:
+        matrix:
+            - MATRIX_NAME: [
+                "smoke_de",
+              ]
     rules:
-        - when: never
+        - if: ($CI_COMMIT_BRANCH == null || $CI_COMMIT_BRANCH == "dev-template")
+          when: never
+        # Smoke test, but in the cloud
+        - if: $MATRIX_NAME == "smoke_de"
+          variables:
+              NF_WORKFLOW_OPTS: "--fastq test_data/smoke/de --sample_sheet test_data/smoke/sample_sheet_de.csv --ref_genome test_data/smoke/reference.fa --ref_annotation test_data/smoke/annotation.gtf --de_analysis --reference_level control --covariates batch"
+
 
 docker-run:
     artifacts:
